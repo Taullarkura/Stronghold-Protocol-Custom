@@ -76,9 +76,9 @@ export const nodeMajor = () => Number(process.versions.node.split('.')[0]);
 const exists = (p) => { try { fs.accessSync(p); return true; } catch { return false; } };
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const mb = (n) => `${(n / 1048576).toFixed(0)} MB`;
-/** The art download when data/assets.json gives no size (missing, unreadable or without stats.bytes): the fork's
- * manifest after the 0.2.1 merge (upstream 0.2.0's 463 MB plus the fork's 中文 + 日文 voice and the 自选 summons' web
- * models), stats.bytes 551 MB (mb()), as README and docs/DEPLOY.md quote it. */
+/** The art download when data/assets.json gives no size (missing, unreadable or without stats.bytes): the merged
+ * manifest's stats.bytes (upstream 0.2.0's 463 MB plus the fork's voice trees and the 自选 summons' web models), as
+ * README and docs/DEPLOY.md quote it. */
 const ART_DOWNLOAD_FALLBACK = '550 MB';
 /** Terminal display width (CJK / full-width characters take two columns). */
 export const displayWidth = (s) => [...String(s)].reduce((n, ch) => n + (ch.codePointAt(0) >= 0x2e80 ? 2 : 1), 0);

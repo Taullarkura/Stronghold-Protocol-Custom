@@ -14,10 +14,8 @@ import { data } from '../data.js';
 import { audio } from '../audio.js';
 import { settingsStore } from './settings.js';
 
-// The engine gets this long to mount, all stages together (script downloads + its own startup, which waits ≤ 4 s for
-// optional parts — render/app.js STARTUP_WAIT_MS): the DOM fallback is far smaller and flatter, so a slow phone link
-// must not land there for a whole match (it did at 12 s on 4G — user report 2026-10-06). An engine that turns up after
-// the timeout is destroyed (the fallback owns the host by then).
+// Loading budget for the render engine (the fork raised it: on a Cloudflare / mobile connection the imports and the
+// Spine startup can take far longer than the upstream's 12 s). One deadline covers the whole mount — see mountFieldView.
 const LOAD_TIMEOUT_MS = 30000;
 const METHODS = ['setStage', 'setCamera', 'setPrep', 'enterBattle', 'pushSnapshot', 'pushEvents', 'highlightTiles', 'on', 'resize', 'destroy'];
 // direction-step hooks (ui/facingWheel.js): optional — the wheel falls back to the engine's dev hooks when absent;
@@ -79,9 +77,7 @@ export const HUD_REM = Object.freeze({
  * @param {string} kind
  * @param {{ width: number, height: number }} size
  * @param {{ shop?: boolean }} [opts] `shop: false` = the folded shop's band
- * On a touch screen with the shop bar shown the bands carry `minZoom: 1` (render/projection.js clearHud): the board is
- * never zoomed out below the official framing, so its pieces stay big enough to tap.
- * @returns {{ top: number, bottom: number, minZoom?: number }|null}
+ * @returns {{ top: number, bottom: number }|null}
  */
 export function hudBands(kind, size, opts) {
   if (kind !== 'prep' && kind !== 'bossPrep') return null;
@@ -91,10 +87,8 @@ export function hudBands(kind, size, opts) {
   let safeTop = 0;
   let safeBottom = 0;
   let corner = 0;
-  let touch = false;
   try {
     rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 100;
-    touch = document.documentElement.classList.contains('sp-coarse');
     // the HUD layer starts below the top safe-area inset and ends above the bottom one (css/devices.css .gm__hud)
     const hud = document.querySelector('.gm__hud')?.getBoundingClientRect();
     safeTop = Math.max(0, hud?.top || 0);
@@ -106,15 +100,10 @@ export function hudBands(kind, size, opts) {
   const bottom = folded
     ? Math.max(safeBottom + rem * HUD_REM.shopTabTop + HUD_REM.shopTabBorderPx, corner || safeBottom + rem * HUD_REM.cornerTop)
     : rem * HUD_REM.shopBarTop + HUD_REM.shopBarBorderPx;
-  const bands = {
+  return {
     top: Math.min(h * 0.4, safeTop + rem * HUD_REM.bondStripBottom),
     bottom: Math.min(h * 0.4, bottom),
   };
-  // with the shop bar shown, a touch screen never zooms the board out below the official framing (render/projection.js
-  // clearHud minZoom): the bench stays clear and the back rows may go under the top HUD — with the browser's bars showing
-  // (780×300) the zoom-out shrank the pieces to 15 px, too small to tap (user report 2026-10-06). Folded, the
-  // shop-collapsed camera is bigger already and keeps the whole board in view (public issue #5).
-  return touch && !folded ? { ...bands, minZoom: 1 } : bands;
 }
 
 /**
@@ -145,8 +134,32 @@ function renderPref() {
   return globalThis.__SP_RENDER__ === 'fallback' ? 'fallback' : 'auto';
 }
 
-function withTimeout(p, ms, what) {
-  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} timed out`)), ms))]);
+function abortError(signal) {
+  return signal?.reason ?? new DOMException('Field view initialization cancelled', 'AbortError');
+}
+
+function checkActive(signal) {
+  if (signal?.aborted) throw abortError(signal);
+}
+
+function withTimeout(p, ms, what, signal) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer;
+    const finish = (done, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      done(value);
+    };
+    const onAbort = () => finish(reject, abortError(signal));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => finish(reject, new Error(`${what} timed out`)), ms);
+    // Keep a rejection handler attached even when cancellation wins before this promise settles.
+    Promise.resolve(p).then((value) => finish(resolve, value), (err) => finish(reject, err));
+    if (signal?.aborted) onAbort();
+  });
 }
 
 /**
@@ -199,41 +212,58 @@ export function seedAssets(store) {
 /**
  * Create a field view in `host`: the render engine when available, else the DOM fallback.
  * @param {HTMLElement} host
+ * @param {{ signal?: AbortSignal }} [options] Cancels a pending mount without creating a fallback.
  * @returns {Promise<ReturnType<typeof guardView>>}
  */
-export async function mountFieldView(host) {
+export async function mountFieldView(host, { signal } = {}) {
+  checkActive(signal);
   const pref = renderPref();
   const opts = { data, assets: data.get('assets'), audio, settings: settingsStore.get(), padding: hudPadding, hud: hudBands };
   if (pref !== 'fallback') {
     // one deadline for the whole mount (the imports and the view's startup): LOAD_TIMEOUT_MS each would add up to 90 s
     const deadline = Date.now() + LOAD_TIMEOUT_MS;
     const left = () => Math.max(0, deadline - Date.now());
+    const controller = new AbortController();
+    const onAbort = () => controller.abort(abortError(signal));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+    let engineView = null;
+    const dispose = (view) => { try { view?.destroy?.(); } catch { /* ignore */ } };
     try {
+      checkActive(controller.signal);
       // the shared asset store (public/js/assets.js) keeps its Spine cache across remounts (next match, reconnect)
-      const am = await withTimeout(import('../assets.js'), left(), 'asset store import').catch(() => null);
+      const am = await withTimeout(import('../assets.js'), left(), 'asset store import', controller.signal).catch(() => {
+        checkActive(controller.signal);
+        return null;
+      });
+      checkActive(controller.signal);
       if (am?.assets && typeof am.assets.ready === 'function') {
         opts.assets = am.assets;
         seedAssets(am.assets);
       }
-      const mod = await withTimeout(import('../render/app.js'), left(), 'render engine import');
+      const mod = await withTimeout(import('../render/app.js'), left(), 'render engine import', controller.signal);
+      checkActive(controller.signal);
       if (typeof mod?.createFieldView !== 'function') throw new Error('createFieldView missing');
-      const mounting = Promise.resolve(mod.createFieldView(host, opts));
-      const view = await withTimeout(mounting, left(), 'createFieldView').catch((err) => {
-        mounting.then((late) => { try { late?.destroy?.(); } catch { /* ignore */ } }, () => {});
-        throw err;
+      // A factory that ignores cancellation still belongs to this attempt when it eventually returns.
+      const pending = Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {
+        if (controller.signal.aborted) dispose(view); else engineView = view;
+        return view;
       });
+      const view = await withTimeout(pending, left(), 'createFieldView', controller.signal);
+      checkActive(controller.signal);
       const missing = METHODS.filter((k) => typeof view?.[k] !== 'function');
-      if (missing.length) {
-        try { view?.destroy?.(); } catch { /* ignore */ }
-        throw new Error(`view lacks ${missing.join(', ')}`);
-      }
+      if (missing.length) throw new Error(`view lacks ${missing.join(', ')}`);
       return guardView(view, 'engine');
     } catch (err) {
+      controller.abort();
+      dispose(engineView);
+      checkActive(signal);
       console.warn('[field] render engine unavailable, using the simplified view:', err?.message || err);
-      // anything the engine left behind in the host goes
-      try { while (host.firstChild) host.removeChild(host.firstChild); } catch { /* ignore */ }
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
     }
   }
+  checkActive(signal);
   return guardView(createFallbackView(host, { ...opts, assets: data.get('assets') }), 'fallback');
 }
 
@@ -248,17 +278,19 @@ export function useFieldView(hostRef) {
     let dead = false;
     const host = hostRef.current;
     if (!host) return undefined;
-    mountFieldView(host).then((view) => {
+    const controller = new AbortController();
+    mountFieldView(host, { signal: controller.signal }).then((view) => {
       if (dead) { view.destroy(); return; }
       viewRef.current = view;
       globalThis.__SP_VIEW__ = view; // dev / E2E introspection (view.raw.stats?.())
       setState({ view, kind: view.kind });
-    }, (err) => console.error('[field] mount failed', err));
+    }, (err) => { if (!dead && !controller.signal.aborted) console.error('[field] mount failed', err); });
     const unsub = settingsStore.subscribe((s) => viewRef.current?.setSettings?.(s));
     const onResize = () => viewRef.current?.resize();
     window.addEventListener('resize', onResize);
     return () => {
       dead = true;
+      controller.abort();
       unsub();
       window.removeEventListener('resize', onResize);
       // the dev hook must not keep the destroyed view — and through its host the whole detached match screen — alive

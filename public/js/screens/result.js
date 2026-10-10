@@ -103,12 +103,22 @@ export function PlayerCard({ p, myId, titles, best, solo = false }) {
   </article>`;
 }
 
-/** RESULT screen. */
+/** RESULT screen of the match on screen: reads the store; 返回同盟 / 返回大厅 drops the match. */
 export function ResultScreen() {
   const res = useStore((s) => s.match.result);
   const pub = useStore((s) => s.match.public);
   const myId = useStore((s) => s.me.playerId);
   const hasRoom = useStore((s) => !!s.room);
+  const back = () => store.set({ match: emptyMatch() });
+  return html`<${ResultView} res=${res} pub=${pub} myId=${myId} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} />`;
+}
+
+/**
+ * The settlement view of one m.result payload — the live screen above, and the stats page's re-view of a stored match
+ * (screens/stats.js, which hands it the payload recordToResult rebuilt; `quiet`: no settlement jingle).
+ * @param {{ res: any, pub?: any, myId?: string|null, backLabel: string, onBack: () => void, quiet?: boolean }} props
+ */
+export function ResultView({ res, pub = null, myId = null, backLabel, onBack, quiet = false }) {
   const gd = useGameData();
   const r = normalizeResult(res, pub);
   const titles = Array.isArray(gd.config?.titles) ? gd.config.titles : [];
@@ -119,14 +129,14 @@ export function ResultScreen() {
     if (top && r.players.length > 1) best[k] = top.id;
   }
   // once m.result is here: the server sends m.public (phase RESULT, which mounts this screen) before m.result, so the
-  // first render has no result yet and would always read as a defeat (the end line follows m.result: js/audio.js)
+  // first render has no result yet and would always read as a defeat (the end line follows m.result: js/audio.js).
+  // `quiet` (the stats page's re-view of a stored match) skips the jingle.
   const settled = useRef(false);
   useEffect(() => {
-    if (!res || settled.current) return;
+    if (!res || settled.current || quiet) return;
     settled.current = true;
     audio.sfx(r.victory ? 'settlementSucceed' : 'settlementFail');
   }, [res]);
-  const back = () => store.set({ match: emptyMatch() });
   const boss = r.bossId ? gd.boss(r.bossId) : null;
   // the Hidden Core medal (and its corrupted leader) only once R15 was actually fought
   const hidden = r.hiddenBossId && r.hiddenReached ? gd.boss(r.hiddenBossId) : null;
@@ -157,7 +167,7 @@ export function ResultScreen() {
         </div>
         ${mins ? html`<p class="result__time t-lo">${tParts('本局耗时 {n} 分钟', { n: html`<b class="num">${mins}</b>`, mins })}</p>` : null}
         <footer class="result__foot">
-          <${Button} variant="primary" size="xl" icon="chevronLeft" onClick=${back}>${hasRoom ? t('返回同盟') : t('返回大厅')}<//>
+          <${Button} variant="primary" size="xl" icon="chevronLeft" onClick=${onBack}>${backLabel}<//>
         </footer>
       </section>
       <section class="result__players">

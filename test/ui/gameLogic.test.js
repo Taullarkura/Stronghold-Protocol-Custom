@@ -11,14 +11,12 @@ import {
   phaseMode, phaseBanner, isCombatPhase, isBossPhase, countdownState, phaseTotalSeconds, sortBonds, bondTier, nextThreshold,
   battleOverSfx, ownRoundLoss, uniteResultBox, battleResultBox, roundResultBox, RESULT_BOX_MS,
   bondMembers, memberHeadCount, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
-  boardTargets, dropIntent, normalizeDraft, normalizeSp, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
-  rangeGridBox, shortcutFor, sanitizeSettings, defaultQuality, DEFAULT_SETTINGS, normalizeResult, cycleField, fieldLabel, homeFieldId,
-  activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo, bondStripFolded,
-  selectVoiceKey, detailSelectVoice, createHudDelay, pickDrawn, drawnChanged, hudChanged, drawnOf, ownFieldGate, snapUnits,
+  boardTargets, dropIntent, normalizeDraft, normalizeSp, normalizePersonalChoice, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
+  rangeGridBox, shortcutFor, sanitizeSettings, DEFAULT_SETTINGS, normalizeResult, cycleField, fieldLabel, homeFieldId,
+  activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo,
 } from '../../public/js/ui/gameLogic.js';
 import { pairPlayers } from '../../server/match/finalAssault.js';
 import { PHASE, GEO } from '../../shared/constants.js';
-import { SP_CARDS_MAX } from '../../shared/protocol.js';
 import { setLang, setMessages } from '../../shared/i18n.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -444,6 +442,58 @@ describe('placement mirror (canPlace)', () => {
     assert.equal(canPlace(ctx, h0.uid, { area: 'hand', idx: 10 }).ok, false);
     assert.equal(canPlace(ctx, h0.uid, { area: 'hand', idx: -1 }).ok, false);
   });
+  test('summoner withdrawal: a full hand accepts a drop onto its own summon stack', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const ctx = ctxFor(privWith({ board: [b], hand: [...Array.from({ length: 9 }, () => item(EQUIP)), stack] }));
+    const to = { area: 'hand', idx: 9 };
+    assert.deepEqual(canPlace(ctx, b.uid, to), { ok: true, action: 'move' });
+    assert.deepEqual(dropIntent(ctx, b.uid, to), { t: 'g.move', fields: { uid: b.uid, to } });
+    assert.equal(dropFailureReason(ctx, b.uid, to), null);
+  });
+  test('summoner withdrawal: its own stack frees space when dropped onto another item or token', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const other = { ...stack, uid: ++uid, ownerUid: ++uid };
+    const ctx = ctxFor(privWith({ board: [b], hand: [...Array.from({ length: 8 }, () => item(EQUIP)), other, stack] }));
+    for (const idx of [0, 8]) {
+      const to = { area: 'hand', idx };
+      assert.deepEqual(canPlace(ctx, b.uid, to), { ok: true, action: 'move' });
+      assert.deepEqual(dropIntent(ctx, b.uid, to), { t: 'g.move', fields: { uid: b.uid, to } });
+      assert.equal(dropFailureReason(ctx, b.uid, to), null);
+    }
+  });
+  test('summoner withdrawal: a full hand without its own hand stack still refuses the move', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const other = { ...stack, uid: ++uid, ownerUid: ++uid };
+    const hand = Array.from({ length: 10 }, () => item(EQUIP));
+    const cases = [
+      privWith({ board: [b], hand }),
+      privWith({ board: [{ ...b, id: MELEE }], hand }),
+      privWith({ board: [b], hand: [...hand.slice(0, 9), other] }),
+      privWith({ board: [b], hand, temp: [stack] }),
+      privWith({ board: [b, { ...stack, row: 9, col: 3 }], hand }),
+      privWith({ board: [b], hand: [...hand.slice(0, 9), { ...item(EQUIP), ownerUid: b.uid }] }),
+    ];
+    for (const priv of cases) {
+      const ctx = ctxFor(priv);
+      for (const idx of [0, 9]) {
+        const to = { area: 'hand', idx };
+        assert.equal(canPlace(ctx, b.uid, to).code, 'HAND_FULL');
+        assert.equal(dropIntent(ctx, b.uid, to), null);
+        assert.equal(dropFailureReason(ctx, b.uid, to), '整备区已满');
+      }
+    }
+  });
+  test('summoner withdrawal: freed space does not bypass an illegal chess swap', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const ctx = ctxFor(privWith({ board: [b], hand: [piece(MELEE), ...Array.from({ length: 8 }, () => item(EQUIP)), stack] }));
+    const to = { area: 'hand', idx: 0 };
+    assert.equal(canPlace(ctx, b.uid, to).code, 'BAD_TILE');
+    assert.equal(dropIntent(ctx, b.uid, to), null);
+  });
   test('items: equip on chess (board or hand), arts on tiles, not on tokens', () => {
     const b = { ...piece(MELEE), row: 9, col: 3 };
     const hChess = piece(RANGED);
@@ -532,8 +582,33 @@ describe('drafts', () => {
     const sp2 = normalizeSp({ cards: [{}, {}], order: ['b', 'a'], turn: 0, picks: [{ playerId: 'b', idx: 1 }, { playerId: 'x', idx: 9 }] }, players);
     assert.equal(sp2.turnPid, 'b'); assert.equal(sp2.cards[1].takenBy, 'b'); assert.equal(sp2.pickOf.has('x'), false);
     assert.equal(normalizeSp(null), null);
-    // at most the server's most cards: co-op max(6, alive + 2) — 6 for 1–4 players, 10 for 8 (shared/protocol.js)
-    assert.equal(normalizeSp({ cards: new Array(SP_CARDS_MAX + 3).fill({}) }).cards.length, SP_CARDS_MAX, 'at most SP_CARDS_MAX cards');
+    assert.equal(normalizeSp({ cards: new Array(9).fill({}) }).cards.length, 6, 'at most 6 cards');
+  });
+  test('personal choice: only the living recipient in the current PREP, independent of the public draft', () => {
+    const pub = { phase: PHASE.PREP, round: 14, sp: { family: 'supply', cards: ['global'] } };
+    const priv = { playerId: 'a', alive: true, canReady: false, temp: [], personalChoice: {
+      id: 'seed.choice.3', round: 14, sourceItemId: 'chess_item_6_03_m',
+      cards: [{ id: 'e1', kind: 'bounty', name: '战术特训', coin: 2 }, { id: 'e2', kind: 'bounty' }],
+    } };
+    const before = JSON.stringify({ pub, priv });
+    const sp = normalizePersonalChoice(pub, priv, 'a');
+    assert.equal(sp.id, priv.personalChoice.id);
+    assert.equal(sp.family, 'bounty');
+    assert.equal(sp.name, '教鞭 · 战术特训');
+    assert.equal(sp.turnPid, 'a');
+    assert.equal(sp.pickOf.size, 0);
+    assert.deepEqual(sp.cards.map((c) => c.idx), [0, 1]);
+    assert.ok(sp.cards.every((c) => c.takenBy === null));
+    assert.equal(JSON.stringify({ pub, priv }), before);
+    assert.equal(shopBlockReason('ready', { priv, editable: true }), '请先完成教鞭选择');
+    assert.equal(shopBlockReason('ready', { priv: { ...priv, temp: [{}] }, editable: true }), '请先完成教鞭选择');
+    assert.match(shopBlockReason('ready', { priv: { ...priv, personalChoice: null }, editable: true }), /临时整备区/);
+    for (const phase of [PHASE.SP_DRAFT, PHASE.COMBAT, PHASE.ROUND_START]) assert.equal(normalizePersonalChoice({ ...pub, phase }, priv, 'a'), null);
+    assert.equal(normalizePersonalChoice(pub, null, 'a'), null, 'spectator has no private state');
+    assert.equal(normalizePersonalChoice(pub, priv, 'b'), null);
+    assert.equal(normalizePersonalChoice(pub, { ...priv, alive: false }, 'a'), null);
+    assert.equal(normalizePersonalChoice({ ...pub, round: 15 }, priv, 'a'), null);
+    assert.equal(normalizePersonalChoice(pub, { ...priv, personalChoice: null }, 'a'), null);
   });
 });
 
@@ -586,7 +661,10 @@ describe('enemies, HUD, stats', () => {
     assert.deepEqual(factionTypes(['FLY', { type: 'TIMES' }, { id: 'SPECIAL' }, 'FLY', 3, null]), ['FLY', 'TIMES', 'SPECIAL']);
   });
   test('snapHud / bossFrac', () => {
-    assert.deepEqual(snapHud({ killed: 3, total: 9, dp: 20 }), { killed: 3, total: 9, dp: 20, boss: null });
+    assert.deepEqual(snapHud({ killed: 3, total: 9, dp: 20 }), { killed: 3, resolved: 3, total: 9, dp: 20, boss: null });
+    // the capsule's numerator: the field's own enemies knocked out or leaked (a runtime split / summon knocked down
+    // counts in `killed` only, so the two may differ — 5/9 down but 3/9 of the round's own list resolved)
+    assert.deepEqual(snapHud({ killed: 5, resolved: 3, total: 9, dp: 20 }), { killed: 5, resolved: 3, total: 9, dp: 20, boss: null });
     assert.deepEqual(snapHud({ boss: { hp: 50, max: 200 } }).boss, { hp: 50, max: 200 });
     assert.equal(snapHud(null), null);
     assert.equal(bossFrac({ hp: 50, max: 200 }), 0.25);
@@ -644,27 +722,17 @@ describe('keyboard & settings', () => {
   });
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
-    assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, voiceLang: 'fr', muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', muted: false, damageNumbers: false, quality: 'high', keys: { ...DEFAULT_SETTINGS.keys } },
+    assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceOverrides: {}, muted: false, damageNumbers: false, quality: 'high', textSize: 'sm', keys: { ...DEFAULT_SETTINGS.keys } },
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
-    assert.equal(sanitizeSettings({ voiceLang: 'jp' }).voiceLang, 'jp');
-    assert.equal(sanitizeSettings({ voiceLang: 'off' }).voiceLang, 'off');
-    assert.equal(sanitizeSettings({ voiceLang: 'en' }).voiceLang, 'en', 'the EN / KR dubs (DESIGN §21.30)');
-    assert.equal(sanitizeSettings({ voiceLang: 'kr' }).voiceLang, 'kr');
     assert.equal(sanitizeSettings({ bgm: 0.5 }).voice, DEFAULT_SETTINGS.voice, 'a saved profile without `voice` gets the default');
+    // 语音语言 (0.2.2): 中文 by default — a profile saved before it, or any other value, plays the Chinese dub
+    assert.equal(DEFAULT_SETTINGS.voiceLang, 'cn');
+    assert.equal(sanitizeSettings({ bgm: 0.5 }).voiceLang, 'cn');
+    assert.equal(sanitizeSettings({ voiceLang: 'jp' }).voiceLang, 'jp');
+    for (const bad of ['en', 'kr', 'JP', 'ja', 1, null]) assert.equal(sanitizeSettings({ voiceLang: bad }).voiceLang, 'cn', String(bad));
     assert.equal(sanitizeSettings({ bgm: 0.333 }).bgm, 0.33);
     assert.equal(sanitizeSettings({ quality: 'low' }).quality, 'low');
-  });
-  test('phone audit P6: a phone starts on 中, only when no quality was chosen — a saved one always wins', () => {
-    assert.equal(defaultQuality(false), 'high', 'desktop / tablet keep 高');
-    assert.equal(defaultQuality(true), 'medium');
-    assert.equal(DEFAULT_SETTINGS.quality, 'high', 'the shared default is untouched');
-    assert.equal(sanitizeSettings(null, defaultQuality(true)).quality, 'medium', 'first run on a phone');
-    assert.equal(sanitizeSettings({ bgm: 0.5 }, defaultQuality(true)).quality, 'medium', 'settings saved without a quality');
-    assert.equal(sanitizeSettings({ quality: 'ultra' }, defaultQuality(true)).quality, 'medium', 'an unknown value is no choice');
-    for (const q of ['high', 'medium', 'low']) assert.equal(sanitizeSettings({ quality: q }, defaultQuality(true)).quality, q, `saved ${q} wins on a phone`);
-    assert.equal(sanitizeSettings(null).quality, 'high', 'no fallback given: unchanged behaviour');
-    assert.deepEqual({ ...sanitizeSettings(null, 'medium'), quality: 'high' }, { ...DEFAULT_SETTINGS }, 'only the quality differs');
   });
 });
 
@@ -728,402 +796,6 @@ describe('equipment dropped on a tile goes to the unit on it', () => {
     assert.equal(dropFailureReason(ctx, eq.uid, { row: 11, col: 3, area: 'board' }), '请将装备拖拽至干员身上');
     // an Art is used on the tile under the pointer itself
     assert.deepEqual(dropIntent(ctx, art.uid, { area: 'board', row: 11, col: 3 }), { t: 'g.art', fields: { itemUid: art.uid, row: 11, col: 3 } });
-  });
-});
-
-describe('operator voice (选中干员, DESIGN §21.30)', () => {
-  // a battle unit's detail card as screens/game.js builds it: the target ({ kind: 'unit', unit }) and ui/detailPanel.js
-  // resolveDetail's answer ({ type: 'chess', chess, unitId, … })
-  // (`inBattle`: screens/game.js pieceClick opened it in a battle phase)
-  const unit = (id, defId, o = {}, inBattle = true) => ({ kind: 'unit', unit: { id, defId, side: 'ally', ...o }, unitId: id, uid: o.uid ?? null, inBattle });
-  const card = (target) => ({ type: 'chess', chess: chess[target.unit.defId], piece: null, unitId: target.unit.id, unitItems: null });
-  const A = 'chess_char_1_01_a';
-  const B = 'chess_char_1_01_b';
-
-  test('selectVoiceKey: the field on screen and the unit id', () => {
-    assert.equal(selectVoiceKey('n:p_0', 7), 'n:p_0:7');
-    assert.equal(selectVoiceKey('u:1', 12), 'u:1:12');
-    assert.equal(selectVoiceKey(null, 7), ':7');
-    assert.equal(selectVoiceKey(undefined, 7), ':7');
-    assert.notEqual(selectVoiceKey('n:p_0', 7), selectVoiceKey('n:p_1', 7), 'the same unit id on another field is another unit');
-  });
-
-  test('detailSelectVoice: an operator of the battle on screen, in a battle phase only — the key the tap uses', () => {
-    const t = unit(7, A);
-    const want = { charId: chess[A].charId, key: 'n:p_0:7' };
-    for (const phase of [PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE]) {
-      assert.deepEqual(detailSelectVoice({ phase, fieldId: 'n:p_0', target: t, resolved: card(t) }), want, phase);
-    }
-    // the tap (screens/game.js pieceClick) asks with selectVoiceKey(field on screen, unit.id): the same key, so
-    // audio.voice drops the card's repeat and one tap says one line
-    assert.equal(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: t, resolved: card(t) }).key, selectVoiceKey('n:p_0', t.unit.id));
-    // the 整备期, 结算, the result screen, no match: silent
-    for (const phase of [PHASE.PREP, PHASE.ROUND_START, PHASE.SP_DRAFT, PHASE.SETTLE, PHASE.RESULT, PHASE.INFO_CHECK, null, undefined]) {
-      assert.equal(detailSelectVoice({ phase, fieldId: 'n:p_0', target: t, resolved: card(t) }), null, String(phase));
-    }
-  });
-
-  test('detailSelectVoice: battle units that resolved to a chess record only; an elite shares its charId', () => {
-    const t = unit(7, A);
-    const ok = (o) => detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: t, resolved: card(t), ...o });
-    // a teammate's / 联防 / spectated field's operator speaks too (no owner check): the key names that field
-    const mate = unit(3, A, { ownerId: 'p_1' });
-    assert.deepEqual(detailSelectVoice({ phase: PHASE.UNITE, fieldId: 'u:1', target: mate, resolved: card(mate) }), { charId: chess[A].charId, key: 'u:1:3' });
-    // an elite (`_b`) record: the same operator, the same voice
-    const elite = unit(9, B);
-    assert.equal(chess[B].charId, chess[A].charId);
-    assert.deepEqual(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: elite, resolved: card(elite) }), { charId: chess[A].charId, key: 'n:p_0:9' });
-    // a bench / board piece's card, a shop card, a bond member's card: never
-    assert.equal(ok({ target: { kind: 'piece', uid: 4 } }), null, 'a piece card');
-    assert.equal(ok({ target: { kind: 'chess', id: A } }), null, 'a shop / bond-member card');
-    assert.equal(ok({ target: null }), null);
-    // a summon, an enemy, an item: no operator line
-    assert.equal(ok({ resolved: { type: 'token', token: { id: 'token_x' }, unitId: 7 } }), null, 'a summon');
-    assert.equal(ok({ resolved: { type: 'enemy', enemy: { key: 'enemy_x' }, unitId: 7 } }), null, 'an enemy');
-    assert.equal(ok({ resolved: null }), null);
-    // no unit id (nothing to key it on) or no charId: silent
-    assert.equal(ok({ resolved: { ...card(t), unitId: undefined } }), null);
-    assert.equal(ok({ resolved: { ...card(t), unitId: null } }), null);
-    assert.equal(ok({ resolved: { ...card(t), chess: { ...chess[A], charId: undefined } } }), null);
-    assert.equal(ok({ resolved: { ...card(t), chess: null } }), null);
-    assert.equal(detailSelectVoice(), null);
-    // key stability: the same unit gives the same key render after render; another unit or field another key
-    assert.equal(ok().key, ok().key);
-    assert.notEqual(ok().key, detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: elite, resolved: card(elite) }).key);
-    assert.notEqual(ok().key, ok({ fieldId: 'n:p_1' }).key);
-    assert.equal(ok({ fieldId: null }).key, ':7');
-  });
-
-  test('detailSelectVoice: a 补位 piece speaks as its stand-in (0.2.0), a 自选 record as its pick, else the chess', () => {
-    // the card of a chess fielded as its stand-in carries the composed stand-in record (ui/detailPanel.js resolveDetail
-    // `standIn`, its charId the operator on the field): the stand-in speaks, never the operator it replaces (upstream
-    // c5e8d136's speaker, ported onto this fork's engine; a 预备干员 without the line stays silent in audio.js canSpeak)
-    const t = unit(7, A);
-    const si = { ...card(t), standIn: { charId: 'char_609_acguad', standInFor: A } };
-    assert.deepEqual(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: t, resolved: si }), { charId: 'char_609_acguad', key: 'n:p_0:7' });
-    // no stand-in (null, or one without a charId): the chess record's operator
-    for (const standIn of [null, undefined, {}, { charId: '' }]) {
-      assert.deepEqual(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: t, resolved: { ...card(t), standIn } }), { charId: chess[A].charId, key: 'n:p_0:7' });
-    }
-    // a 自选 piece resolves to the composed record of its pick: its charId is the pick's operator
-    const diy = { ...card(t), chess: { chessId: 'chess_char_6_diy1_a', charId: 'char_003_kalts', isDiy: true, diyFor: 'chess_char_6_diy1_a' }, standIn: null };
-    assert.deepEqual(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: t, resolved: diy }), { charId: 'char_003_kalts', key: 'n:p_0:7' });
-  });
-
-  test('detailSelectVoice: a card opened outside a battle phase stays silent when the battle starts under it; a prep scouting board piece never speaks', () => {
-    // a unit card opened in the 整备期 on a teammate's / spectated scouted board (match/views.js prepFieldMeta: id = the piece's uid,
-    // `area` board / hand / temp) is kept open into the battle (screens/game.js closes only chess / item cards then):
-    // the render that brings COMBAT must not make it say 选中干员 with no tap
-    for (const area of ['board', 'hand', 'temp']) {
-      const prep = unit(41, A, { area, uid: 41, ownerId: 'mate' }, false);
-      for (const phase of [PHASE.PREP, PHASE.COMBAT, PHASE.FINAL_ASSAULT]) {
-        assert.equal(detailSelectVoice({ phase, fieldId: 'n:mate', target: prep, resolved: card(prep) }), null, `${area} ${phase}`);
-      }
-      // tapped in a battle phase while that board is still on screen (before the battle's field arrives): still no
-      // battle unit
-      const tapped = unit(41, A, { area, uid: 41, ownerId: 'mate' }, true);
-      assert.equal(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:mate', target: tapped, resolved: card(tapped) }), null, `${area} tapped`);
-    }
-    // a battle unit's card opened in the 整备期 (the battle's field came before m.public named the phase) stays silent
-    // too; opened — or retargeted — in the battle it speaks
-    const early = unit(7, A, {}, false);
-    assert.equal(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: early, resolved: card(early) }), null, 'opened in prep');
-    const { inBattle, ...noFlag } = unit(7, A);
-    assert.equal(inBattle, true);
-    assert.equal(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: noFlag, resolved: card(noFlag) }), null, 'no flag: not opened by a battle tap');
-    assert.deepEqual(detailSelectVoice({ phase: PHASE.COMBAT, fieldId: 'n:p_0', target: unit(7, A), resolved: card(unit(7, A)) }),
-      { charId: chess[A].charId, key: 'n:p_0:7' });
-  });
-});
-
-describe('createHudDelay: own-field HUD values follow the drawn battle (render 0.5 s behind its frames)', () => {
-  // fake clock + timers: what game.js does with performance.now / setTimeout
-  const harness = (field = () => 'n:P1') => {
-    let t = 0, seq = 0;
-    const timers = new Map();
-    const shown = [];      // hud releases: [time, hud]
-    const battles = [];    // battle slice releases: [time, slice]
-    const units = [];      // unit tuple releases: [time, Map]
-    const order = [];      // channel order of the releases
-    const d = createHudDelay({
-      onHud: (h) => { shown.push([t, h]); order.push('hud'); },
-      onBattle: (b) => { battles.push([t, b]); order.push('battle'); },
-      onUnits: (u) => { units.push([t, u]); order.push('units'); },
-      field, now: () => t,
-      setTimer: (fn, ms) => { const id = ++seq; timers.set(id, { fn, at: t + ms }); return id; },
-      clearTimer: (id) => { timers.delete(id); },
-    });
-    const advance = (ms) => {
-      const end = t + ms;
-      for (;;) {
-        let next = null;
-        for (const [id, x] of timers) if (x.at <= end && (!next || x.at < next[1].at)) next = [id, x];
-        if (!next) break;
-        timers.delete(next[0]);
-        t = next[1].at;
-        next[1].fn();
-      }
-      t = end;
-    };
-    return { d, timers, shown, battles, units, order, advance };
-  };
-
-  test('a whole battle of 20 Hz frames keeps one timer; each frame is shown 0.5 s after it arrived', () => {
-    const { d, timers, shown, advance } = harness();
-    let most = 0;
-    for (let i = 0; i < 1200; i++) {   // 60 s of frames
-      d.push('n:P1', { killed: i }, 500);
-      most = Math.max(most, timers.size);
-      advance(50);
-    }
-    assert.equal(most, 1, 'never more than one pending timer (it used to arm one more per frame)');
-    assert.ok(shown.length >= 1150);
-    for (const [at, h] of shown.slice(0, 50)) assert.ok(at >= h.killed * 50 + 500 && at < h.killed * 50 + 550, `frame ${h.killed} shown at ${at}`);
-    advance(600);
-    assert.equal(shown.at(-1)[1].killed, 1199);
-    assert.equal(timers.size, 0, 'idle once drained');
-  });
-
-  test('a watch switch drops the previous field\'s queued numbers', () => {
-    let cur = 'n:P1';
-    const { d, shown, advance } = harness(() => cur);
-    for (let i = 0; i < 10; i++) { d.push('n:P1', { field: 'P1', i }, 500); advance(50); }
-    cur = 'n:P2';
-    d.push('n:P2', { field: 'P2', i: 0 }, 500);
-    advance(1000);
-    assert.ok(shown.every(([at, h]) => h.field === 'P2' || at < 500 + 50 * 10), 'nothing of P1 after the switch');
-    assert.equal(shown.at(-1)[1].field, 'P2');
-  });
-
-  test('dispose clears the timer and the queue', () => {
-    const { d, timers, shown, battles, advance } = harness();
-    d.push('n:P1', { killed: 1 }, 500);
-    d.pushBattle('n:P1', { done: true }, 500);
-    d.dispose();
-    advance(1000);
-    assert.equal(timers.size, 0);
-    assert.equal(shown.length, 0);
-    assert.equal(battles.length, 0);
-    assert.equal(d.size, 0);
-  });
-
-  test('everything due is released together, in order: later values override, patches merge (it used to keep only the last)', () => {
-    const { d, shown, battles, order, advance } = harness();
-    // five entries due in the same drain: the capsule and the DP of different frames both survive
-    d.push('n:P1', { killed: 1, total: 8 }, 500);
-    d.push('n:P1', { dp: 7 }, 500);
-    d.push('n:P1', { killed: 2 }, 500);
-    d.pushBattle('n:P1', { leaks: { 'n:P1': 1 }, done: false }, 500);
-    d.pushBattle('n:P1', { done: true }, 500);
-    advance(499);
-    assert.equal(shown.length + battles.length, 0, 'nothing before the lag');
-    advance(1);
-    assert.deepEqual(shown.map(([, h]) => h), [{ killed: 2, total: 8, dp: 7 }], 'one release: merged in order, the later killed wins');
-    assert.deepEqual(battles.map(([, b]) => b), [{ leaks: { 'n:P1': 1 }, done: true }], 'the battle slices merge too');
-    assert.deepEqual(order, ['hud', 'battle'], 'the capsule before the slice (the screen flushes the capsule with the slice)');
-  });
-
-  test('regression: the 作战结束 flag is released together with the final frame\'s n/n, never before it', () => {
-    const { d, shown, battles, units, order, advance } = harness();
-    const u7 = new Map([[1, [1, 0, 0, 5, 10]]]), u8 = new Map([[1, [1, 0, 0, 0, 10]]]);
-    d.push('n:P1', { killed: 7, total: 8 }, 500, { units: u7 });
-    advance(1000);                                   // 7/8 drawn; the last enemy is still walking
-    d.push('n:P1', { killed: 8, total: 8 }, 500, { units: u8 });   // the finishing frame ...
-    d.pushBattle('n:P1', { done: true, leaks: {} }, 500);          // ... then the sim's done publish (same task)
-    advance(499);
-    assert.equal(shown.at(-1)[1].killed, 7, 'still 7/8 on screen, and no flag yet');
-    assert.equal(battles.length, 0);
-    advance(1);
-    assert.equal(shown.at(-1)[1].killed, 8);
-    assert.equal(battles.at(-1)[1].done, true);
-    assert.equal(units.at(-1)[1], u8, 'the unit card\'s HP follows the same frame');
-    assert.deepEqual(order.slice(-3), ['units', 'hud', 'battle']);
-    assert.equal(shown.at(-1)[0], battles.at(-1)[0], 'same instant');
-  });
-
-  test('a slice of another field is dropped at release (watch switch); an entry with nothing in it is not queued', () => {
-    let cur = 'n:P1';
-    const { d, battles, shown, advance } = harness(() => cur);
-    d.pushBattle('n:P1', { fieldId: 'n:P1', done: true }, 500);
-    d.push('n:P1', null, 500);
-    d.push('n:P1', null, 500, {});
-    assert.equal(d.size, 1);
-    cur = 'n:P2';
-    d.pushBattle('n:P2', { fieldId: 'n:P2', done: false }, 500);
-    advance(1000);
-    assert.deepEqual(battles.map(([, b]) => b.fieldId), ['n:P2']);
-    assert.equal(shown.length, 0);
-  });
-
-  test('clear() drops what is queued (a field entered again restarts at once) and the queue keeps working', () => {
-    const { d, timers, shown, battles, advance } = harness();
-    d.push('n:P1', { killed: 3 }, 500);
-    d.pushBattle('n:P1', { done: false }, 500);
-    d.clear();
-    advance(1000);
-    assert.equal(shown.length + battles.length, 0);
-    assert.equal(timers.size, 0);
-    d.push('n:P1', { killed: 4 }, 100);
-    advance(100);
-    assert.equal(shown.at(-1)[1].killed, 4);
-  });
-
-  test('the queue stays bounded (cap): the oldest entries go first, the newest survive', () => {
-    const got = [];
-    const small = createHudDelay({ onHud: (h) => got.push(h.i), field: () => 'n:P1', now: () => 0, setTimer: () => 1, clearTimer: () => {}, cap: 3 });
-    for (let i = 0; i < 10; i++) small.push('n:P1', { i }, 500);
-    assert.equal(small.size, 3);
-  });
-
-  test('setPaused (solo pause): nothing is released while paused; on resume the rest of the lag is waited out', () => {
-    const { d, timers, shown, battles, advance } = harness();
-    d.push('n:P1', { killed: 1 }, 500);               // due at 500
-    d.pushBattle('n:P1', { done: true }, 500);
-    advance(200);                                      // 300 ms of lag left
-    d.setPaused(true);
-    assert.equal(timers.size, 0, 'no timer runs while paused');
-    advance(5000);
-    assert.equal(shown.length + battles.length, 0, 'the frozen picture shows no new number');
-    d.setPaused(true);                                 // idempotent
-    d.setPaused(false);                                // t = 5200: 300 ms to go (not "5000 ms overdue")
-    advance(299);
-    assert.equal(shown.length + battles.length, 0);
-    advance(1);
-    assert.equal(shown.length, 1);
-    assert.equal(battles.length, 1);
-    assert.equal(shown[0][0], 5500);
-    d.setPaused(false);                                // resuming a running queue is a no-op
-  });
-
-  test('setPaused: a value pushed during the pause waits the full lag after the resume; later pauses add up', () => {
-    const { d, timers, shown, advance } = harness();
-    d.setPaused(true);
-    d.push('n:P1', { killed: 1 }, 500);                // the runner's last publish of the pause moment
-    advance(2000);
-    assert.equal(shown.length, 0);
-    d.setPaused(false);                                // resumed at t = 2000
-    advance(499);
-    assert.equal(shown.length, 0);
-    advance(1);
-    assert.equal(shown[0][0], 2500);
-    d.push('n:P1', { killed: 2 }, 500);                // due at 3000
-    advance(100);
-    d.setPaused(true);                                 // t = 2600, 400 ms left
-    advance(1000);
-    d.setPaused(false);                                // t = 3600
-    advance(399);
-    assert.equal(shown.length, 1);
-    advance(1);
-    assert.deepEqual(shown.map(([at, h]) => [at, h.killed]), [[2500, 1], [4000, 2]]);
-    assert.equal(timers.size, 0);
-  });
-
-  test('dispose while paused leaves no timer and no queue', () => {
-    const { d, timers, shown, advance } = harness();
-    d.push('n:P1', { killed: 1 }, 500);
-    d.setPaused(true);
-    d.dispose();
-    d.setPaused(false);
-    advance(2000);
-    assert.equal(timers.size, 0);
-    assert.equal(shown.length, 0);
-    assert.equal(d.size, 0);
-  });
-});
-
-describe('the drawn battle slice (pickDrawn / drawnOf / ownFieldGate): own-field values follow the picture, the server joins afterwards', () => {
-  const sim = (o = {}) => ({
-    battleId: 'b1', fieldId: 'n:p_0', kind: 'normal', authoritative: true, watch: false, done: false, own: true, members: ['p_0'], loading: false,
-    speed: 2, paused: false, leaks: { 'n:p_0': 2 }, uniteLeft: null, bondLayers: { p_0: { x: 1 } }, ...o,
-  });
-
-  test('pickDrawn keeps the HUD values and the gates\' identity; nothing for no battle on screen (null, still loading)', () => {
-    assert.deepEqual(pickDrawn(sim()), {
-      battleId: 'b1', fieldId: 'n:p_0', kind: 'normal', own: true, watch: false, done: false,
-      leaks: { 'n:p_0': 2 }, uniteLeft: null, bondLayers: { p_0: { x: 1 } },
-    });
-    assert.equal(pickDrawn(null), null, 'the runner publishes null when cleared / disposed');
-    assert.equal(pickDrawn(undefined), null);
-    assert.equal(pickDrawn({ loading: true, battleId: 'b2', fieldId: 'n:p_0', kind: 'normal', leaks: {}, uniteLeft: null, bondLayers: {} }), null, 'a battle that is still loading is not drawn yet');
-    assert.equal(pickDrawn(sim({ fieldId: '' })), null);
-    assert.deepEqual(pickDrawn(sim({ leaks: null })).leaks, {}, 'missing maps normalise');
-    assert.equal(pickDrawn(sim({ done: true })).done, true);
-  });
-
-  test('drawnChanged / hudChanged: what makes the capsule flush at once (DP alone keeps the throttle)', () => {
-    const a = pickDrawn(sim());
-    assert.equal(drawnChanged(a, pickDrawn(sim())), false, 'same values');
-    assert.equal(drawnChanged(a, pickDrawn(sim({ leaks: { 'n:p_0': 3 } }))), true);
-    assert.equal(drawnChanged(a, pickDrawn(sim({ done: true }))), true);
-    assert.equal(drawnChanged(a, pickDrawn(sim({ bondLayers: { p_0: { x: 2 } } }))), true);
-    assert.equal(drawnChanged(a, pickDrawn(sim({ uniteLeft: { p_0: 2 } }))), true);
-    assert.equal(drawnChanged(null, a), true);
-    assert.equal(drawnChanged(a, a), false);
-    assert.equal(hudChanged({ killed: 1, total: 8, dp: 5 }, { killed: 1, total: 8, dp: 6 }), false, 'DP alone');
-    assert.equal(hudChanged({ killed: 1, total: 8, dp: 5 }, { killed: 2, total: 8, dp: 5 }), true);
-    assert.equal(hudChanged({ killed: 1, total: 8 }, { killed: 1, total: 9 }), true);
-    assert.equal(hudChanged(null, { killed: 0, total: 8 }), true);
-  });
-
-  test('drawnOf: the released slice of this battle, else the live state (entry frame / not entered yet / another battle)', () => {
-    const live = sim({ leaks: { 'n:p_0': 5 }, done: true });
-    const old = pickDrawn(sim());
-    assert.equal(drawnOf(live, old), old, 'the drawn picture lags the sim: its older slice is what shows');
-    assert.equal(drawnOf(live, null), live, 'not seeded / entered yet: the live state (the entry frame is drawn at once)');
-    assert.equal(drawnOf(live, { ...old, battleId: 'b0' }), live, 'a slice of the previous battle is never shown');
-    assert.equal(drawnOf(live, { ...old, fieldId: 'n:p_1' }), live);
-    assert.equal(drawnOf(null, old), null, 'the runner cleared');
-  });
-
-  test('ownFieldGate: the pill follows the drawn picture, the pause gate the sim, the server only after the own picture finished', () => {
-    const own = 'n:p_0';
-    // the sim finished, the drawn picture still shows the last enemy: no pill, no server numbers, but the sim gate is open
-    const g1 = ownFieldGate(sim({ done: true }), pickDrawn(sim()), own);
-    assert.deepEqual(g1, { onScreen: true, simDone: true, drawnDone: false, serverOk: false });
-    // the drawn done slice released
-    const g2 = ownFieldGate(sim({ done: true }), pickDrawn(sim({ done: true })), own);
-    assert.deepEqual(g2, { onScreen: true, simDone: true, drawnDone: true, serverOk: true });
-    // freshly entered (no slice yet): the live state is the drawn one
-    assert.equal(ownFieldGate(sim({ done: true }), null, own).drawnDone, true);
-    assert.equal(ownFieldGate(sim(), null, own).drawnDone, false);
-    // watching a teammate / a 联防 field / nothing: the own picture is not on screen, the server's relayed numbers apply
-    for (const s of [sim({ watch: true, own: false, fieldId: 'n:p_1' }), sim({ fieldId: 'u:1', kind: 'unite' }), null]) {
-      assert.deepEqual(ownFieldGate(s, null, own), { onScreen: false, simDone: false, drawnDone: false, serverOk: true });
-    }
-    assert.equal(ownFieldGate(sim({ watch: true }), null, own).onScreen, false, 'a watched field is never "own"');
-  });
-
-  test('own leaks / uniteRemaining through the gate (the selectors game.js applies)', async () => {
-    const { ownLeaks, uniteRemaining } = await import('../../public/js/ui/hud.js');
-    const own = 'n:p_0';
-    // the sim already counts 3 leaks, the drawn slice 2 (the third enemy is still outside the gate), the server relays 3
-    const simNow = sim({ leaks: { [own]: 3 } });
-    const slice = pickDrawn(sim({ leaks: { [own]: 2 } }));
-    const g = ownFieldGate(simNow, slice, own);
-    const drawnLocal = drawnOf(simNow, slice).leaks[own];
-    assert.equal(drawnLocal, 2);
-    assert.equal(ownLeaks(drawnLocal, g.serverOk ? 3 : undefined), 2, 'the server\'s 3 is ahead of the picture: ignored while the own picture runs');
-    // after the picture finished the server can only confirm (or correct)
-    const fin = sim({ leaks: { [own]: 3 }, done: true });
-    const g2 = ownFieldGate(fin, pickDrawn(fin), own);
-    assert.equal(ownLeaks(drawnOf(fin, pickDrawn(fin)).leaks[own], g2.serverOk ? 4 : undefined), 4, 'a server-corrected count shows once the picture ended');
-    // watching a teammate: the own replica is not drawn, the server's count carries on
-    const g3 = ownFieldGate(sim({ watch: true, own: false, fieldId: 'n:p_1' }), null, own);
-    assert.equal(ownLeaks(1, g3.serverOk ? 4 : undefined), 4);
-    // 联防: the replica's per-leaker count (teammates' rows too) is the drawn slice's
-    const unite = sim({ fieldId: 'u:1', kind: 'unite', uniteLeft: { p_1: 4 } });
-    const dr = drawnOf(unite, pickDrawn(sim({ fieldId: 'u:1', kind: 'unite', uniteLeft: { p_1: 5 } })));
-    assert.equal(dr.uniteLeft.p_1, 5, 'the drawn count, not the sim\'s');
-    assert.equal(uniteRemaining(dr.uniteLeft.p_1, ownFieldGate(unite, null, own).serverOk ? 9 : undefined), 5, 'the local replica wins over the relayed count');
-  });
-
-  test('snapUnits: the snapshot\'s unit tuples by id', () => {
-    const t1 = [1, 0, 0, 5, 10], t2 = [2, 1, 1, 7, 7];
-    const mp = snapUnits({ units: [t1, t2, null, 'x'] });
-    assert.equal(mp.size, 2);
-    assert.equal(mp.get(2), t2);
-    assert.equal(snapUnits(null).size, 0);
-    assert.equal(snapUnits({}).size, 0);
   });
 });
 
@@ -1233,13 +905,4 @@ describe('special terrain tip', () => {
     assert.match(terrainInfo(mire, 0, 0).lines[0], /每 1 秒获得 1 层/);
     assert.match(terrainInfo(mire, 0, 0).lines[2], /最多 10 层/);
   });
-});
-
-test('bondStripFolded: a phone folds the bond strip at the start of each 休整期 (DESIGN §F2.1)', () => {
-  assert.equal(bondStripFolded(PHASE.PREP, true), true);
-  assert.equal(bondStripFolded(PHASE.COMBAT, true), null, "the fight keeps the player's choice (issue #142)");
-  assert.equal(bondStripFolded(PHASE.UNITE, true), null);
-  assert.equal(bondStripFolded(PHASE.SETTLE, true), null, "other phases keep the player's choice");
-  assert.equal(bondStripFolded(PHASE.PREP, false), null, 'a desktop / tablet never changes it');
-  assert.equal(bondStripFolded(PHASE.COMBAT, false), null);
 });

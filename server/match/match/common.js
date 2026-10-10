@@ -27,10 +27,11 @@ export const DELAYS = Object.freeze({
  * Seconds of one turn of the co-op strategy draft (user playtest #4 item 4: the old 12 s per turn — research 06 §724,
  * itself [ASSUMED] — inside the 50 s step was far too little and counted apart from the header's 50 s). [ASSUMED]: the
  * official data only gives the whole BAND_CHECK step (autoChessData.enterStepList: 50 s, hint 15 s); the turn clock is
- * the remake's. It is also the step's only countdown (m.public.deadline = draft.turnDeadline). × timerScale. A match of
- * more than 4 seats (remake extension) has gamedata.js largeRoom.bandTurn (20 s) turns instead (Match.bandTurnSeconds).
+ * the remake's (50 s per turn per the owner's 2026-10-10 official-play report). It is also the step's only countdown
+ * (m.public.deadline = draft.turnDeadline). × timerScale. A match of more than 4 seats (remake extension) has
+ * gamedata.js largeRoom.bandTurn (20 s) turns instead (Match.bandTurnSeconds).
  */
-export const BAND_TURN_SECONDS = 30;
+export const BAND_TURN_SECONDS = 50;
 
 /**
  * Rehearsal ticks the prep deadline runs for the AI-played seats it finishes, all of them together (fixed work counts:

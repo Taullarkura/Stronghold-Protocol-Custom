@@ -17,9 +17,8 @@ import { normalizeAtlas, atlasInfo, parseAtlas } from '../tools/assets/atlas.mjs
 import { pngSize, isCompletePng, isMp3, validate } from '../tools/assets/formats.mjs';
 import { encodeWoff2, decodeWoff2Tables, readSfnt, uintBase128 } from '../tools/assets/woff2.mjs';
 import { assetToPath, pickUnitSfx, indexAudio } from '../tools/assets/audio.mjs';
-import { parseVoiceLangs, indexCharWords, voiceLines, VOICE_ROLES, POSITIONAL_ROLES } from '../tools/assets/voice.mjs';
 import { mirrorUrl, safeName, encodePath } from '../tools/assets/sources.mjs';
-import { collectEnemyIds, skillIndicesByChar, buildPlan, TOKEN_SKIN_SPINES, GUIDE_PAGES, UI_EXTRAS } from '../tools/assets/plan.mjs';
+import { collectEnemyIds, skillIndicesByChar, buildPlan, GUIDE_PAGES, UI_EXTRAS } from '../tools/assets/plan.mjs';
 import { resolveTemplate, collectLeaves } from '../tools/assets/manifest.mjs';
 import { spineEntry } from '../public/js/assets.js';
 import { EMOTE_CATALOG, emoteArtGroup } from '../shared/constants.js';
@@ -444,10 +443,12 @@ describe('audio banks and plan id sets', () => {
     const r = resolveTemplate(tpl, { root: ROOT, spine: new Map([['k', { skel: '/assets/s.skel', atlas: '/assets/s.atlas', textures: [] }]]) });
     assert.deepEqual(Object.keys(r.value).sort(), ['keep', 'm']);
     assert.deepEqual(r.misses.sort(), ['a', 'b.c']);
+    assert.deepEqual(r.droppedLeaves, ['a', 'b.c'], 'a leaf no alternative of which is on disk is a dropped leaf');
     assert.equal(collectLeaves(tpl).length, 2);
     const ok = resolveTemplate({ p: { alts: [{ rel: 'nope.png', urls: ['x'] }, { rel: 'package.json', urls: ['y'] }] } }, { root: ROOT, spine: new Map() });
     assert.equal(ok.value.p, '/assets/package.json');
     assert.equal(ok.fallbacks.length, 1);
+    assert.deepEqual(ok.droppedLeaves, [], 'a fallback on disk is not a drop');
   });
 
   test('an array whose lines are all missing is dropped, with the entry it empties (a voice slot never downloaded)', () => {
@@ -463,6 +464,44 @@ describe('audio banks and plan id sets', () => {
     assert.deepEqual(r.value.voice, { b: { select: ['/assets/package.json'] } }, 'operator a has no line on disk: no entry at all');
     assert.deepEqual(r.value.empty, [], 'an array that was empty in the template stays');
     assert.deepEqual(r.misses.sort(), ['voice.a.place[0]', 'voice.a.select[0]', 'voice.a.select[1]', 'voice.b.select[0]']);
+    assert.deepEqual(r.droppedLeaves.sort(), r.misses.slice().sort(), 'every dropped line is a dropped leaf too');
+  });
+
+  // A unit's attack sound is a leaf like any other: when its file was never downloaded (or a checkout lost it) the whole
+  // key vanishes from data/assets.json and the client plays nothing — there is no fallback and no URL to retry. The
+  // resolution therefore reports it as a dropped leaf, which the run prints and --strict fails on
+  // (tools/fetch-assets.mjs; docs/ASSETS.md "A dropped leaf is reported, never silent").
+  test('move a resolved sound aside: the leaf leaves the manifest and is reported as dropped, never silently', async (t) => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const root = await mkdtemp(join(tmpdir(), 'sp-leaf-drop-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const rel = 'audio/sfx/player/p_atk/p_atk_somechar_n.mp3';
+    const imp = 'audio/sfx/player/p_imp/p_imp_somechar_n.mp3';
+    const ui = 'audio/sfx/general/g_ui/g_ui_btn_h.mp3';
+    const leaf = (r) => ({ alts: [{ rel: r, urls: [`https://raw.githubusercontent.com/o/r/main/${r}`], kind: 'mp3' }] });
+    const tpl = { audio: { sfx: { units: { char_x: { attack: leaf(rel), hit: leaf(imp) } }, ui: { click: leaf(ui) } } } };
+    for (const r of [rel, imp, ui]) {
+      await mkdir(join(root, dirname(r)), { recursive: true });
+      await writeFile(join(root, r), 'ID3');
+    }
+    const before = resolveTemplate(tpl, { root, spine: new Map() });
+    assert.equal(JSON.stringify(before.value), JSON.stringify({
+      audio: {
+        sfx: {
+          units: { char_x: { attack: `/assets/${rel}`, hit: `/assets/${imp}` } },
+          ui: { click: `/assets/${ui}` },
+        },
+      },
+    }), 'every file on disk: the manifest is exactly the plan, byte for byte');
+    assert.deepEqual([before.misses, before.droppedLeaves, before.fallbacks], [[], [], []]);
+
+    await rm(join(root, rel)); // the download never happened / the file went missing
+    const after = resolveTemplate(tpl, { root, spine: new Map() });
+    assert.equal(Object.hasOwn(after.value.audio.sfx.units.char_x, 'attack'), false, 'the key is gone from the manifest');
+    assert.equal(after.value.audio.sfx.units.char_x.hit, `/assets/${imp}`, 'the roles whose file is on disk stay');
+    assert.deepEqual(after.droppedLeaves, ['audio.sfx.units.char_x.attack'], 'and the drop is reported, not silent');
+    assert.ok(after.misses.includes('audio.sfx.units.char_x.attack'), 'the wider miss list names it too');
   });
 });
 
@@ -568,63 +607,6 @@ describe('downloader (fake network)', () => {
     assert.ok(readFileSync(join(dir, 'out', 'g.png')).equals(PNG), '404 primary → fallback used');
     assert.equal(existsSync(join(dir, 'out', 'f.png')), false, 'transient failure → no fallback on the primary path');
     assert.equal(calls.filter((u) => u.endsWith('fallback.png')).length, 1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The 自选 owned-6★ picks (data/backups.json `units`, planned from 07's URL patterns: extraOperators → patternOperator)
-// speak like a pool operator on the fork's voice engine (voice.mjs, DESIGN §21.30), and their summons whose web model is
-// a skin only take that skin (plan.mjs TOKEN_SKIN_SPINES, found by the fork's asset probe for its retired 外援 roster).
-describe('自选 picks: voice and the summons\' skin models', () => {
-  test('a 自选 pick is voiced like a pool operator: the same 14 lines in the 9 roles (voice.mjs)', () => {
-    const lines = [['行动出发', 'BATTLE_START', '019'], ['行动开始', 'BATTLE_FACE_ENEMY', '020'], ['选中干员1', 'BATTLE_SELECT', '021'],
-      ['选中干员2', 'BATTLE_SELECT', '022'], ['部署1', 'BATTLE_PLACE', '023'], ['部署2', 'BATTLE_PLACE', '024'], ['作战中1', 'BATTLE_SKILL_1', '025'],
-      ['作战中2', 'BATTLE_SKILL_2', '026'], ['作战中3', 'BATTLE_SKILL_3', '027'], ['作战中4', 'BATTLE_SKILL_4', '028'], ['完成高难行动', 'FOUR_STAR', '029'],
-      ['3星结束行动', 'THREE_STAR', '030'], ['非3星结束行动', 'TWO_STAR', '031'], ['行动失败', 'LOSE', '032'], ['编入队伍', 'SQUAD', '017']];
-    const words = (key) => Object.fromEntries(lines.map(([title, place, n]) => [`${key}_CN_${n}`,
-      { charId: key, wordKey: key, voiceId: `CN_${n}`, voiceTitle: title, placeType: place, voiceAsset: `${key}/CN_${n}` }]));
-    const dict = (key) => ({ charId: key, dict: { CN_MANDARIN: { wordkey: key, voicePath: null }, JP: { wordkey: key, voicePath: null } } });
-    const index = indexCharWords({ charWords: { ...words('char_9999_x'), ...words('char_002_amiya') },
-      voiceLangDict: { char_9999_x: dict('char_9999_x'), char_002_amiya: dict('char_002_amiya') } });
-    const p = buildPlan({ assets07: { operators: { char_002_amiya: {} } }, ops03: {}, enemies05: {}, maps05: {}, audio: indexAudio({}), modelsData: {},
-      voice: { index, langs: ['cn', 'jp'] }, extraOperators: { char_9999_x: { name: 'x', subProfessionId: 'pioneer', nationId: null, skills: [] } } }).template;
-    for (const lang of ['cn', 'jp']) {
-      const pool = p.audio.voice[lang].char_002_amiya;
-      const pick = p.audio.voice[lang].char_9999_x;
-      assert.ok(pick, `${lang}: the 自选 pick has voice`);
-      assert.deepEqual(Object.keys(pick).sort(), Object.keys(VOICE_ROLES).sort(), `${lang}: every role`);
-      assert.deepEqual(Object.keys(pick).sort(), Object.keys(pool).sort(), `${lang}: the pool operator's roles`);
-      assert.equal(Object.values(pick).flat().length, 14, `${lang}: 14 lines`);
-      assert.equal(pick.depart.alts[0].rel, `voice/${lang}/char_9999_x/cn_019.mp3`, '行动出发');
-      assert.equal(pick.win4.alts[0].rel, `voice/${lang}/char_9999_x/cn_029.mp3`, '完成高难行动');
-      assert.deepEqual(pick.combat.map((l) => l.alts[0].rel.slice(-7, -4)), ['025', '026', '027', '028'], '作战中1–4, positional');
-    }
-  });
-
-  test('a summon of TOKEN_SKIN_SPINES gets the skin-variant Spine it names, beside its local-client model; any other unknown token the default guess', () => {
-    const FX = 'https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/';
-    const p = buildPlan({ assets07: {}, ops03: {}, enemies05: {}, maps05: {}, audio: indexAudio({}), modelsData: {},
-      extraTokenIds: ['token_10002_kalts_mon3tr', 'token_19999_x_y'], localTokenSpines: { token_10002_kalts_mon3tr: { skel: 'x.skel' } } });
-    const mon3tr = p.template.tokens.token_10002_kalts_mon3tr;
-    assert.equal(mon3tr.spineVariant, 'token_10002_kalts_mon3tr_boc_6');
-    assert.deepEqual(p.models.get('token:token_10002_kalts_mon3tr').skel.urls,
-      ['Spine', 'Front'].map((f) => `${FX}token_10002_kalts_mon3tr/token_10002_kalts_mon3tr_boc_6/${f}/token_10002_kalts_mon3tr_boc_6.skel`));
-    assert.ok(mon3tr.spineLocal, 'the local-client model stays beside the web one (drawn when extracted)');
-    assert.equal(p.template.tokens.token_19999_x_y.spineVariant, 'token_19999_x_y', 'not listed: its own id as the variant');
-    const none = buildPlan({ assets07: {}, ops03: {}, enemies05: {}, maps05: {}, audio: indexAudio({}), modelsData: {},
-      extraTokenIds: ['token_10002_kalts_mon3tr'], tokenSkinSpines: {} });
-    assert.equal(none.template.tokens.token_10002_kalts_mon3tr.spineVariant, 'token_10002_kalts_mon3tr', 'the table is the only source');
-    // the table: 25 summons of the 自选 picks (data/backups.json tokens) — 艾拉's 雷暴 mine, a collab pick of the fork, the
-    // 25th —, each a skin of the token itself; the committed
-    // manifest carries each as the token's web `spine` (when its files were downloaded)
-    const backups = readJson('data/backups.json');
-    const manifest = readJson('data/assets.json');
-    assert.equal(Object.keys(TOKEN_SKIN_SPINES).length, 25);
-    for (const [id, v] of Object.entries(TOKEN_SKIN_SPINES)) {
-      assert.ok(v.startsWith(`${id}_`), id);
-      assert.ok(backups.tokens[id], `${id}: a 自选 summon`);
-      assert.equal(manifest.tokens[id]?.spineVariant, v, `${id}: data/assets.json`);
-    }
   });
 });
 
@@ -848,135 +830,5 @@ describe('generated manifest data/assets.json', () => {
     assert.ok(units.length > 300);
     for (const u of units) for (const v of Object.values(u)) assert.ok(typeof v === 'string' || (v && typeof v === 'object'));
     assert.ok(manifest.fonts.css && existsSync(join(PUBLIC, manifest.fonts.css)));
-  });
-});
-
-describe('operator voice lines (tools/assets/voice.mjs)', () => {
-  const words = (key, lines) => Object.fromEntries(lines.map(([title, place, n]) => [`${key}_CN_${n}`,
-    { charId: key, wordKey: key, voiceId: `CN_${n}`, voiceIndex: Number(n), voiceTitle: title, placeType: place, voiceAsset: `${key}/CN_${n}` }]));
-  const ALL = [['编入队伍', 'SQUAD', '017'], ['行动出发', 'BATTLE_START', '019'], ['行动开始', 'BATTLE_FACE_ENEMY', '020'],
-    ['选中干员2', 'BATTLE_SELECT', '022'], ['选中干员1', 'BATTLE_SELECT', '021'], ['部署1', 'BATTLE_PLACE', '023'], ['部署2', 'BATTLE_PLACE', '024'],
-    ['作战中1', 'BATTLE_SKILL_1', '025'], ['作战中2', 'BATTLE_SKILL_2', '026'], ['作战中3', 'BATTLE_SKILL_3', '027'], ['作战中4', 'BATTLE_SKILL_4', '028'],
-    ['完成高难行动', 'FOUR_STAR', '029'], ['3星结束行动', 'THREE_STAR', '030'], ['非3星结束行动', 'TWO_STAR', '031'], ['行动失败', 'LOSE', '032'],
-    ['精英化晋升1', 'EVOLVE_ONE', '013'], ['交谈1', 'HOME_PLACE', '002']];
-  const table = {
-    charWords: { ...words('char_002_amiya', ALL), ...words('char_459_tachak', [['选中干员1', 'BATTLE_SELECT', '021']]) },
-    voiceLangDict: {
-      char_002_amiya: { charId: 'char_002_amiya', dict: { CN_MANDARIN: { wordkey: 'char_002_amiya', voicePath: null }, JP: { wordkey: 'char_002_amiya', voicePath: null }, EN: { wordkey: 'char_002_amiya', voicePath: null } } },
-      char_459_tachak: { charId: 'char_459_tachak', dict: { LINKAGE: { wordkey: 'char_459_tachak', voicePath: 'Audio/Sound_Beta_2/Voice/' } } },
-    },
-  };
-  const idx = indexCharWords(table);
-
-  test('the battle lines, by their official placeType, from the language folder (upstream #73\'s moments, DESIGN §21.30)', () => {
-    const cn = voiceLines(idx, 'char_002_amiya', 'cn');
-    assert.deepEqual(Object.keys(cn).sort(), Object.keys(VOICE_ROLES).sort());
-    assert.deepEqual(Object.keys(cn).sort(), ['combat', 'depart', 'deploy', 'fail', 'select', 'start', 'win', 'win3', 'win4']);
-    assert.equal(cn.start, 'voice_cn/char_002_amiya/cn_020.mp3', '行动开始 (BATTLE_FACE_ENEMY), not 行动出发');
-    assert.equal(cn.depart, 'voice_cn/char_002_amiya/cn_019.mp3', '行动出发 (BATTLE_START), a role of its own');
-    assert.equal(cn.win4, 'voice_cn/char_002_amiya/cn_029.mp3', '完成高难行动 (FOUR_STAR)');
-    assert.deepEqual(cn.select, ['voice_cn/char_002_amiya/cn_021.mp3', 'voice_cn/char_002_amiya/cn_022.mp3']);
-    assert.deepEqual(cn.deploy, ['voice_cn/char_002_amiya/cn_023.mp3', 'voice_cn/char_002_amiya/cn_024.mp3']);
-    assert.deepEqual(cn.combat.map((p) => p.slice(-7, -4)), ['025', '026', '027', '028'], '作战中1–4 in order');
-    assert.equal(cn.win3, 'voice_cn/char_002_amiya/cn_030.mp3');
-    assert.equal(cn.win, 'voice_cn/char_002_amiya/cn_031.mp3');
-    assert.equal(cn.fail, 'voice_cn/char_002_amiya/cn_032.mp3');
-    const jp = voiceLines(idx, 'char_002_amiya', 'jp');
-    assert.equal(jp.start, 'voice/char_002_amiya/cn_020.mp3');
-    assert.equal(jp.depart, 'voice/char_002_amiya/cn_019.mp3');
-    assert.equal(jp.win4, 'voice/char_002_amiya/cn_029.mp3');
-    for (const t of ['编入队伍', '精英化晋升1', '交谈1']) {
-      const n = ALL.find((l) => l[0] === t)[2];
-      assert.ok(!Object.values(cn).flat().some((p) => p.endsWith(`cn_${n}.mp3`)), `${t} is not a battle line`);
-    }
-  });
-
-  test('combat is positional: combat[k-1] is the first line of BATTLE_SKILL_k, in place order (the client plays 作战中N for skill N)', () => {
-    assert.deepEqual([...POSITIONAL_ROLES], ['combat'], 'select / deploy stay random draws');
-    // a place with two lines still gives one entry per place, in place order
-    const extra = words('char_002_amiya', [['作战中2b', 'BATTLE_SKILL_2', '040'], ['选中干员3', 'BATTLE_SELECT', '041']]);
-    const two = indexCharWords({ ...table, charWords: { ...extra, ...table.charWords } });
-    const cn = voiceLines(two, 'char_002_amiya', 'cn');
-    assert.deepEqual(cn.combat.map((p) => p.slice(-7, -4)), ['025', '026', '027', '028'], '4 entries: the 2nd is 作战中2, not 作战中2b');
-    assert.deepEqual(cn.select.map((p) => p.slice(-7, -4)), ['021', '022', '041'], 'a random role keeps every line');
-    // a missing place shortens the array (the client then draws at random instead of by index)
-    const noS3 = indexCharWords({ ...table, charWords: Object.fromEntries(Object.entries(table.charWords).filter(([, w]) => w.placeType !== 'BATTLE_SKILL_3')) });
-    assert.deepEqual(voiceLines(noS3, 'char_002_amiya', 'cn').combat.map((p) => p.slice(-7, -4)), ['025', '026', '028']);
-  });
-
-  test('a linkage operator uses its own voice everywhere; no voice entry ⇒ null', () => {
-    assert.deepEqual(voiceLines(idx, 'char_459_tachak', 'cn'), { select: ['voice/char_459_tachak/cn_021.mp3'] });
-    assert.deepEqual(voiceLines(idx, 'char_459_tachak', 'jp'), { select: ['voice/char_459_tachak/cn_021.mp3'] });
-    // with 行动出发 / 完成高难行动 lines: from its own folder (voice/) in every dub
-    const linked = indexCharWords({ ...table, charWords: { ...table.charWords,
-      ...words('char_459_tachak', [['行动出发', 'BATTLE_START', '019'], ['完成高难行动', 'FOUR_STAR', '029']]) } });
-    for (const lang of ['cn', 'jp', 'en', 'kr']) {
-      const l = voiceLines(linked, 'char_459_tachak', lang);
-      assert.equal(l.depart, 'voice/char_459_tachak/cn_019.mp3', lang);
-      assert.equal(l.win4, 'voice/char_459_tachak/cn_029.mp3', lang);
-    }
-    assert.equal(voiceLines(idx, 'char_600_cpione', 'cn'), null, 'reserve operators have no voice');
-    assert.equal(voiceLines(idx, 'char_002_amiya', 'kr'), null, 'no KR dub listed for her');
-  });
-
-  test('the EN / KR dubs (upstream #73, DESIGN §21.30): the same lines from voice_en/ / voice_kr/; a linkage operator keeps its own', () => {
-    const en = voiceLines(idx, 'char_002_amiya', 'en');
-    assert.deepEqual(Object.keys(en).sort(), Object.keys(VOICE_ROLES).sort());
-    assert.equal(en.start, 'voice_en/char_002_amiya/cn_020.mp3');
-    assert.equal(en.depart, 'voice_en/char_002_amiya/cn_019.mp3');
-    assert.equal(en.win4, 'voice_en/char_002_amiya/cn_029.mp3');
-    assert.deepEqual(en.combat.map((p) => p.slice(-7, -4)), ['025', '026', '027', '028']);
-    const kr = indexCharWords({ ...table, voiceLangDict: { char_002_amiya: { charId: 'char_002_amiya', dict: { KR: { wordkey: 'char_002_amiya', voicePath: null } } } } });
-    assert.equal(voiceLines(kr, 'char_002_amiya', 'kr').win3, 'voice_kr/char_002_amiya/cn_030.mp3');
-    assert.equal(voiceLines(kr, 'char_002_amiya', 'cn'), null, 'a KR-only entry is no 中文 voice');
-    assert.deepEqual(voiceLines(idx, 'char_459_tachak', 'en'), { select: ['voice/char_459_tachak/cn_021.mp3'] });
-    assert.deepEqual(voiceLines(idx, 'char_459_tachak', 'kr'), { select: ['voice/char_459_tachak/cn_021.mp3'] });
-  });
-
-  test('--voice option: 中文 and 日文 by default', () => {
-    assert.deepEqual(parseVoiceLangs(undefined), ['cn', 'jp']);
-    assert.deepEqual(parseVoiceLangs('cn'), ['cn']);
-    assert.deepEqual(parseVoiceLangs('JP, jp'), ['jp']);
-    assert.deepEqual(parseVoiceLangs('none'), []);
-    assert.deepEqual(parseVoiceLangs('cn,jp,en,kr'), ['cn', 'jp', 'en', 'kr'], 'EN / KR on request');
-    assert.deepEqual(parseVoiceLangs('KR'), ['kr']);
-    assert.throws(() => parseVoiceLangs('fr'), /unknown voice language/);
-  });
-
-  test('data/assets.json: every operator of every language — the 自选 picks too — has the 9 roles (depart, win4, combat ×4 in order), files on disk', () => {
-    const v = readJson('data/assets.json').audio?.voice;
-    const onDisk = existsSync(join(ROOT, 'public', 'assets', 'voice'));
-    if (!v) return; // assets fetched with --voice=none
-    // the 自选 owned-6★ picks (data/backups.json diy.ownedPool) speak like a pool operator, with the same 9 roles; the
-    // 原型干员 a 补位 / 自选 piece fields (the other backups.json units, char_6xx) have no voice in the game
-    const backups = readJson('data/backups.json');
-    const picks = backups.diy.ownedPool;
-    const reserve = Object.keys(backups.units).filter((id) => !picks.includes(id));
-    assert.equal(picks.length, 78, 'the 7 collab picks of the fork included (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS)');
-    assert.equal(reserve.length, 17);
-    for (const id of reserve) assert.match(id, /^char_6\d\d_/, `${id}: a unit outside the picks is a 原型干员`);
-    for (const [lang, per] of Object.entries(v)) {
-      assert.ok(['cn', 'jp', 'en', 'kr'].includes(lang), lang);
-      // every pick has a 中文 and a 日文 dub (charword_table voiceLangDict); en / kr may lack one
-      if (lang === 'cn' || lang === 'jp') for (const id of picks) assert.ok(per[id], `${lang}.${id}: a 自选 pick has voice`);
-      for (const id of reserve) assert.equal(per[id], undefined, `${lang}.${id}: a 原型干员 has no voice`);
-      for (const [charId, roles] of Object.entries(per)) {
-        assert.ok(/^char_/.test(charId), charId);
-        assert.deepEqual(Object.keys(roles).sort(), Object.keys(VOICE_ROLES).sort(), `${lang}.${charId} roles`);
-        assert.equal(typeof roles.depart, 'string', `${lang}.${charId}.depart`);
-        assert.match(roles.depart, /\/cn_019\.mp3$/, `${lang}.${charId}.depart is 行动出发`);
-        assert.equal(typeof roles.win4, 'string', `${lang}.${charId}.win4`);
-        assert.match(roles.win4, /\/cn_029\.mp3$/, `${lang}.${charId}.win4 is 完成高难行动`);
-        assert.ok(Array.isArray(roles.combat) && roles.combat.length === 4, `${lang}.${charId}.combat has 4 entries`);
-        roles.combat.forEach((u, k) => assert.ok(u.endsWith(`/cn_02${5 + k}.mp3`), `${lang}.${charId}.combat[${k}] is 作战中${k + 1}: ${u}`));
-        for (const [role, urls] of Object.entries(roles)) {
-          assert.ok(VOICE_ROLES[role], `${lang}.${charId}.${role}`);
-          for (const u of [].concat(urls)) {
-            assert.match(u, new RegExp(`^/assets/voice/${lang}/char_[a-z0-9_]+/cn_\\d{3}\\.mp3$`));
-            if (onDisk) assert.ok(existsSync(join(ROOT, 'public', u)), u);
-          }
-        }
-      }
-    }
   });
 });

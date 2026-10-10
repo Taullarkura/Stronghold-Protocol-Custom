@@ -2,8 +2,7 @@
 // attack at the clip's own speed (faster only when the attacks come quicker than the clip) and then its resting clip —
 // Move while the sim walks it again (server/sim/ai.js attackStand stands it for exactly that clip). It used to stretch
 // the clip over the whole attack interval and loop it for 1.4 intervals, so a ranged enemy seemed to slide while it
-// attacked. An operator's one-shot clip is never stretched more than ATTACK_STRETCH either (render/spine.js, as the
-// original). Headless fake PIXI (test/render/fakepixi.js).
+// attacked. Operators keep the clip looping over their attack rhythm. Headless fake PIXI (test/render/fakepixi.js).
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,10 +17,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const assets = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
 const JSHOOT = 'enemy_1019_jshoot';   // 隐形弩手: Attack 1.0 s, strike at 0.533 s; attacks every 2.7 s
 
-let fake, SpineActor, UnitView, ATTACK_STRETCH;
+let fake, SpineActor, UnitView;
 before(async () => {
   fake = installFakePixi();
-  ({ SpineActor, ATTACK_STRETCH } = await import('../../public/js/render/spine.js'));
+  ({ SpineActor } = await import('../../public/js/render/spine.js'));
   ({ UnitView } = await import('../../public/js/render/units.js'));
 });
 after(() => fake.restore());
@@ -72,13 +71,34 @@ test('an enemy attacking quicker than its clip plays it faster, one clip per att
   assert.equal(a.current, 'Move', 'the rest of the clip at 2×: 0.23 s');
 });
 
-test('an operator plays a one-shot clip once per attack too, stretched at most ATTACK_STRETCH over a longer interval', () => {
+// #246 (by @TsangAsuna, accepted by the owner on 2026-10-07): seen late, an attack whose rhythm leaves room for the whole
+// clip plays it complete from the wind-up — 重犯's iron ball lifts before the slam instead of the slam appearing alone
+test('an attack seen late plays the whole clip from its wind-up when the rhythm leaves room for it (重犯), else from the strike frame', () => {
+  const LIFBOS = 'enemy_1121_lifbos';   // 重犯: Attack_grey 2.333 s, strike at 1.0 s; attacks every 3 s
+  const a = actor(LIFBOS, true);
+  a.attack(3);
+  assert.equal(a.current, 'Attack_grey');
+  assert.equal(track(a).trackTime, 0, 'from the wind-up (the ball lifts), not the 1.0 s strike frame');
+  assert.equal(track(a).timeScale, 1, 'at its own speed');
+  run(a, 2.25);
+  assert.equal(a.current, 'Attack_grey', 'the whole 2.333 s clip plays (it used to end 1.333 s after the strike frame)');
+  run(a, 0.15);
+  assert.equal(a.current, 'Move_grey', 'then the resting clip');
+  const quick = actor(LIFBOS, true);
+  quick.attack(2);                                 // quicker than the clip: no room for the wind-up
+  assert.ok(Math.abs(track(quick).trackTime - 1) < 1e-9, 'from the strike frame');
+  const op = actor(LIFBOS, false);
+  op.attack(3);                                    // an operator's looping attack is unchanged
+  assert.ok(Math.abs(track(op).trackTime - 1) < 1e-9);
+});
+
+test('an operator keeps its attack loop stretched over the attack rhythm (unchanged)', () => {
   const a = actor(JSHOOT, false);
   a.attack(2.7);
-  assert.equal(track(a).loop, false, 'one clip per attack');
-  assert.ok(Math.abs(track(a).timeScale - ATTACK_STRETCH) < 1e-9, 'at most ×1.25 slower, not stretched over the 2.7 s interval');
+  assert.equal(track(a).loop, true);
+  assert.ok(Math.abs(track(a).timeScale - 1 / 2.7) < 1e-9);
   run(a, 2);
-  assert.equal(a.current, 'Move', 'then the resting state (it used to loop the attack for 1.4 intervals)');
+  assert.equal(a.current, 'Attack', 'still in attack mode 2 s later (1.4 × the interval)');
 });
 
 test('UnitView: enemy models play a clip per attack, operator models do not', async () => {

@@ -8,7 +8,8 @@
 // local art, 标准 = 战场#01 only; user playtest #3 (DESIGN §17): temp overflow kept until the first prep its player can
 // act in (never wiped at the round start), the 回环射手 boomerang and 蕾缪安's shells one by one, the live LP, the detail
 // card order and the static game data; user playtest #4 (DESIGN §18): picking by the tile under the pointer and the
-// dragged model held under it, a single human untimed, the strategy draft's one countdown, 机变 two taps, knocked-out
+// dragged model held under it (standing on that tile while it is a legal target, §27.62), a single human untimed, the
+// strategy draft's one countdown, 机变 two taps, knocked-out
 // operators and the official element gauges, live stats, the shop-only items, skill summons, 炎佑; user playtest #5
 // (DESIGN §19): blocking by contact radius, 联防 forced exit, huge-boss hit areas and 自缚, the element pipeline rules,
 // boss-field deployment, the phone prep camera — and the normative §3 / §5.1 / §5.5 / §6.1 / §7 lines that changed; user
@@ -21,9 +22,8 @@
 // fenced tiles, knocked-out bodies, the dispatcher snapshot and the manifest shrink guard credited to PR #2 / PR #7) and
 // the 突变细胞 bench rule (§21.1: the carrier destroyed, its new operator gained into the 整备区 — official footage, PR #2),
 // the closing additions §21.26–§21.28 (GitHub issues #1 / #5 / #8), the owner's deliberate trigger deviation for six
-// 重装 skills (§21.29, GitHub issue #4 / PR #12) and upstream's operator battle voice (§21.30, #73): its moments
-// ported onto the fork's own voice engine (行动出发 / 部署 / 行动开始 / 作战中N / 选中干员 from the field on screen, a
-// settlement line after every own battle whatever field is on screen).
+// 重装 skills (§21.29, GitHub issue #4 / PR #12) and the operator battle voice the user asked for the same day (§21.30,
+// battle only — since 0.2.2 a tap on an operator says 选中干员 in every phase).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -60,8 +60,6 @@ const battleText = () => [doc('server/sim/Battle.js'), ...readdirSync(join(ROOT,
 const matchText = () => [doc('server/match/Match.js'), ...readdirSync(join(ROOT, 'server/match/match')).sort().map((f) => doc(`server/match/match/${f}`))].join('\n');
 // the PlayerState class: the façade (header, constructor) and its method modules (server/match/player/)
 const playerText = () => [doc('server/match/PlayerState.js'), ...readdirSync(join(ROOT, 'server/match/player')).sort().map((f) => doc(`server/match/player/${f}`))].join('\n');
-// the client game logic: the barrel (public/js/ui/gameLogic.js) and its modules (public/js/ui/gameLogic/, 0.2.0 split)
-const gameLogicText = () => [doc('public/js/ui/gameLogic.js'), ...readdirSync(join(ROOT, 'public/js/ui/gameLogic')).sort().map((f) => doc(`public/js/ui/gameLogic/${f}`))].join('\n');
 // the sources of a former kits/tierN.js: its helpers (kits/shared/tierN.js) and its kit files (kits/ops/, kits/index.js)
 const tierSources = (t) => [`server/sim/content/kits/shared/tier${t}.js`, ...KIT_FILES[t - 1].map((f) => `server/sim/content/kits/ops/${f}`)];
 // the design document: the index docs/DESIGN.md and its sections in docs/design/ + docs/history/, in § order
@@ -297,11 +295,15 @@ test('lost models, live LP, detail card order, static game data (user playtest #
 });
 
 test('user playtest #4 (DESIGN §18): picking by tile, timers, 机变 two taps, down / element state, content — code and every doc agree', () => {
-  // #1 the tile under the pointer; the dragged model held under the pointer (no touch lift, probe or body shapes)
+  // #1 the tile under the pointer; the dragged model held under the pointer (no touch lift, probe or body shapes) —
+  // standing on the pointer's tile while that is a legal target (§27.62, the official deploy drag)
   assert.equal(ENEMY_REACH, 0.6);
   const app = readFileSync(join(ROOT, 'public/js/render/app.js'), 'utf8');
   const tune = readFileSync(join(ROOT, 'public/js/render/app/tune.js'), 'utf8');
   assert.match(tune, /export const DRAG_HOLD_TILES = 0\.45;/);
+  assert.match(app, /dragStandTile\(p\)/);
+  assert.match(DESIGN, /`dragStandTile/);
+  assert.match(PLAYING, /干员模型直接站在这一格上/);
   assert.ok(!/TOUCH_LIFT_TILES|drawnAt|pickShape|pieceDragOver/.test(app), 'no touch lift, pixel probe or body shapes (user playtest #4 item 1)');
   assert.match(DESIGN, /`DRAG_HOLD_TILES` = 0\.45 tile/);
   assert.match(DESIGN, /`ENEMY_REACH` 0\.6 tile/);
@@ -321,11 +323,11 @@ test('user playtest #4 (DESIGN §18): picking by tile, timers, 机变 two taps, 
   assert.match(META, /solo \/ single human untimed/);
   assert.match(PLAYING, /只有你一名玩家/);
   // #4 one countdown: BAND_TURN_SECONDS per turn (code = data = docs)
-  assert.equal(BAND_TURN_SECONDS, 30);
+  assert.equal(BAND_TURN_SECONDS, 50);
   assert.equal(DATA.config.timers.bandTurn, BAND_TURN_SECONDS);
-  assert.match(DESIGN, /`BAND_TURN_SECONDS` 30 s per turn = m\.public\.deadline/);
-  assert.match(META, /`Match\.BAND_TURN_SECONDS` 30/);
-  assert.match(PLAYING, /\*\*每人 30 秒\*\*/);
+  assert.match(DESIGN, /`BAND_TURN_SECONDS` 50 s per turn = m\.public\.deadline/);
+  assert.match(META, /`Match\.BAND_TURN_SECONDS` 50/);
+  assert.match(PLAYING, /\*\*每人 50 秒\*\*/);
   assert.ok(!/12 s\/turn/.test(DESIGN) && !/`bandTurn` 12/.test(META) && !/每人 12 秒/.test(PLAYING), 'the old 12 s turn is gone');
   assert.match(META, /`ev\.preview` true/, 'META: onBattleStart handlers must not change the match for the stats preview');
   // #2 机变 two taps
@@ -493,7 +495,8 @@ test('user playtest #6 (DESIGN §20): summons, skill triggers, blocking, push fo
   assert.match(sec(17), /\*\*revised by §20\.6\*\*/);
   assert.ok(!/the own battle's count stays on show as an upper bound tagged 联防中/.test(DESIGN), '§17.5: the frozen 联防 count is gone');
   assert.match(sec(8), /uniteLeft\? \/\* 联防: the leaker's enemies still standing/);
-  assert.match(sec(14), /`b\.progress \{ battleId, gt, killed, total, leaks\?, left\?, bossDmg\?, by\?, done\? \}`/);
+  assert.match(sec(14), /`b\.progress \{ battleId, gt, killed, total, resolved\?, leaks\?, left\?, bossDmg\?, by\?, leaksBy\?, done\? \}`/);
+  assert.match(doc('shared/protocol.js'), /leaksBy: \(v\) => isMap\(v, RESULT_LIMITS\.players, isId, \(x\) => isNum\(x, 0, 1e6\)\)/);
   assert.match(sec(6), /3 \*\*different\*\* free chess of tier `min\(level\+1, 6\)`/);
   assert.match(S20, /105 cards: 56 next-battle incl\. 源石虫·特训, 42 two-battle, 7 multi-round/);
   // #11 / #9 / #13: the gauge look (§18.3 / §19.5 superseded, §8.2 fill), model scale and fear (§9, §5.3, §2)
@@ -871,86 +874,64 @@ test('the deliberate trigger deviation (DESIGN §21.29): six 重装 skills DEFAU
   assert.match(doc('CHANGELOG.md'), /深巡、雷蛇的二技能，号角的二、三技能，灰毫的一、二技能改为攻击范围内有敌人时就释放/);
 });
 
-test('干员战斗语音 (DESIGN §21.30): upstream #73\'s moments on the fork\'s voice engine — one engine, one manifest shape', () => {
+test('干员战斗语音 (DESIGN §21.30): the manifest data, the official priorities, and only a tap\'s 选中干员 speaks outside battle', async () => {
+  const { VOICE_PRIORITY, VOICE_COOLDOWN_MS, resultVoiceSlot } = await import('../public/js/audio.js');
   const manifest = JSON.parse(readFileSync(join(ROOT, 'data/assets.json'), 'utf8'));
   const voice = manifest.audio?.voice ?? {};
-  // the fork's shape: audio.voice.<lang>.<charId>.<role> (tools/assets/voice.mjs), with the official rules beside it;
-  // the port adds depart (行动出发, BATTLE_START) and win4 (完成高难行动, FOUR_STAR); combat is positional (作战中1–4)
-  const ROLES = ['select', 'deploy', 'combat', 'start', 'depart', 'win4', 'win3', 'win', 'fail'];
-  for (const lang of Object.keys(voice)) {
-    assert.ok(['cn', 'jp', 'en', 'kr'].includes(lang), `voice language ${lang}`);
-    const ids = Object.keys(voice[lang]);
-    assert.ok(ids.length >= 100, `${lang}: ${ids.length} operators carry battle voice`);
-    for (const id of ids) {
-      assert.match(id, /^char_/);
-      const lines = voice[lang][id];
-      for (const role of Object.keys(lines)) assert.ok(ROLES.includes(role), `${lang}.${id}.${role}`);
-      if (lines.depart != null) assert.match(lines.depart, /\/cn_019\.mp3$/, `${lang}.${id}.depart is 行动出发`);
-      if (lines.win4 != null) assert.match(lines.win4, /\/cn_029\.mp3$/, `${lang}.${id}.win4 is 完成高难行动`);
-      if (Array.isArray(lines.combat) && lines.combat.length === 4) {
-        lines.combat.forEach((f, k) => assert.ok(f.endsWith(`/cn_02${5 + k}.mp3`), `${lang}.${id}.combat[${k}] is 作战中${k + 1}: ${f}`));
-      }
-    }
-    assert.ok(ids.some((id) => voice[lang][id].depart && voice[lang][id].win4), `${lang}: the new roles depart / win4 are downloaded`);
+  const charIds = Object.keys(voice);
+  assert.ok(charIds.length >= 100, `${charIds.length} operators carry official battle voice`);
+  assert.equal(manifest.stats.voiceChars, charIds.length, 'stats.voiceChars counts them');
+  // one operator carries every slot a battle can play — and none of the prep-only ones (plan.mjs VOICE_BATTLE_SLOTS):
+  // 干员报到 / 编入队伍 / 任命队长 are never requested by the client, so planning them only made every `npm run assets`
+  // download 360 files (19.3 MB, one per operator and slot) nobody hears. `--voice-all` brings the complete set back.
+  const slots = ['start', 'faceEnemy', 'select', 'place', 'skill1', 'skill2', 'skill3', 'skill4', 'resultFour', 'resultThree', 'resultTwo', 'resultLose'];
+  const prepOnly = ['gacha', 'squad', 'squadFirst'];
+  const lines = [];
+  const walk = (x) => {
+    if (typeof x === 'string') lines.push(x);
+    else if (Array.isArray(x)) x.forEach(walk);
+    else if (x && typeof x === 'object') Object.values(x).forEach(walk);
+  };
+  for (const id of charIds) {
+    for (const s of slots) assert.ok(voice[id][s], `${id}.${s}`);
+    for (const s of prepOnly) assert.equal(voice[id][s], undefined, `${id}.${s} is not planned by default`);
+    walk(voice[id]);
   }
-  if (Object.keys(voice).length) assert.ok(Array.isArray(manifest.audio.voiceRules?.voiceTypeOptions), 'audio.voiceRules');
-  assert.match(doc('tools/assets/voice.mjs'), /depart: 'BATTLE_START'/);
-  assert.match(doc('tools/assets/voice.mjs'), /win4: 'FOUR_STAR'/);
-  // one engine: the fork's (official battleVoice rules), with upstream's settlement speaker and mapping ported into it;
-  // no squad leader, no match-end line, no second gate
-  const audioSrc = doc('public/js/audio.js');
-  assert.ok(!/class VoiceGate|VOICE_PRIORITY/.test(audioSrc), 'audio.js has one voice engine');
-  assert.ok(!/endVoiceRole|getLeader|squadLeader|voiceLeader/.test(audioSrc), 'no squad leader, no match-end line');
-  for (const fn of ['resultSpeaker', 'resultVoiceRole', 'settlementVoice']) assert.ok(audioSrc.includes(`export function ${fn}(`) || audioSrc.includes(`export const ${fn} =`), fn);
-  assert.ok(/_trimBuffers\(\)/.test(audioSrc) && /BUFFER_BYTES = 64 \* 1024 \* 1024/.test(audioSrc), 'the decoded-PCM budget');
-  // 选中干员 from the detail card too (de-duplicated with the tap by its key)
-  const panel = doc('public/js/ui/detailPanel.js');
-  assert.match(panel, /audio\.voice\(/);
-  assert.match(panel, /'select'/);
-  const gameLogic = gameLogicText();
-  assert.match(gameLogic, /export (?:function|const) selectVoiceKey\b/);
-  assert.match(gameLogic, /export (?:function|const) detailSelectVoice\b/);
-  assert.ok(!/export (?:function|const) (?:voiceLeader|boardOperators|pieceCharId)\b/.test(gameLogic), 'the squad leader and the prep 部署 helpers are gone');
-  // the settlement after every own battle: read from the finished battle (runner.settlement), said once per battle at its
-  // drawn end — or at once ('ownDone') when the own field is not on screen; the 整备期 says nothing (no prep 部署)
-  const game = doc('public/js/screens/game.js');
-  assert.match(game, /settlementVoice\(/);
-  assert.match(game, /audio\.settle\(/);
-  assert.match(game, /'ownDone'/);
-  assert.ok(!/pieceCharId\(/.test(game), 'no 部署 line in the 整备期');
-  assert.ok(!/resultVoiceSlot|battleRunner\.on\('result'/.test(game), 'upstream\'s result hook is not taken');
-  const runner = doc('public/js/battle/runner.js');
-  assert.match(runner, /\bsettlement\(battleId, playerId\)/);
-  assert.match(runner, /emit\('ownDone'/);
-  assert.ok(!/emit\('result'/.test(runner));
-  assert.ok(!/indexVoice|VOICE_SLOTS/.test(doc('tools/assets/plan.mjs')), 'one voice plan (tools/assets/voice.mjs)');
+  // a battle slot usually carries several lines (选中干员 / 部署 have two), so the battle set alone stays well above 10 each
+  assert.ok(lines.length >= charIds.length * 10, `${lines.length} voice lines for ${charIds.length} operators`);
+  for (const u of lines) assert.match(u, /^\/assets\/audio\/voice\/cn\/char_[^/]+\/cn_\d+\.mp3$/);
+  // the official scheduling numbers (audio_data.json battleVoice.voiceTypeOptions)
+  assert.equal(VOICE_PRIORITY.start, 100);
+  assert.equal(VOICE_PRIORITY.faceEnemy, 90);
+  assert.equal(VOICE_PRIORITY.skill1, 70);
+  assert.equal(VOICE_PRIORITY.place, 20);
+  assert.equal(VOICE_PRIORITY.select, 10);
+  assert.equal(VOICE_COOLDOWN_MS.skill1, 10000);
+  assert.equal(VOICE_COOLDOWN_MS.faceEnemy, 3000);
+  assert.equal(VOICE_COOLDOWN_MS.select, 0, 'official FOCUS_CHAR cooldown 0 (1.5 s until 0.2.2)');
+  assert.equal(resultVoiceSlot({ perfect: true }), 'resultThree');
   // the docs
-  assert.match(DESIGN, /### 21\.30 干员战斗语音 \(upstream #73\) on this fork: upstream's moments on the fork's engine/);
-  assert.ok(!/Upstream behaviour the fork does not have/.test(DESIGN), 'the open list of upstream behaviour is resolved');
-  assert.match(DESIGN, /The per-field lines \(行动出发, 部署, 行动开始, 作战中N, 选中干员\) come from the field on screen like every battle sound/);
-  assert.match(DESIGN, /\*\*The settlement line is the player's own battle's\*\*, whatever field is on screen/);
-  assert.match(DESIGN, /the boss guard: a 最终攻势 \/ 隐秘核心 battle whose boss survived/);
-  // the settlement does not wait for the own field to be on screen (only its timing does)
-  for (const [name, text] of [['DESIGN', DESIGN], ['ASSETS', doc('docs/ASSETS.md')], ['PLAYING', PLAYING]]) {
-    assert.ok(!/only when (?:your|the) own field is on screen|自己的战场在画面上才/.test(text), `${name}: the own settlement is said whatever field is on screen`);
-  }
-  assert.match(doc('docs/ASSETS.md'), /## Operator voice/);
-  assert.match(doc('docs/ASSETS.md'), /`depart`/);
-  assert.match(doc('docs/ASSETS.md'), /`win4`/);
-  assert.ok(!/Only own operators speak/.test(doc('docs/ASSETS.md')));
+  assert.match(DESIGN, /### 21\.30 /);
+  assert.match(DESIGN, /\*\*Where each line plays — battle only\.\*\*/);
+  assert.match(doc('docs/ASSETS.md'), /\| 干员战斗语音 \|/);
+  assert.match(doc('docs/ASSETS.md'), /voiceChars/);
+  // 0.2.2: the Japanese dub beside the Chinese one (audio.voiceJp, settings 语音语言, the full zip's switch)
+  assert.equal(Object.keys(manifest.audio?.voiceJp ?? {}).length, charIds.length, 'every voiced operator has its JP tree');
+  assert.equal(manifest.stats.voiceJpChars, charIds.length);
+  assert.match(doc('docs/ASSETS.md'), /voiceJp: \{ \[charId\]: \{ …the slots of `voice` \} \}/);
+  assert.match(doc('docs/DEPLOY.md'), /`FULL_ZIP_JP_VOICE` 改成 `false` 时/);
+  assert.match(PLAYING, /「语音语言」选 \*\*中文 \/ 日本語\*\*（默认中文，和界面语言无关/);
+  assert.match(PLAYING, /会说一句官方的「选中干员」语音，休整期也一样/);
   assert.match(SIM, /\['engage', id\]/);
-  assert.match(SIM, /the client says that operator's\s+行动开始 there/);
-  assert.ok(!/this fork's client ignores it/.test(SIM));
-  assert.ok(!/ignores the event/.test(doc('server/sim/ai.js')), 'the sim comment says the client uses engage');
-  assert.match(PLAYING, /干员语音也只播你正在看的战场/);
-  assert.match(PLAYING, /自己的每场战斗结束后都有一句结算语音/);
-  assert.match(PLAYING, /整备期不说话/);
-  assert.match(README, /自己每场战斗后的结算；结算以外只播正在看的战场/);
-  const log = doc('CHANGELOG.md');
-  assert.ok(log.indexOf('### 干员战斗语音（PR #73 的触发时机，感谢 @Convey123）') > log.indexOf('## 未发布')
-    && log.indexOf('### 干员战斗语音（PR #73 的触发时机，感谢 @Convey123）') < log.indexOf('## 0.1.4'), 'CHANGELOG 未发布 credits PR #73');
-  // upstream's EN / KR dubs and its --voice-lang spelling, on the fork's pipeline (opt-in)
-  assert.match(DESIGN, /The EN \/ KR dubs, on the fork's pipeline/);
-  assert.match(doc('docs/ASSETS.md'), /`--voice-lang=L`/);
-  assert.match(doc('tools/assets/voice.mjs'), /en: \{ types: \['EN'/);
+  // the code: every slot the client asks for comes from a running battle's own stream — the three prep-only lines
+  // (干员报到 / 编入队伍 / 任命队长) are never requested — except 选中干员, the detail panel's line on every tap of an
+  // operator, in every phase (0.2.2: the owner's request of 2026-10-08)
+  const panel = doc('public/js/ui/detailPanel.js');
+  const game = doc('public/js/screens/game.js');
+  for (const [name, src] of [['audio.js', doc('public/js/audio.js')], ['game.js', game], ['detailPanel.js', panel]]) {
+    assert.ok(!/voice\([^)]*'(gacha|squad|squadFirst)'/.test(src), `${name}: no prep slot is played`);
+  }
+  assert.match(panel, /const selectKey = voice && detail\?\.type === 'chess'/);
+  assert.match(game, /voice=\$\{true\}/);
+  assert.match(game, /audio\.voice\(charId, resultVoiceSlot\(/);
 });
