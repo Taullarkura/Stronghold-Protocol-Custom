@@ -1,0 +1,6 @@
+        console.warn('[runner] battle construction failed', err);
+<<<<<<< HEAD
+        if (task.seq === startSeq) { loading = null; publishState(); }
+=======
+        recordError('runner', err, 'battle construction failed');
+        if (task.seq === startSeq) { loading = null; publishState(); }

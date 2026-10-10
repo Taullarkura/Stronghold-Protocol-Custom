@@ -1,7 +1,7 @@
 // Account-synced preferences. Audio, graphics and resource settings remain device-local.
 // Reused by Workers; account preferences do not version the battle/replay engine.
 import { DIFFICULTIES, EMOTE_THEMES } from '../../shared/constants.js';
-import { isLoadoutEntries, isDiyPicks, isNotOwnedList } from '../../shared/protocol.js';
+import { isLoadoutEntries, isLoadoutOps, isDiyPicks, isNotOwnedList } from '../../shared/protocol.js';
 import { AccountError } from '../../shared/account-protocol.js';
 
 // The out-of-match setup of the 干员调配 overlay follows the account (the stored forms of ui/loadoutModel.js,
@@ -11,8 +11,8 @@ export const PREFERENCE_KEYS = Object.freeze(['loadout', 'diy', 'ownership', 'lo
 const plain = value => !!value && Object.getPrototypeOf(value) === Object.prototype;
 const UNSAFE = ['__proto__', 'constructor', 'prototype'];
 const safeKeys = value => !Object.keys(value).some(k => UNSAFE.includes(k));
-/** `{ v: 1, <field> }` and nothing else. */
-const envelope = (value, field) => plain(value) && value.v === 1 && Object.keys(value).every(k => k === 'v' || k === field);
+/** `{ v: 1, <field> }` (plus any further allowed field) and nothing else. */
+const envelope = (value, ...fields) => plain(value) && value.v === 1 && Object.keys(value).every(k => k === 'v' || fields.includes(k));
 /**
  * A stored 自选编队 (`{ [slotBaseId]: { charId, skillIndex?, uniEquipId? } }`, ui/diyModel.js toStoredDiy): the shape
  * room.diy accepts (shared/protocol.js isDiyPicks: at most DIY_LIMITS.slots slots), no other key on a pick, no unsafe
@@ -33,7 +33,8 @@ export function validNotOwned(list) {
 }
 export function validPreference(key, value) {
   switch (key) {
-    case 'loadout': return envelope(value, 'entries') && isLoadoutEntries(value.entries) && safeKeys(value.entries);
+    case 'loadout': return envelope(value, 'entries', 'ops') && isLoadoutEntries(value.entries) && safeKeys(value.entries)
+      && (value.ops === undefined || (isLoadoutOps(value.ops) && safeKeys(value.ops)));
     case 'diy': return envelope(value, 'picks') && validDiySelection(value.picks);
     case 'ownership': return envelope(value, 'notOwned') && validNotOwned(value.notOwned);
     case 'lobby.mode': return value === 'solo' || value === 'coop';

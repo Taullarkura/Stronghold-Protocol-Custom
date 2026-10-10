@@ -111,18 +111,17 @@ test('the committed data/assets.json lists every 自选 operator\'s avatar, port
   assert.equal(m.stats.modules, Object.keys(m.modules).length);
 });
 
-test('an operator left out of 自选 (data/backups.json diy.excluded: the collab picks, 焰狐龙梓兰 MH05 among them) keeps no art in data/assets.json, so the full release zip (tools/package.mjs) never ships it', () => {
+// This fork (the owner's decision of 2026-10-08, tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS): the 7 collab 6★
+// upstream leaves out of 自选 for copyright are picks here, so the manifest carries their art too.
+const COLLAB = ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4182_oblvns', 'char_4217_makoto'];
+
+test('the fork\'s 7 collab picks are 自选 picks here: nothing is left out and each keeps its art in data/assets.json', () => {
   const m = load('assets');
-  const text = JSON.stringify(m);
-  assert.ok(BACKUPS.diy.excluded.includes('char_1048_orchd2'), '焰狐龙梓兰 is excluded');
-  for (const id of BACKUPS.diy.excluded) {
-    const code = id.split('_').slice(2).join('_');
-    assert.equal(m.chars[id], undefined, `${id}: chars`);
-    assert.equal(m.audio.sfx.units[id], undefined, `${id}: unit sfx`);
-    assert.equal(m.audio.voice?.[id], undefined, `${id}: voice`);
-    assert.ok(!Object.keys(m.skills).some((k) => k.startsWith(`skchr_${code}_`)), `${id}: skill icons`);
-    assert.ok(!text.includes(id), `${id}: no file of theirs`);
+  assert.deepEqual(BACKUPS.diy.excluded, [], 'nothing left out');
+  for (const id of COLLAB) {
+    assert.ok(BACKUPS.diy.ownedPool.includes(id), `${id}: a 自选 pick of the data`);
+    const c = m.chars[id];
+    assert.ok(c && c.avatar && c.portrait && c.spine?.front?.skel, `${id}: art in data/assets.json`);
   }
   assert.equal(m.stats.chars, Object.keys(m.chars).length);
-  assert.equal(m.stats.skills, Object.keys(m.skills).length);
 });

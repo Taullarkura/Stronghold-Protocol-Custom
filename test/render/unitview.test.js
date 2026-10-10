@@ -265,7 +265,7 @@ describe('clipped skeletons (eye clips)', () => {
     for (let i = 0; i < 4; i++) v.update(1 / 60, cam(), i / 60);
     assert.ok(v.imp?.slot?.clip, 'drawn through a clip page');
     assert.ok(clips.length > 0 && clips.every(Boolean), 'never an unclipped slot');
-    assert.equal(typeof v.actor.setClipping, 'undefined', 'nothing can switch its clipping off');
+    assert.equal(v.actor.clipOn, true, 'nothing can switch its clipping off');
   });
 });
 

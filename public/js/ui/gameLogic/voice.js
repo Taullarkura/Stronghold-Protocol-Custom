@@ -18,7 +18,7 @@ export const selectVoiceKey = (fieldId, unitId) => `${fieldId ?? ''}:${unitId}`;
  * What the detail card says when it opens on an operator of the battle on screen (选中干员): { charId, key } — the
  * operator on the field and selectVoiceKey(fieldId, unitId) — or null. The speaker is the record the card shows: a chess
  * fielded as its 补位 stand-in speaks as the stand-in (`resolved.standIn`, the operator whose model, name and battle
- * lines the card and audio.js show — never the operator it replaces; a 预备干员 has no line, audio.js canSpeak), a 自选
+ * lines the card and audio.js show — never the operator it replaces; a 预备干员 has no line, audio.js voiceLine), a 自选
  * record is already its pick's (`resolved.chess.charId`), else the chess record's charId (an elite `_b` record shares it).
  * Only in a battle phase (never in the 整备期, nor in 结算), only for a battle unit's card (`target.kind === 'unit'`: an
  * own operator, a teammate's, a 联防 / spectated field's) that resolved to a chess record; a bench / shop / bond-member

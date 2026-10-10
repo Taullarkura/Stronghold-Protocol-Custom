@@ -62,7 +62,7 @@ test('wiring: game.js pushes the early buffer quiet; app.js marks quiet tuples a
   const game = code('public/js/screens/game.js');
   // the sound takes the buffer through audio.replayEarly: its spawns, and the voice's 行动出发 of an initial deployment —
   // no sound effect (test/ui/audio.test.js)
-  assert.match(game, /view\.pushEvents\(\{ ev: early, gt: earlySnap\?\.gt, quiet: true \}\);\s*audio\.replayEarly\(early\);/);
+  assert.match(game, /view\.pushEvents\(\{ ev: early, gt: earlySnap\?\.gt, quiet: true \}\);\s*audio\.handleBattleEvents\(audioEarly\(early\)\);/);
   assert.match(game, /view\.on\('battleEvents', \(evs\) => audio\.handleBattleEvents\(evs\)\)/, 'the sound hears the view');
   // the DOM fallback (no render clock) hears the frames as they come: a runner hand-over batch (a catch-up frame, the
   // hidden-tab backlog — test/match/runner-unseen.test.js) only for its spawns, so no late 作战中 / 部署 voice

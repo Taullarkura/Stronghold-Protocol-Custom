@@ -55,19 +55,19 @@
 .seats--wide { grid-template-rows: repeat(2, minmax(0, 3.3rem)); gap: .16rem .3rem; padding-top: .16rem; padding-bottom: .14rem; }
 .seats--wide .seat { --bk-l: .12rem; gap: .03rem; padding: .08rem .14rem .06rem; }
 .seats--wide .seat .micro, .seats--wide .seat__stripes { display: none; }
-.seats--wide .seat__no { font-size: .18rem; }
-.seats--wide .seat__host { font-size: .11rem; padding: .01rem .07rem; }
+.seats--wide .seat__no { font-size:calc(.18 * var(--t)); }
+.seats--wide .seat__host { font-size:calc(.11 * var(--t)); padding: .01rem .07rem; }
 .seats--wide .seat__art { gap: .04rem; margin: .03rem 0 .02rem; }
 .seats--wide .seat__art .avatar { --av: 1.4rem; }
-.seats--wide .seat__bot-label { position: absolute; left: .04rem; bottom: .04rem; font-size: .11rem; padding: .01rem .06rem; }
+.seats--wide .seat__bot-label { position: absolute; left: .04rem; bottom: .04rem; font-size:calc(.11 * var(--t)); padding: .01rem .06rem; }
 .seats--wide .seat__bot-label .icon { width: .13rem; height: .13rem; }
-.seats--wide .seat__name { font-size: .2rem; max-width: 2.6rem; }
+.seats--wide .seat__name { font-size:calc(.2 * var(--t)); max-width: 2.6rem; }
 .seats--wide .seat__foot { min-height: .36rem; margin-top: .02rem; padding-top: .05rem; }
-.seats--wide .seat__state { font-size: .15rem; }
+.seats--wide .seat__state { font-size:calc(.15 * var(--t)); }
 .seats--wide .seat__state .icon { width: .18rem; height: .18rem; }
 .seats--wide .seat__foot .tt-anchor { right: .08rem; bottom: .05rem; }
 .seats--wide .seat__radar { width: .8rem; height: .8rem; }
-.seats--wide .seat__wait { font-size: .16rem; }
+.seats--wide .seat__wait { font-size:calc(.16 * var(--t)); }
 /* short screens (landscape phones, ≤ 460 CSS px tall: 1rem = 40 px, the screen is only ~9rem high): the empty seats' radar
    goes and the portraits shrink further so both rows keep their names and buttons */
 @media (max-height: 460px) {

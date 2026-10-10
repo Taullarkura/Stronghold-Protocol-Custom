@@ -504,8 +504,8 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 /* the pick order of more than 4 players: tighter entries with shorter names (the name is the entry's tooltip) */
 .spov__order--dense { flex-wrap: wrap; gap: .06rem; }
 .spov__order--dense .spov__who { gap: .05rem; padding: .04rem .08rem .04rem .04rem; }
-.spov__order--dense .spov__idx { width: .16rem; font-size: .14rem; }
-.spov__order--dense .spov__wname { max-width: .7rem; font-size: .14rem; }
+.spov__order--dense .spov__idx { width: .16rem; font-size:calc(.14 * var(--t)); }
+.spov__order--dense .spov__wname { max-width: .7rem; font-size:calc(.14 * var(--t)); }
 .spov__order--dense .spov__who.is-self .spov__idx { color: var(--mint-400); }
 /* narrow phones (< 768 px, 1rem = 40 px): avatars, numbers and states only — the header names the current picker */
 @media (max-width: 767.98px) {

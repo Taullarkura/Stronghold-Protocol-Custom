@@ -1,0 +1,7 @@
+        <div class="room-bar__opts">
+          <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
+          <${AiLastToggle} option=${aiLastOption(room, me.playerId)} busy=${busy} onToggle=${setAiLast} />
+        </div>
+        ${coop && facts.isHost ? html`<span class="room-bar__label">${t('同盟席位')}<${MicroLabel}>SEATS<//></span>
+          <${CapacityPicker} facts=${facts} busy=${busy} onPick=${setCapacity} />` : null}
+      <div class="ready-count" hidden=${!coop}>

@@ -1035,7 +1035,7 @@
    floor on a phone (DESIGN §F2.4) and ellipsizes before it pushes the bar's buttons */
 .presence {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: max(.15rem, 10px); color: var(--text-lo); font-variant-numeric: tabular-nums;
+  font-size:max(calc(.15 * var(--t)), 10px); color: var(--text-lo); font-variant-numeric: tabular-nums;
 }
 
 .section-label { display: flex; align-items: baseline; gap: .12rem; margin: 0 0 .14rem; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .08em; }

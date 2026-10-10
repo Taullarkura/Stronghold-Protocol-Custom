@@ -232,20 +232,6 @@ export class SpineActor {
     }
   }
 
-    /** Enable / disable the skeleton's clipping masks. */
-  setClipping(on) {
-    on = !!on;
-    if (!this.clipped || on === this.clipOn) return;
-    this.clipOn = on;
-    if (on) this._showClipHidden();   // the stencil takes over from the eyelid fallback
-    for (const slot of this.spine?.skeleton?.slots || []) {
-      if (!slot.clippingContainer) continue;
-      slot.clippingContainer.mask = on ? slot.currentGraphics || null : null;
-      // PIXI makes a released mask renderable again: the clip polygon must never draw as a white shape
-      if (slot.currentGraphics) slot.currentGraphics.renderable = false;
-    }
-  }
-
   /**
    * The equipped skill (DESIGN §16 loadout, UnitInfo.skillIndex): its own Spine clip when the model has one per skill
    * index (`anims.skills`), else the primary skill's clip.
@@ -689,6 +675,14 @@ export class SpineActor {
     if (!a || !this.has(a.loop)) return null;
     const loop = !!(this.has(a.begin) || this.has(a.end)) || /loop/i.test(a.loop);
     return { begin: this.has(a.begin) ? a.begin : null, clip: a.loop, loop, end: this.has(a.end) ? a.end : null };
+  }
+
+  _attackClip() {
+    const sk = this.roles.skill;
+    if (this.skillOn && sk && this.has(sk.loop) && sk.via !== 'attack' && !this._skillIsBuffOnly()) return sk;
+    const a = this.roles.attack;
+    if (a && this.has(a.loop)) return a;
+    return null;
   }
 
   // A skill whose loop is just the idle clip shows nothing (no pose, no swing). Pure-stance loops with no strike frame

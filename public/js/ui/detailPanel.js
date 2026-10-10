@@ -846,25 +846,23 @@ export function selectVoiceKey(detail) {
  *   resolved as another player's carries its own, `detail.cultOpts`)
  *   live: the unit's live stats (unitStatsEntry + src 'battle' | 'prep') — an object, or a getter the panel re-reads 4×
  *   a second (the battle's own sim, battle/runner.js unitStats); null ⇒ the record's numbers
- *   voice: { charId, key } | null — the 选中干员 line (audio.voice 'select') the card says when it opens on an operator of
- *   the battle on screen, or is retargeted to another one (the game screen passes gameLogic detailSelectVoice: battle
- *   phases only, battle units only — never a prep scouting board's piece —, any operator of the field on screen, a card
- *   opened in a battle: one left open from the 整备期 stays silent — DESIGN §21.30); null ⇒ silent. A tap on the unit
- *   asks for the same line with the same key first (screens/game.js pieceClick), and audio.voice drops a repeat select of
- *   one key within a second, so a tap says one line; a long-press / right-click (no tap line) is voiced by the card.
+ *   voice: whether the panel may speak — 选中干员 (audio.voice 'select') when it opens on an operator the player tapped:
+ *   a piece on the field or in the hand, a shop / reward card, a bond member. The game screen passes true in every phase
+ *   (the owner's request of 2026-10-08 「添加一下干员点击上去的语气一样的语音」 lifted 2026-10-03's 「整备阶段不需要干员语音」
+ *   for this line only; [ASSUMED] the official prep tap says 选中干员 like the battle's FOCUS_CHAR)
  */
-export function DetailPanel({ detail, editable, snapHp, onClose, onSell, onDestroy, bonds = [], offBonds = null, loadout = null, ops = null, onBond = null, side = 'left', shopOpen = false, live = null, voice = null }) {
+export function DetailPanel({ detail, editable, snapHp, onClose, onSell, onDestroy, bonds = [], offBonds = null, loadout = null, ops = null, onBond = null, side = 'left', shopOpen = false, live = null, voice = false }) {
   const getter = typeof live === 'function' ? live : null;
   useTicker(detail && getter ? 250 : 0);
-  // 选中干员: once per key — the panel stays mounted while its target changes, so the key names the field and the unit.
-  // 0.2.0 补位 (upstream c5e8d136): a chess fielded as its stand-in is spoken for by the stand-in (the operator on the
-  // field, whose model, name and battle lines the card and audio.js show), never by the operator it replaces — a 预备干员
-  // stand-in has no lines and stays silent; a 自选 record is already the pick's (detailSelectVoice reads it)
-  const vKey = voice?.key ?? null;
-  const vChar = voice ? (detail?.standIn?.charId || voice.charId || null) : null;
+  // 选中干员 voice (audio.voice 'select'): once per opened operator — the panel stays mounted while the target changes,
+  // so the key carries what identifies it (its chess record, its piece / battle unit id, the card tap: selectVoiceKey)
+  const selectKey = voice && detail?.type === 'chess' ? selectVoiceKey(detail) : null;
+  // 0.2.0 补位: a chess fielded as its stand-in is spoken for by the stand-in (the operator on the field, whose model, name
+  // and battle lines the card and audio.js show), never by the operator it replaces; a 自选 record is already the pick's
+  const selectChar = voice && detail?.type === 'chess' ? detail.standIn?.charId || detail.chess?.charId || null : null;
   useEffect(() => {
-    if (vKey && vChar) audio.voice(vChar, 'select', { key: vKey });
-  }, [vKey, vChar]);
+    if (selectKey && selectChar) audio.voice(selectChar, 'select');
+  }, [selectKey, selectChar]);
   if (!detail) return null;
   let liveNow = null;
   try { liveNow = getter ? getter() : live && typeof live === 'object' ? live : null; } catch { liveNow = null; }

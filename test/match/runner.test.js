@@ -16,7 +16,7 @@ import { PHASE } from '../../shared/constants.js';
 import { DATA, makeMatch } from './harness.js';
 import { appendReplayReport } from '../../server/match/recorder.js';
 import { createReplayRunner } from '../../public/js/battle/replay-runner.js';
-import { settlementVoice } from '../../public/js/audio.js';
+import { resultSpeaker, resultVoiceSlot } from '../../public/js/audio.js';
 
 const DS = new DataSource(DATA, null);
 
@@ -302,14 +302,14 @@ test("settlement() (the settlement voice line, DESIGN §21.30): the own finished
   // THIS battle's operators that has the line, survivors first; without charOf no chess id ever speaks
   const charOf = (id) => DATA.chess[id]?.charId ?? null;
   const voiced = DATA.assets?.audio?.voice?.cn || {};
-  const canSpeak = (c, role) => typeof voiced[c]?.[role] === 'string';
-  const v = settlementVoice(st, { charOf, canSpeak, random: () => 0 });
-  const role = st.perfect ? 'win3' : st.total > 0 && st.killed <= 0 ? 'fail' : st.leaked > 0 ? 'win' : 'win3';
-  const can = st.unitsEnd.map((u) => ({ id: charOf(u.defId), alive: u.alive })).filter((o) => o.id && canSpeak(o.id, role));
+  const canSpeak = (c, slot) => typeof voiced[c]?.[slot] === 'string';
+  const slot = resultVoiceSlot({ perfect: st.perfect, leaked: st.leaked, killed: st.killed, total: st.total, hard: false });
+  const charId = resultSpeaker(st, () => 0, charOf);
+  const can = st.unitsEnd.map((u) => ({ id: charOf(u.defId), alive: u.alive })).filter((o) => o.id && canSpeak(o.id, slot));
   const pool = can.some((o) => o.alive) ? can.filter((o) => o.alive) : can;
   assert.ok(pool.length, 'this board fields voiced operators');
-  assert.deepEqual(v, { charId: pool[0].id, role });
-  assert.equal(settlementVoice(st, { random: () => 0 }), null, 'chess ids need charOf');
+  assert.equal(charId, pool[0].id);
+  assert.equal(resultSpeaker(st, () => 0, null), null, 'chess ids need charOf');
   assert.deepEqual(done, [{ battleId: start.battleId, fieldId: start.fieldId, late: false }], "'ownDone' once, as it finished");
   assert.equal(r.runner.settlement('nope', pid), null, 'unknown battle');
   assert.equal(r.runner.settlement(start.battleId, 'someone_else'), null, 'no part in it');

@@ -90,7 +90,7 @@
 //                           Read from the battle's own result (authoritative or not: every own battle is simulated
 //                           here); bossDown (boss / hidden fields only, else null): the pool was emptied — the battle
 //                           ended 'cleared' here, the server's b.end said 'cleared', or the result's bossHpLeft is 0.
-//                           The settlement voice line (audio.js settlementVoice) is picked from it.
+//                           The settlement voice line (audio.js resultSpeaker; screens/game.js sayResult) is picked from it.
 //   battleRunner.stats() → tick/step cost, prepareMs/maxPrepareMs, maxFrameMs/maxPumpMs and workload counters.
 //     Frame/pump maxima include synchronous runner subscribers, not the page's independent render loop.
 //   battleRunner.unitStats(unitId, fieldId?) → the live stats of a unit of the battle on screen (shared/protocol.js
@@ -1221,7 +1221,7 @@ export function createBattleRunner(deps) {
     },
     /**
      * How `playerId`'s part of the finished own battle `battleId` went (see the header) — the settlement voice line is
-     * picked from it (audio.js settlementVoice; screens/game.js sayResult). null: no such entry (unknown, or dropped
+     * picked from it (audio.js resultSpeaker; screens/game.js sayResult). null: no such entry (unknown, or dropped
      * with the round), still running, a display replica of someone else's field, or the player has no part in it. Own
      * entries are never evicted, so this stays valid until the next prep drops the round's battles.
      * @param {string} battleId @param {string} playerId

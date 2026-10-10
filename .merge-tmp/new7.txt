@@ -1,0 +1,2 @@
+
+/** World step (x = col, y = row) of a direction. */

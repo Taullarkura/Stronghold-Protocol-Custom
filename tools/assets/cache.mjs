@@ -80,10 +80,11 @@ export async function cachedJson({ cacheFile, url, refresh = false, offline = fa
  */
 
 /**
- * Load audio_data.json (official) and Ark-Models models_data.json.
+ * Load audio_data.json (official), Ark-Models models_data.json and charword_table.json (the operators' voice slots,
+ * ~11 MB: fetch-assets' buildPlan takes it so a run that plans 干员战斗语音 has it).
  * @param {string} root project root
  * @param {IndexOptions} [opts]
- * @returns {Promise<{ audioData: any, modelsData: any }>}
+ * @returns {Promise<{ audioData: any, modelsData: any, charword: any }>}
  */
 export async function loadIndexes(root, opts = {}) {
   const mirrorPolicy = opts.mirrorPolicy ?? new MirrorPolicy(opts);
@@ -105,14 +106,23 @@ export async function loadIndexes(root, opts = {}) {
     offline: opts.offline,
     log: opts.log,
   });
-  return { audioData, modelsData };
+  const charword = await cachedJson({
+    ...opts,
+    mirrorPolicy,
+    cacheFile: join(root, '.cache', 'gamedata', 'excel', 'charword_table.json'),
+    url: RAW.gamedata + 'excel/charword_table.json',
+    refresh: opts.refresh,
+    offline: opts.offline,
+    log: opts.log,
+  });
+  return { audioData, modelsData, charword };
 }
 
 /**
- * Load charword_table.json (official operator voice lines, ~11 MB; voice.mjs). Only fetched when voice is wanted, so
- * it is not one of loadIndexes(), but it is a GitHub download like them and takes the same network options: the mirror
- * when chosen (opts.mirrorPolicy, shared with the run), then raw.githubusercontent, then jsDelivr — the reliable path
- * when raw stalls on this 11 MB file.
+ * Load charword_table.json alone (official operator voice lines, ~11 MB; the same download loadIndexes does, with its
+ * own cache file — for a caller that wants the voice table without the other indexes). The mirror when chosen
+ * (opts.mirrorPolicy, shared with the run), then raw.githubusercontent, then jsDelivr — the reliable path when raw
+ * stalls on this 11 MB file.
  * @param {string} root project root
  * @param {IndexOptions} [opts]
  */

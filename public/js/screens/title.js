@@ -284,7 +284,7 @@ export function TitleScreen() {
     <footer class="title-foot">
       <${ResumeMatchButton} />
       <${PwaInstallButton} />
-      <span class="title-foot__note">${t('非官方同人复刻 · 游戏素材版权归  上海鹰角网络 / Yostar 所有')}</span>
+      <span class="title-foot__note">${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span>
       <span class="title-foot__right">
         <span class="presence num" data-testid="title-presence" title=${presenceHint()}>${presenceLabel(presence)}</span>
         <${MicroLabel}>v${APP_VERSION} · WEB SIMULATION<//>

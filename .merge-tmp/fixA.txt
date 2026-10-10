@@ -1,0 +1,3 @@
+    impostorSlot: () => impSlot++,
+    clipAllowed: () => clipAllowed,
+    viewport: () => vp,

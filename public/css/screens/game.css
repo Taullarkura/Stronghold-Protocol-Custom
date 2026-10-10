@@ -748,4 +748,4 @@
 .pauseov__note { font-size: calc(.17 * var(--t)); color: var(--text-md); text-shadow: 0 1px 2px #000; }
 .pauseov__btns { display: flex; gap: .2rem; }
 
-.spectator-presence { position: fixed; z-index: 60; right: max(.24rem, env(safe-area-inset-right)); bottom: 1.05rem; display: flex; align-items: center; gap: .12rem; padding: .08rem .14rem; border: 1px solid #86e6d866; background: #101b25ed; color: #c7f8ef; font-size: .14rem; border-radius: .06rem; }
+.spectator-presence { position: fixed; z-index: 60; right: max(.24rem, env(safe-area-inset-right)); bottom: 1.05rem; display: flex; align-items: center; gap: .12rem; padding: .08rem .14rem; border: 1px solid #86e6d866; background: #101b25ed; color: #c7f8ef; font-size:calc(.14 * var(--t)); border-radius: .06rem; }

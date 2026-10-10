@@ -393,8 +393,8 @@
       ],
       "enemies": {"enemy_1166_dusbr_2":[14,11,3,27538,137391],"enemy_1170_dushld_2":[4,2,2,21320,63029],"enemy_9011_acrefr":[4,0,1,56967,74180]},
       "hooks": [1,45,5700,728,728,1210,1200,3469,28,34,22,21,49,4521,206,47,22,6,1,28,0,0,10],
-      "events": {"atk":1051,"deploy":23,"die":28,"dmg":1197,"engage":4,"fx":138,"heal":128,"leak":6,"skill":43,"spawn":30,"status":537},
-      "fx": {"bandage":4,"dodge":10,"extraAttack":30,"garrisonGrant":1,"mote":40,"redistribute":30,"revive":12,"reweave":2,"sandChains":3,"shield":4,"spGift":2},
+      "events": {"atk":1051,"deploy":23,"die":28,"dmg":1197,"engage":4,"fx":140,"heal":128,"leak":6,"skill":43,"spawn":30,"status":537},
+      "fx": {"bandage":4,"dodge":10,"extraAttack":30,"garrisonGrant":1,"mote":40,"motes":2,"redistribute":30,"revive":12,"reweave":2,"sandChains":3,"shield":4,"spGift":2},
       "snaps": "1677f704 a90097f0 a576a4e5 68fe0b6d eb8c513e 4768f61a a5bf4e9c 2a3a6d0c 4c36a044 b8702367 56610a16 53525b39 c635f13c 2dc58e54 5a4de3ed 2fce0f1e 71dbce88 9a764c10 e56a31ad"
     },
     "bond-investShip-low": {
@@ -522,8 +522,8 @@
       ],
       "enemies": {"enemy_1116_liprr":[11,11,0,2671,69696],"enemy_1116_liprr_2":[4,4,0,18,34560],"enemy_1121_lifbos":[1,1,0,5486,23040]},
       "hooks": [1,27,1790,204,204,364,364,947,16,16,7,6,0,6412,9,13,16,0,1,16,1,0,0],
-      "events": {"atk":222,"deploy":8,"die":16,"dmg":356,"engage":5,"fx":52,"heal":45,"layer":1,"skill":13,"spawn":27,"status":41},
-      "fx": {"displace":13,"garrison":1,"healField":1,"liberate":3,"phase":2,"redistribute":12,"reweave":1,"sandChains":1,"shield":1,"slash":16,"truesilver":1},
+      "events": {"atk":222,"deploy":8,"die":16,"dmg":356,"engage":5,"fx":53,"heal":45,"layer":1,"skill":13,"spawn":27,"status":41},
+      "fx": {"displace":13,"garrison":1,"healField":1,"liberate":3,"motes":1,"phase":2,"redistribute":12,"reweave":1,"sandChains":1,"shield":1,"slash":16,"truesilver":1},
       "snaps": "9b219002 89fee16f 783ad392 5bdf72f7 628effe2 01fc17a8"
     },
     "bond-kazimierzShip-high": {
@@ -1072,8 +1072,8 @@
       ],
       "enemies": {"enemy_1267_nhpbr":[11,11,0,2596,44550],"enemy_1267_nhpbr_2":[5,5,0,540,24750],"enemy_1272_nhtank":[1,0,0,9312,3381]},
       "hooks": [1,25,3300,198,198,440,440,1754,16,16,20,20,0,14261,0,2,17,0,1,16,1,0,0],
-      "events": {"atk":268,"deploy":8,"die":16,"dmg":388,"engage":3,"fx":112,"heal":121,"layer":1,"skill":40,"spawn":25,"status":233},
-      "fx": {"buff":1,"counter":17,"garrison":1,"healField":1,"mote":38,"redistribute":15,"reweave":1,"slash":13,"spGift":2,"truesilver":1,"zone":22},
+      "events": {"atk":268,"deploy":8,"die":16,"dmg":388,"engage":3,"fx":113,"heal":121,"layer":1,"skill":40,"spawn":25,"status":233},
+      "fx": {"buff":1,"counter":17,"garrison":1,"healField":1,"mote":38,"motes":1,"redistribute":15,"reweave":1,"slash":13,"spGift":2,"truesilver":1,"zone":22},
       "snaps": "008b74fd 582c36c9 0542ea84 211eaa76 f83f2956 53091ddf ecd6f6ef 4b87ef36 f02e50f0 17a9fc80 b9cf39de"
     },
     "bond-sargonShip-high": {
@@ -1107,8 +1107,8 @@
       ],
       "enemies": {"enemy_1006_shield_3":[3,3,0,2843,138240],"enemy_1043_zomsbr":[23,23,0,0,69875],"enemy_1402_tgshd_2":[4,4,0,1251,59904]},
       "hooks": [1,38,2462,165,165,397,597,1388,31,31,14,14,0,6375,0,5,30,0,1,43,0,0,0],
-      "events": {"atk":207,"deploy":8,"die":31,"dmg":597,"engage":3,"fx":110,"skill":28,"spawn":38,"status":41},
-      "fx": {"expose":58,"jungleSoul":1,"mote":14,"redistribute":15,"reweave":1,"slash":20,"truesilver":1},
+      "events": {"atk":207,"deploy":8,"die":31,"dmg":597,"engage":3,"fx":111,"skill":28,"spawn":38,"status":41},
+      "fx": {"expose":58,"jungleSoul":1,"mote":14,"motes":1,"redistribute":15,"reweave":1,"slash":20,"truesilver":1},
       "snaps": "d81207a4 e5f41037 e0b88fa7 7a6a3918 dbdfa4d8 a6f93588 e957bb33 9d7565d2 294af894"
     },
     "bond-siracusaShip-low": {
@@ -1526,8 +1526,8 @@
       ],
       "enemies": {"enemy_1249_lysdb_2":[5,5,0,0,27000],"enemy_1251_lysyta":[15,15,0,0,37125],"enemy_1328_cbjedi":[1,1,0,0,9000]},
       "hooks": [1,29,1268,98,98,241,236,1,21,21,5,3,14,5437,31,0,21,0,1,21,1,0,0],
-      "events": {"atk":117,"deploy":8,"die":21,"dmg":236,"engage":5,"fx":40,"layer":1,"skill":8,"spawn":29,"status":83},
-      "fx": {"buff":1,"displace":8,"garrison":1,"garrisonGrant":1,"mote":14,"sandChains":1,"shieldBreak":5,"slash":2,"sp":1,"spGift":5,"truesilver":1},
+      "events": {"atk":117,"deploy":8,"die":21,"dmg":236,"engage":5,"fx":41,"layer":1,"skill":8,"spawn":29,"status":83},
+      "fx": {"buff":1,"displace":8,"garrison":1,"garrisonGrant":1,"mote":14,"motes":1,"sandChains":1,"shieldBreak":5,"slash":2,"sp":1,"spGift":5,"truesilver":1},
       "snaps": "ce4ae366 a38b149a cb2c9832 5537fde9 0e384607"
     },
     "bond-swiftShip-high": {
