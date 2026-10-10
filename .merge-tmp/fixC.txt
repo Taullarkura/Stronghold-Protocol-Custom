@@ -1,2 +1,0 @@
-  // Attach the board only after synchronous setup completes; enable3d also guards late arrivals.
-  const boardReady = Promise.all([threePromise, packPromise]).then(([THREE, pack]) => (THREE && pack ? enable3d(THREE, pack) : false), () => false);

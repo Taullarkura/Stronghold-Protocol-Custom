@@ -1,5 +1,0 @@
-  // Spine clipping masks (the eyelids on the current roster) each cost a stencil render-pass break (~2–5 ms of GPU on
-  // tiled GPUs): kept only for a lone clipped skeleton at high quality; without them SpineActor hides the eyeball slots a
-  // closed lid would cut (GitHub #177, spine.js _eyeMaskFallback). The fork kept them on for every clipped skeleton —
-  // its battle chibis blink by switching the eye-cut clip of their eyes (32 operators) — and drew those through the
-  // impostor atlas's clip pages (units.js), which keeps their stencil passes out of the main pass.
