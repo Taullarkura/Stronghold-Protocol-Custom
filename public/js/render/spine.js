@@ -471,7 +471,7 @@ export class SpineActor {
     const e = st.addAnimation(0, name, loop, delay);
     if (e) { e.timeScale = timeScale; e.mixDuration = blend; }
     this._applied = false;
-    return true;    return true;
+    return true;
   }
 
   /** Resting state from the snapshot. */
@@ -594,17 +594,22 @@ export class SpineActor {
     }
     const dur = this.dur(set.clip), hit = this._hitTime(set.clip, dur), ts = this._attackTs(set, dur, once ? dur : this.interval);
     this.mode = 'attack';
-    // a safety net: the loop ends at its cycle, a one-shot with its clip (update)
-    this.attackUntil = this.clock + (set.loop ? this.interval + 0.5 : Math.max(0, dur - hit) / Math.max(0.05, ts));
     const now = this._nowClip(), e = this.spine.state.tracks[0];
     // a swing under way towards this attack: the set's clip before its strike frame, its loop or begin clip — or the
     // one-shot wound up before the set changed (a skill without a begin clip began meanwhile: it strikes this attack)
     const swinging = e && ((now === set.clip && (set.loop || e.trackTime <= hit + 0.12 * ts)) || (set.begin && now === set.begin)
       || (this.swingClip && now === this.swingClip && !e.loop && e.trackTime <= this.swingHit + 0.12 * Math.max(0.05, e.timeScale || 1)));
+    // upstream 0.2.3, #246 (by @TsangAsuna): a clip-per-attack enemy that was NOT wound up (a batch that arrived late)
+    // and whose rhythm leaves room for the whole clip plays it complete from its wind-up — 重犯's iron ball lifts before
+    // the slam — its strike a little late; else the clip is shown from its strike frame (the sim resolved the hit)
+    const whole = this.clipPerAttack && !once && !swinging && this.interval >= dur;
+    // a safety net: the loop ends at its cycle, a one-shot with its clip (update)
+    this.attackUntil = this.clock + (whole ? dur / Math.max(0.05, ts)
+      : set.loop ? Math.max(0.45, this.interval * 1.4) : Math.max(0, dur - hit) / Math.max(0.05, ts));
     if (swinging) { if (now === set.clip) e.timeScale = ts; return; }
     // no swing under way (a batch that arrived late, or right after a skill clip): the sim already resolved the hit,
-    // so the strike frame shows now
-    this._engage(set, ts, hit, 0, this._m(MIX.strike), hit);
+    // so the strike frame shows now — or, for a clip-per-attack enemy with room in its rhythm, the whole clip (#246)
+    this._engage(set, ts, whole ? 0 : hit, 0, this._m(MIX.strike), hit);
   }
 
   /**

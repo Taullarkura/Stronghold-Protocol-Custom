@@ -343,7 +343,7 @@ export class SnapshotBuffer {
     const err = target - this.renderT;
     if (Math.abs(err) > Math.max(this.snapAfter * this.rate, 1.5)) this.renderT = target;
     else { this.renderT += err * Math.min(1, dt * 3); if (this.renderT < before) this.renderT = before; } // steering never runs backwards
-    const cap = stalled ? newest : newest + this.maxExtrapolate * this.rate;
+    const cap = newest + this.maxExtrapolate * this.rate;   // upstream 0.2.3: the clock may run on past the newest snapshot
     if (this.renderT > cap) this.renderT = cap;
     if (this.renderT < this.snaps[0].t) this.renderT = this.snaps[0].t;
     return this.renderT;

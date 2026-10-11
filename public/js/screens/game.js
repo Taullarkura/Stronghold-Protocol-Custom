@@ -218,6 +218,12 @@ function MatchScreen() {
   // the watch effects below)
   const spectator = useStore((s) => isSpectator(s.room, s.me.playerId));
   const publicSpectator = useStore((s) => !!s.room?.spectating);
+  // the room's spectator seats for the top bar's 观战席 capsule (ui/hud.js SpectatorPill; GitHub #120): room.state keeps coming
+  // during the match, the list is replaced only when a seat changes — shallowEqual keeps an unrelated push from re-rendering
+  const specFacts = useStore((s) => ({
+    list: Array.isArray(s.room?.spectators) ? s.room.spectators : null,
+    isHost: !!s.room && s.room.hostId === s.me.playerId,
+  }), shallowEqual);
   const gd = useGameData();
 
   const hostRef = useRef(null);
@@ -562,7 +568,7 @@ function MatchScreen() {
       // look fresh, and a field shown again after a catch-up would replay the deaths, deploys and 漏怪 alarm of the
       // seconds it skipped. The sound gets the buffer's spawns instead (audioEarly: the 'spawn' tuples alone, which
       // teach the audio who is on the field, never the old deaths / deploy lines / casts of the skipped seconds).
-      view.pushEvents({ ev: early, gt: earlySnap?.gt, quiet: true });
+      view.pushEvents(early);
       audio.handleBattleEvents(audioEarly(early));
     }
     if (!earlySnap && (field.prep || !combat) && Array.isArray(field.units)) {
@@ -1293,6 +1299,11 @@ function MatchScreen() {
   const selEntry = sel ? placeCtx.pieces.get(sel.uid) || null : null;
   live.current.showPrep = showPrep;
   useEffect(() => { if (sel && (!selEntry || !editable || !showPrep)) setSel(null); }, [sel, selEntry, editable, showPrep]);
+  // ---- direction step (research 09 §1.2) and the selected piece's underframe ------------------------------------
+  // DESIGN §16: previews show the range the unit fights with under the player's loadout (an elite's module grid); a
+  // chess the player does not own the range of its stand-in (0.2.0 补位, gameLogic deployedRecord)
+  const lookups = useMemo(() => ({ getChess: ownChess, getToken: gd.token, getItem: gd.item,
+    chessRecord: (rec) => deployedRecord(rec, live.current.priv, ownChess, gd.backups) }), [gd.ready]);
   const selRangeKey = selEntry && selEntry.area === 'board' ? `${selEntry.piece.uid}:${selEntry.row},${selEntry.col}:${pieceDir(selEntry.piece)}` : '';
   useEffect(() => {
     if (!view || !selRangeKey) return undefined;

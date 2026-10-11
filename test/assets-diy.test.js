@@ -124,4 +124,5 @@ test('the fork\'s 7 collab picks are 自选 picks here: nothing is left out and 
     assert.ok(c && c.avatar && c.portrait && c.spine?.front?.skel, `${id}: art in data/assets.json`);
   }
   assert.equal(m.stats.chars, Object.keys(m.chars).length);
+  assert.equal(m.stats.skills, Object.keys(m.skills).length);
 });

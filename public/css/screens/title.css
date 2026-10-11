@@ -300,7 +300,7 @@ html[data-script="alphabetic"] .title-login :is(.title-login__github, .title-log
   display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; gap: .02rem .24rem;
   min-width: 0; max-width: calc(50% - 2.45rem - .08rem);
 }
-.title-foot .presence { font-size:max(calc(.13 * var(--t)), 10px); }
+  .title-foot .presence { font-size: max(.13rem, 10px); }
 /* a development build (shared/constants.js DEV_BUILD): an unmissable tag in the footer */
 .title-dev {
   padding: .03rem .1rem;

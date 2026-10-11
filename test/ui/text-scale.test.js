@@ -71,6 +71,9 @@ const NOT_SCALED = [
   /\.field--code/, /\.minfo-dlg/, /\.set-diag__text/,
   // the keyboard hints of the 快捷键 list (a shared rule with the HUD's .toolbtn kbd)
   /\.set-hint kbd/,
+  // the 在线人数 readout: px-floored on purpose (test/ui/presence.test.js pins the literal max(.15rem, 10px) and
+  // max(.13rem, 10px)); it sits in the fixed title / room bars
+  /\.presence/,
 ];
 
 const notScaled = (selector) => NOT_SCALED.some((re) => re.test(selector));

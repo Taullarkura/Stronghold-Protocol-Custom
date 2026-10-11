@@ -31,7 +31,8 @@ test('first login migrates only selected preferences; a clean second device rest
   const local = storage(),
     server = cloud();
   const expected = {
-    loadout: { v: 1, entries: { chess_test: { skill: 0, module: 'none' } } },
+    // this fork's stored loadout carries `ops` beside `entries` (shared/loadoutRecord.js toStored), normalised in here
+    loadout: { v: 1, entries: { chess_test: { skill: 0, module: 'none' } }, ops: {} },
     'lobby.mode': 'solo',
     'lobby.difficulty': 'HARD',
     recentRooms: ['ABCD'],
@@ -41,7 +42,10 @@ test('first login migrates only selected preferences; a clean second device rest
     local.setItem('sp.pref.' + key, JSON.stringify(value));
   const first = client(local, server.forAccount('a'));
   await first.start('a');
-  assert.deepEqual(server.accounts.get('a'), expected);
+  // this fork syncs two more keys than upstream (diy 自选编队 and ownership 拥有情况: public/js/preferenceSchema.js
+  // PREFERENCE_KEYS), so the expected keys are compared one by one instead of the whole account object
+  for (const [key, value] of Object.entries(expected)) assert.deepEqual(server.accounts.get('a')[key], value, key);
+  assert.equal(server.accounts.get('a').settings, undefined, 'settings is never migrated');
   const second = client(storage(), server.forAccount('a'));
   await second.start('a');
   for (const [key, value] of Object.entries(expected)) assert.deepEqual(second.load(key, null), value);

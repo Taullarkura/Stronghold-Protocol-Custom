@@ -166,6 +166,7 @@ export { releaseGl } from './app/host.js';
  */
 export async function createFieldView(host, options = {}) {
   if (!host || typeof host.appendChild !== 'function') throw new TypeError('createFieldView: host element required');
+  const opts = options && typeof options === 'object' ? options : {};
   const signal = opts.signal;
   signal?.throwIfAborted();
   const P = await withTimeout(ensurePixi(), null, signal);
@@ -347,6 +348,10 @@ export async function createFieldView(host, options = {}) {
     impostorSlot: () => impSlot++,
     clipAllowed: () => clipAllowed,
     viewport: () => vp,
+    loadLevel: () => loadLevel,
+    // the slowest a Spine model may animate (frames between skeleton updates): ~20 updates a second (render/loadlevel.js)
+    maxAnimInterval: () => maxAnimInterval(governor.periodMs),
+    surfaceLayer: (row) => tiles.surfaceLayer(row),
   };
   const tiles = new TileField({ ground: layers.ground, overlay: layers.overlay, props: layers.units, anim: layers.anim });
   setupCleanup.push(() => tiles.destroy());
@@ -381,6 +386,8 @@ export async function createFieldView(host, options = {}) {
     return art;
   }, () => null);
 
+  // ---- 3D board layer (render/board3d, DESIGN §15) -----------------------------------------------------------
+  let board3d = null;          // BoardScene while the 3D board is on
   let board3dCanvas = null;
   let board3dError = null;
   // lost-context recovery: the THREE module + art pack of the last 3D board, the pending retry, failures so far
@@ -457,6 +464,9 @@ export async function createFieldView(host, options = {}) {
   }
   // Attach the board only after synchronous setup completes; enable3d also guards late arrivals.
   const boardReady = Promise.all([threePromise, packPromise]).then(([THREE, pack]) => (THREE && pack ? enable3d(THREE, pack) : false), () => false);
+  // the official soft shadow sprite replaces the procedural one once loaded (may already be cached; asked again when the
+  // manifest arrives late)
+  let shadowAsked = false;
   let offShadow = null;
   setupCleanup.push(() => offShadow?.());
   function loadShadow() {

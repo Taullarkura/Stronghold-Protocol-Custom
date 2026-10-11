@@ -32,6 +32,8 @@ packs/index.json
 test/e2e/out/
 logs/
 *.log
+# the merge integration's scratch scripts, logs and dumps (never part of the project)
+.merge-tmp/
 
 # --- per-machine config (scripts/install-service-windows.ps1) ------------------------------------
 scripts/service.env.cmd

@@ -147,6 +147,7 @@ export function DiyPicker(props) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState(cur ? { ...cur } : null);
+  // Esc cancels only the picker, like its 取消 (GitHub #284, idea from PR #286); the 干员调配 overlay's own Esc skips
   // while a picker is open, and a dialog over the picker (导入) still takes Esc first. A layout effect: the listener is
   // attached in the same commit as the picker (a plain effect waits for the next frame, and an Esc pressed in between
   // was swallowed — the overlay skipped it, the picker did not hear it yet; the 0.2.2 full browser pass). The wider gap

@@ -17,10 +17,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const assets = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
 const JSHOOT = 'enemy_1019_jshoot';   // 隐形弩手: Attack 1.0 s, strike at 0.533 s; attacks every 2.7 s
 
-let fake, SpineActor, UnitView;
+let fake, SpineActor, ATTACK_STRETCH, UnitView;
 before(async () => {
   fake = installFakePixi();
-  ({ SpineActor } = await import('../../public/js/render/spine.js'));
+  ({ SpineActor, ATTACK_STRETCH } = await import('../../public/js/render/spine.js'));
   ({ UnitView } = await import('../../public/js/render/units.js'));
 });
 after(() => fake.restore());
@@ -92,13 +92,17 @@ test('an attack seen late plays the whole clip from its wind-up when the rhythm 
   assert.ok(Math.abs(track(op).trackTime - 1) < 1e-9);
 });
 
-test('an operator keeps its attack loop stretched over the attack rhythm (unchanged)', () => {
+// an operator keeps this fork's own attack animation (docs/ASSETS.md, SpineActor.attackTimeScale): one swing from the
+// strike frame at its natural speed, stretched at most ATTACK_STRETCH — not upstream's clip looping over the rhythm.
+// Only the enemy rule (#58 / #246) follows upstream 0.2.3.
+test('an operator: one swing from the strike frame, stretched at most ATTACK_STRETCH, then the resting clip', () => {
   const a = actor(JSHOOT, false);
   a.attack(2.7);
-  assert.equal(track(a).loop, true);
-  assert.ok(Math.abs(track(a).timeScale - 1 / 2.7) < 1e-9);
-  run(a, 2);
-  assert.equal(a.current, 'Attack', 'still in attack mode 2 s later (1.4 × the interval)');
+  assert.equal(track(a).loop, false, 'one swing, not a loop over the attack rhythm');
+  assert.ok(Math.abs(track(a).trackTime - 0.533) < 1e-9, 'from the strike frame');
+  assert.equal(track(a).timeScale, ATTACK_STRETCH, 'stretched no further than the original allows');
+  run(a, 1.2);
+  assert.equal(a.current, 'Move', 'then its resting clip');
 });
 
 test('UnitView: enemy models play a clip per attack, operator models do not', async () => {

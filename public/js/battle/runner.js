@@ -989,6 +989,7 @@ export function createBattleRunner(deps) {
         if (task.seq === startSeq) { loading = null; publishState(); }
         return;
       }
+      stats.battles++;
       const e = {
         battleId: msg.battleId, fieldId: msg.fieldId || msg.spec.fieldId, kind: msg.kind || msg.spec.kind, spec: msg.spec, sim, battle,
         authoritative: !!msg.authoritative, watch: !!msg.watch, own: !msg.watch, speed,

@@ -139,6 +139,7 @@
 //                      a whole battle per candidate: ~20–300 ms of CPU each, see server/match/bot.js createRehearsal)
 //   opts.botSliceMs    wall-clock ms of rehearsal per scheduler callback (default 8 with a real scheduler, unbounded
 //                      with a virtual one); the rest runs in later callbacks (scheduleBotPrep)
+//   opts.headlessSliceMs  wall-clock ms per callback of a server-run normal / 联防 field (client-side combat: bots,
 //                      takeovers, result verification; default 8 with a real scheduler, at once with a virtual one)
 //   opts.workSlice    { prepSteps, simulationTicks, prepSimulationTicks?, deadlineRehearsalTicks? }: fixed generator/tick
 //                      budgets instead of wall-clock slices (deadlineRehearsalTicks: the prep deadline's, _finishBotPrep)
