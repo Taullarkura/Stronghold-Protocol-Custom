@@ -301,7 +301,9 @@ test("settlement() (the settlement voice line, DESIGN §21.30): the own finished
   // what the game screen's sayResult makes of it (upstream 9d56342): chess id → charId through the chess record, one of
   // THIS battle's operators that has the line, survivors first; without charOf no chess id ever speaks
   const charOf = (id) => DATA.chess[id]?.charId ?? null;
-  const voiced = DATA.assets?.audio?.voice?.cn || {};
+  // the manifest keeps the dubs side by side: `audio.voice` (中文, the default) and `audio.voiceJp` (日本語). audio.js's
+  // voiceLine reads `audio.voice[charId][slot]` — there is no per-language `voice.cn` level.
+  const voiced = DATA.assets?.audio?.voice || {};
   const canSpeak = (c, slot) => typeof voiced[c]?.[slot] === 'string';
   const slot = resultVoiceSlot({ perfect: st.perfect, leaked: st.leaked, killed: st.killed, total: st.total, hard: false });
   const charId = resultSpeaker(st, () => 0, charOf);

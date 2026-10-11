@@ -411,6 +411,12 @@ test('覆盖锁定（补位 / 自选）: 每个补位干员和每个自选组合
   }
   assert.ok(tally.standIn > 100, `every stand-in was scanned (${tally.standIn})`);
   assert.ok(tally.diy > 1000, `every 自选 combination was scanned (${tally.diy})`);
-  assert.deepEqual(applied, [], 'no stand-in or 自选 pick gains the engine rule');
-  assert.deepEqual(Object.keys(reasons).sort(), ['kit'], 'every line they carry is a kit-owned shape (no unknown, no other mode)');
+  // this fork (the maintainer's decision of 2026-10-11): a 自选 pick DOES inherit the engine's trait attack-speed rule
+  // where its module's sentence carries an engine-readable condition — here 丰川祥子 `uniequip_002_oblvns` (a collab 6★
+  // upstream does not ship), its 4 自选 slots × 3 skills = 12 combinations. Upstream 0.2.2 refused every pick and
+  // required a kit-owned shape; the legality check below is kept either way.
+  assert.deepEqual([...new Set(applied.map((t) => t.split('|')[1]))].sort(), ['char_4182_oblvns'],
+    `the picks that inherit the engine rule (${applied.length})`);
+  assert.deepEqual(Object.keys(reasons).sort(), ['kit', 'ok'],
+    'every line a pick carries is kit-owned or engine-readable (no unknown, no other mode)');
 });
