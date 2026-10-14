@@ -1,4 +1,4 @@
-// test/local-token-models.test.js — the token (summon) models only the local client has (0.2.0): 39 summons — most of the
+// test/local-token-models.test.js — the token (summon) models only the local client has (0.2.0): 40 summon overlays — most of the
 // 自选 picks' (data/backups.json `tokens`), 凯瑟琳's 爬行号·防护单元 and 凛御银灰's 风雪之眼 — have no battle Spine in
 // any community dump (fetch-assets reported "missing skel"), so the client drew their avatar diamond. Their official
 // skeletons come from the battle token packs of the local client (tools/local-extract/extract.py TOKEN_SPINES →
@@ -11,8 +11,8 @@
 // The extractor side (job table, prefab walk, alpha merge): test/local-extract.test.js.
 // The fork: 24 of them have a web model after all — a SKIN of the summon in fexli/ArknightsResource (tools/assets/plan.mjs
 // TOKEN_SKIN_SPINES, from the fork's asset probe for its retired 外援 roster) — which the manifest keeps as the token's
-// `spine`: the client then draws the official model when it is extracted, the skin when it is not (or fails to load:
-// `fallback`), and the diamond only for the summons with neither. Every other summon behaves exactly as above.
+// `spine`; the official local model takes precedence when extracted. Upstream also keeps Champagne's web model as a
+// fallback for its local model. A summon with neither draws the avatar diamond.
 // TOKEN_SKIN_SPINES has a 25th entry outside this list: 艾拉's 雷暴 mine (token_10033_ela_grzmot), a summon of a collab
 // pick only this fork keeps (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS) — the skin is its only model (no extract.py
 // TOKEN_SPINES entry).
@@ -48,8 +48,8 @@ const TOKEN_SPINES = (() => {
   return r.status === 0 ? JSON.parse(r.stdout).tokenSpines.ids : null;
 })();
 const IDS = Object.keys(COMMITTED).sort();
-/** The web (skin) model the manifest keeps for a summon of TOKEN_SKIN_SPINES, else null (the fork, header). */
-const webSkin = (id) => (Object.hasOwn(TOKEN_SKIN_SPINES, id) ? MANIFEST.tokens[id]?.spine ?? null : null);
+/** The web model kept for a token, or null when it has no fallback. */
+const webSkin = (id) => MANIFEST.tokens[id]?.spine ?? null;
 
 /** A data/local-assets.json listing the extracted files of `ids` (extract.py's group layout), minus `drop`. */
 function localManifest(ids, drop = null) {
@@ -64,7 +64,7 @@ function localManifest(ids, drop = null) {
 
 describe('the 自选 summon models from the local client are an optional overlay', () => {
   test('the committed metadata: the TOKEN_SPINES of extract.py, each a skeleton + same-stem atlas + pages, its roles on its own clips', () => {
-    assert.equal(IDS.length, 39);
+    assert.equal(IDS.length, 40);
     if (TOKEN_SPINES) assert.deepEqual(IDS, [...TOKEN_SPINES].sort(), 'one entry per extract.py TOKEN_SPINES id');
     for (const id of IDS) {
       const m = COMMITTED[id];
@@ -125,19 +125,21 @@ describe('the 自选 summon models from the local client are an optional overlay
     assert.deepEqual(withLocal, IDS);
     for (const id of IDS) {
       assert.deepEqual(MANIFEST.tokens[id].spineLocal, { group: `spine/token/${id}`, ...COMMITTED[id] }, `${id}: the committed metadata`);
+      const web = MANIFEST.tokens[id].spine;
       if (Object.hasOwn(TOKEN_SKIN_SPINES, id)) {
         // the fork's skin model (header): the token's web model, drawn without the local art
         assert.equal(MANIFEST.tokens[id].spineVariant, TOKEN_SKIN_SPINES[id], `${id}: its skin`);
-        assert.ok(validSpine(MANIFEST.tokens[id].spine), `${id}: a web model`);
-        assert.equal(spineEntry(MANIFEST, id), MANIFEST.tokens[id].spine, `${id}: without the local art the client draws the skin`);
-        continue;
+        assert.ok(validSpine(web), `${id}: a web skin`);
+      } else if (id === 'token_10031_swire2_gdtrap') {
+        assert.ok(validSpine(web), 'champagne keeps its web fallback');
+      } else {
+        assert.equal(web, undefined, `${id}: no web model`);
       }
-      assert.equal(MANIFEST.tokens[id].spine, undefined, `${id}: no web model (it was the avatar diamond)`);
-      assert.equal(spineEntry(MANIFEST, id), null, `${id}: without the local art the client keeps the diamond`);
+      assert.equal(spineEntry(MANIFEST, id), web || null, `${id}: without local art use its web fallback or the diamond`);
     }
     // the tokens that always had a web model keep it, without an overlay
     for (const [id, t] of Object.entries(MANIFEST.tokens)) {
-      if (t.spine && !Object.hasOwn(TOKEN_SKIN_SPINES, id)) { assert.ok(validSpine(t.spine), id); assert.equal(t.spineLocal, undefined, id); }
+      if (t.spine && !IDS.includes(id)) { assert.ok(validSpine(t.spine), id); assert.equal(t.spineLocal, undefined, id); }
     }
   });
 
@@ -184,7 +186,7 @@ describe('client: the official summon model only when data/local-assets.json lis
       assert.equal(e.pma, true);
       assert.deepEqual(e.anims, m.anims);
       assert.equal(e.local, true);
-      // no web model to fall back to — but the fork's skin model of a TOKEN_SKIN_SPINES summon (header)
+      // Use the web model if one exists (the fork's TOKEN_SKIN_SPINES skins and Champagne's upstream fallback).
       const web = webSkin(id);
       assert.equal(e.fallback, web, web ? 'the skin model to fall back to' : 'no web model to fall back to');
       assert.equal(spineEntry(MANIFEST, id, { local }), e, 'one entry object per manifest pair');
@@ -196,8 +198,9 @@ describe('client: the official summon model only when data/local-assets.json lis
     assert.equal(store.spineEntry('token_10002_kalts_mon3tr').skel, '/assets/local/spine/token/token_10002_kalts_mon3tr/token_10002_kalts_mon3tr.skel');
     assert.equal(createAssets({ manifest: MANIFEST }).spineEntry('token_10002_kalts_mon3tr'), webSkin('token_10002_kalts_mon3tr'),
       'before / without local(): the diamond — the fork: Mon3tr\'s skin model (TOKEN_SKIN_SPINES)');
-    const noSkin = IDS.find((id) => !Object.hasOwn(TOKEN_SKIN_SPINES, id));
-    assert.equal(createAssets({ manifest: MANIFEST }).spineEntry(noSkin), null, `${noSkin}: before / without local(): the diamond`);
+    const noFallback = IDS.find((id) => !MANIFEST.tokens[id]?.spine);
+    assert.ok(noFallback, 'at least one extracted token has no web fallback');
+    assert.equal(createAssets({ manifest: MANIFEST }).spineEntry(noFallback), null, `${noFallback}: before / without local(): the diamond`);
   });
 
   describe('UnitView', () => {

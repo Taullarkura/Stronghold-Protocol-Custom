@@ -199,7 +199,7 @@ import { DataSource } from '../sim/simdata.js';
 import { createRng, deriveSeed } from '../sim/rng.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
-import { SharedPool, drawDisabledBonds } from './pool.js';
+import { SharedPool, SharedItemPool, drawDisabledBonds } from './pool.js';
 import { PlayerState } from './PlayerState.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
 import { setupMatchWaves } from './waves.js';
@@ -364,6 +364,7 @@ export class Match {
     this.bannedChess = bans.banned;
     // a co-op room of 5–8 seats (humans + bots) has more copies per chess (gamedata.js poolCopies; fixed for the match)
     this.pool = new SharedPool(this.gd, { banned: bans.banned, players: this.order.length });
+    this.itemPool = new SharedItemPool(this.gd, () => this.order);
     // 自选编队 (0.2.0): each human's slotted DIY pieces get their own stock — none for one whose bonds are all off this
     // match (player/diy.js initDiyStock); no randomness is drawn here
     const off = new Set([...bans.drawn, ...bans.staticOff]);
@@ -404,6 +405,7 @@ export class Match {
     this.sp = null;
     this.wave = null;
     this.bossWaves = null;
+    this.bossPairs = null; // drawn once per match; the hidden round retains partners and sides
     this.fields = [];
     this.runner = null;
     /** playerId → fieldId */

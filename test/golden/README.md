@@ -14,7 +14,7 @@ through.
 
 | family | what runs |
 |---|---|
-| `roster` | 50 battles: every visible chess record (normal and elite) with every selectable skill and module (DESIGN §16), 12 operators per battle on a real stage (all 11 in turn) against the round's real wave three times over, every non-leader enemy kind of `data/enemies.json` as extra spawns (half of them bounties), placeable summons on the board, every equipment item, band, battle-side 机变 card and stage map card in turn, bonds from the board |
+| `roster` | 49 battles: every visible chess record (normal and elite) with every selectable skill and module (DESIGN §16), 12 operators per battle on a real stage (all 11 in turn) against the round's real wave three times over, every non-leader enemy kind of `data/enemies.json` as extra spawns (half of them bounties), placeable summons on the board, every equipment item, band, battle-side 机变 card and stage map card in turn, bonds from the board |
 | `bonds` | 46 battles: every bond at its activation threshold (1 layer) and at its top tier (999 layers) |
 | `fields` | 22 battles: every Final Assault / Hidden Core leader on a pair and a solo template (shared pool, 200 s cap) and the 联防 field with 1 and 2 helpers on the round's stage, both halves (carried HP / SP, a knocked-out operator, two leakers' enemies) |
 | `matches` | 18 matches to the end in virtual time: 16 bot-only (solo 标准 / 险境 / 绝境 / 终极 × 2 seeds, co-op 2 / 3 / 4, one server-run combat match, two runs boosted to the Hidden Core), one co-op match whose human seat (AI 托管, offline) does not own 9 NORMAL chess — they fight as their 补位 stand-ins (its digest lists them per round, `standIns`) — and one whose human seat slots 自选 picks (推进之王 and prototypes) with its 调度中心 at level 5 from the first prep: its own shop draws them and its AI fields 推进之王 (its digest lists per round the 自选 shop draws and the fielded pieces, `diy`) |
@@ -32,7 +32,7 @@ to 2 decimals.
 
 `npm test` runs the fast subset (the scenarios marked `"fast": true`: every chess record with its default loadout,
 every stage and every non-leader enemy kind, every bond at its top tier, six fields, seven matches, the five stand-in
-battles of the normal records, the first 自选 battle of the operator kits and of the prototypes — 62 of the 292). `GOLDEN_FULL=1` checks everything.
+battles of the normal records, the first 自选 battle of the operator kits and of the prototypes — 62 of the 291). `GOLDEN_FULL=1` checks everything.
 
 ## Workflow
 
@@ -62,13 +62,15 @@ node tools/golden.mjs --twice                   # determinism: the corpus twice 
 ## This fork
 
 The digests in this directory are the fork's own (BBleae/Stronghold-Protocol), regenerated after merging upstream
-0.2.1 (2026-10-08). They differ from upstream's files in one way, and in no other:
+0.2.1 (2026-10-08). This comparison is historical; later merges and fork-specific content or mechanics intentionally
+move the affected scenarios.
 
 - **Client effect counts** (`events.fx` and the `fx` kinds) of 31 scenarios (roster 13, bonds 5, fields 13): the fork's
   sim sends extra cosmetic effect events and parameters (fork commit 6d5c094, PR #5 — `snowTiles`, `motes`, the
-  同盟支援 `link`, `shell` → `helmShell`, `beam` → `sentryRecall`). Every gameplay field of the roster, bonds and
-  fields families (units, enemies, players, hooks, `rngDraws`, `snaps`) equals upstream's, and the `matches`,
-  `standins` and `diy` families equal upstream's entirely (checked on 2026-10-08 against upstream c2a2ef7). The
+  同盟支援 `link`, `shell` → `helmShell`, `beam` → `sentryRecall`). At that snapshot, every gameplay field of the
+  roster, bonds and fields families (units, enemies, players, hooks, `rngDraws`, `snaps`) matched upstream, as did the
+  `matches`, `standins` and `diy` families (checked on 2026-10-08 against c2a2ef7). Later fork changes, including
+  5–8 player rules and operator-pool changes, intentionally move affected scenarios. The
   fork's 外援 / 甄选 picks, which moved 15 of the matches until then (DESIGN §F3), were retired in favour of upstream's
   自选编队; the bots bring no 自选 picks, as upstream's.
 
@@ -79,3 +81,5 @@ rerunning the moved scenarios with that change left out, then record the cause h
 such changes: §F8 (2026-10-12) and §F9 (2026-10-13) demote operators to the 自选 pool, promote others into the 可用
 roster and move 佩佩 a tier, which reshuffles every scenario that drafts a shop or enumerates a family — compare
 against upstream only on a freshly merged tree, and record the cause in the plan's section.
+
+After the measured shared-stock update (DESIGN §29.8), the original stand-in / DIY seeds remain as outcome regressions even when they field no such operator. Companion seeds `coop2-NORMAL-1-coverage-standins` and `coop2-NORMAL-5-coverage-diy` exercise those full paths; the corpus now contains 291 scenarios.
