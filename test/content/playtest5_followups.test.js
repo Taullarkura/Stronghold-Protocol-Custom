@@ -89,26 +89,29 @@ test('element healing lowers every element type by the amount, each on its own (
 // ---------------------------------------------------------------------------------------------------------------------
 // 塑心 S2
 
-test('塑心 S2 安魂的弥撒: the partner\'s 凋亡 lands before its damage (PRTS 备注) — a killing blow still carries it', () => {
-  const id = 'chess_char_6_09_a', sid = 'skchr_cello_2';
-  const s2 = raw(id).skills.find((s) => s.skillId === sid);
+test('塑心 S2 安魂的弥撒 (a FORK 自选-ONLY operator since 2026-10-12, fielded through a 自选 slot — shared/diyOnly.js): the partner\'s 凋亡 lands before its damage (PRTS 备注) — a killing blow still carries it', () => {
+  const slot = 'chess_char_6_diy1_a', charId = 'char_245_cello', sid = 'skchr_cello_2';
+  // the operator's own skill indices (data/backups.json forms; the composed 自选 record carries the selected skill only)
+  const forms = SRC.rawBackups().units[charId].forms;
+  const idx = Object.values(forms)[0].skills.find((s) => s.skillId === sid).index;
+  const pick = { slot, charId, skillIndex: idx };
   for (const hp of [1e7, 50]) {
     const seq = [];
     const h = makeBattle({
       seed: 7, autoFinish: false, timeLimit: 60,
       defs: { chess: { big: plain('big', { stats: { atk: 2000 } }) }, enemies: { enemy_fu: dummy('enemy_fu', { hp }) } },
-      units: [{ chessId: id, row: 10, col: 4, skillIndex: s2.index, carryState: { sp: 999 } }, { chessId: 'big', row: 10, col: 5 }],
+      units: [{ diy: pick, row: 10, col: 4, carryState: { sp: 999 } }, { chessId: 'big', row: 10, col: 5 }],
       enemies: [{ key: 'enemy_fu', pos: [10, 6] }],
       setup: (b) => {
         b.on('elementHit', (c) => { if (c.dmg.element === 'apoptosis' && c.target.side === 'enemy') seq.push(['el', c.source?.defId, c.target.hp]); });
         b.on('damaged', (c) => { if (c.source?.defId === 'big' && c.type === 'phys') seq.push(['dmg', 'big', c.target.hp]); });
       },
     });
-    const u = h.unit(id), big = h.unit('big');
+    const u = h.unit(slot), big = h.unit('big');
     assert.ok(h.runUntil(() => u.skill.active && u.mem.celloPartner === big, 5), 'S2 running, partner picked');
     assert.ok(h.runUntil(() => seq.some((x) => x[0] === 'dmg'), 10), 'the partner hits');
     const i = seq.findIndex((x) => x[0] === 'dmg');
-    assert.ok(i > 0 && seq[i - 1][0] === 'el' && seq[i - 1][1] === id, `the 凋亡 (source 塑心) right before the damage: ${JSON.stringify(seq.slice(0, i + 1))}`);
+    assert.ok(i > 0 && seq[i - 1][0] === 'el' && seq[i - 1][1] === slot, `the 凋亡 (source 塑心) right before the damage: ${JSON.stringify(seq.slice(0, i + 1))}`);
     assert.ok(seq[i - 1][2] > 0, 'the target still had its HP when the 凋亡 landed');
     if (hp < 1000) assert.equal(h.enemy('enemy_fu')?.alive ?? false, false, 'the killing blow landed after it');
     checkInvariants(h.b);

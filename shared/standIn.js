@@ -108,7 +108,7 @@ export function composeUnitRecord(identity, unit, form, { skillIndex, moduleId =
 /**
  * Whether a player may mark chess record `chess` as not owned (干员持有 → 下掉, the approved 0.2.0 补位 plan, owner's
  * decision 2026-10-05): a NORMAL base chess (not the elite, not a 自选 slot) whose official stand-in is another
- * character — the 55 chess of DATA.md §18 (53 of them in this season's shop; the hidden 百炼嘉维尔 t5 / 妮芙 t6 forms are
+ * character — the 54 chess of DATA.md §18 (52 of them in this season's shop; the hidden 百炼嘉维尔 t5 / 妮芙 t6 forms are
  * retired). A PRESET (特许) chess always fields its own operator ("预设棋子…无论是否持有都由本人上场").
  * @param {any} chess data/chess.json record
  */

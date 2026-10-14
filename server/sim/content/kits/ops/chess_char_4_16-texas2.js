@@ -74,9 +74,13 @@ export default withDefaults({
     };
     return {
       skill,
+      // her three skills share one spec object (the kit branches on the selection) — and for a 自选 piece the kit's
+      // fallback `skill` never applies (content/index.js skillIsDefault: an other-body def), so all three are listed:
+      // a 自选 pick may name any of them (FORK 自选-ONLY, shared/diyOnly.js)
       skills: alt(def, {
         skchr_texas2_1: () => skill,
         skchr_texas2_2: () => skill,
+        skchr_texas2_3: () => skill,
       }),
       // S2: 攻击变为二连击 while the passive lasts
       trait: S2 ? { hitsFn: (b, u) => (u.skill?.active ? 2 : 1) } : undefined,

@@ -14,11 +14,11 @@ through.
 
 | family | what runs |
 |---|---|
-| `roster` | 49 battles: every visible chess record (normal and elite) with every selectable skill and module (DESIGN §16), 12 operators per battle on a real stage (all 11 in turn) against the round's real wave three times over, every non-leader enemy kind of `data/enemies.json` as extra spawns (half of them bounties), placeable summons on the board, every equipment item, band, battle-side 机变 card and stage map card in turn, bonds from the board |
+| `roster` | 50 battles: every visible chess record (normal and elite) with every selectable skill and module (DESIGN §16), 12 operators per battle on a real stage (all 11 in turn) against the round's real wave three times over, every non-leader enemy kind of `data/enemies.json` as extra spawns (half of them bounties), placeable summons on the board, every equipment item, band, battle-side 机变 card and stage map card in turn, bonds from the board |
 | `bonds` | 46 battles: every bond at its activation threshold (1 layer) and at its top tier (999 layers) |
 | `fields` | 22 battles: every Final Assault / Hidden Core leader on a pair and a solo template (shared pool, 200 s cap) and the 联防 field with 1 and 2 helpers on the round's stage, both halves (carried HP / SP, a knocked-out operator, two leakers' enemies) |
 | `matches` | 18 matches to the end in virtual time: 16 bot-only (solo 标准 / 险境 / 绝境 / 终极 × 2 seeds, co-op 2 / 3 / 4, one server-run combat match, two runs boosted to the Hidden Core), one co-op match whose human seat (AI 托管, offline) does not own 9 NORMAL chess — they fight as their 补位 stand-ins (its digest lists them per round, `standIns`) — and one whose human seat slots 自选 picks (推进之王 and prototypes) with its 调度中心 at level 5 from the first prep: its own shop draws them and its AI fields 推进之王 (its digest lists per round the 自选 shop draws and the fielded pieces, `diy`) |
-| `standins` | 10 battles: every NORMAL chess record (normal and elite, 110) fielded as its 补位 stand-in (`standIn: true`: the stand-in's body, backup skill / module and kit — all 17 stand-ins, every skill a chess names for them), 12 per battle by strength band, laid out by the stand-in's position on a real stage, against the round's real wave three times over plus 8 ground enemy kinds (melee stand-ins always meet an enemy), an item each, bonds from the board |
+| `standins` | 10 battles: every NORMAL chess record (normal and elite, 102) fielded as its 补位 stand-in (`standIn: true`: the stand-in's body, backup skill / module and kit — all 17 stand-ins, every active skill with an attack opportunity), 12 per battle by strength band, laid out by the stand-in's position on a real stage, against the round's real wave three times over plus 8 ground enemy kinds, an item each, bonds from the board |
 | `diy` | battles of 自选 pieces (a DIY slot with its `diy` pick, `shared/diy.js`): every owned 6★ with an operator kit (`kits/index.js OPERATOR_KITS`) in each form of tiers 5 and 6 (normal; elite with no module and with each module) under each skill, then every prototype pick with a kit at its locked selection, normal and elite, 12 per battle against the round's real wave; a new operator kit adds its scenarios (the battle count grows with the kits) |
 
 Battles go through the production BattleSpec path (`server/sim/spec.js`, as browsers and the server's headless fields
@@ -32,7 +32,7 @@ to 2 decimals.
 
 `npm test` runs the fast subset (the scenarios marked `"fast": true`: every chess record with its default loadout,
 every stage and every non-leader enemy kind, every bond at its top tier, six fields, seven matches, the five stand-in
-battles of the normal records, the first 自选 battle of the operator kits and of the prototypes — 62 of the 151). `GOLDEN_FULL=1` checks everything.
+battles of the normal records, the first 自选 battle of the operator kits and of the prototypes — 62 of the 292). `GOLDEN_FULL=1` checks everything.
 
 ## Workflow
 
@@ -75,4 +75,7 @@ The digests in this directory are the fork's own (BBleae/Stronghold-Protocol), r
 After each merge, run `npm run golden:update` and compare with upstream's files (`git show
 <upstream commit>:test/golden/<family>.json`): a moved value outside `events.fx` / `fx` in the roster, bonds and
 fields families, or any moved value in the other families, is a merge bug unless a fork change explains it — check by
-rerunning the moved scenarios with that change left out, then record the cause here.
+rerunning the moved scenarios with that change left out, then record the cause here. The fork's own roster plans are
+such changes: §F8 (2026-10-12) and §F9 (2026-10-13) demote operators to the 自选 pool, promote others into the 可用
+roster and move 佩佩 a tier, which reshuffles every scenario that drafts a shop or enumerates a family — compare
+against upstream only on a freshly merged tree, and record the cause in the plan's section.

@@ -115,11 +115,12 @@ test('the committed data/assets.json lists every 自选 operator\'s avatar, port
 // upstream leaves out of 自选 for copyright are picks here, so the manifest carries their art too.
 const COLLAB = ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4182_oblvns', 'char_4217_makoto'];
 
-test('the fork\'s 7 collab picks are 自选 picks here: nothing is left out and each keeps its art in data/assets.json', () => {
+test('the fork\'s 7 collab 6★ are in the data: nothing is left out, each keeps its art in data/assets.json, and the two the fork promoted are fielded by their own chess', () => {
   const m = load('assets');
   assert.deepEqual(BACKUPS.diy.excluded, [], 'nothing left out');
   for (const id of COLLAB) {
-    assert.ok(BACKUPS.diy.ownedPool.includes(id), `${id}: a 自选 pick of the data`);
+    const piece = Object.values(CHESS).find((c) => c.charId === id && !c.isGolden && !c.isDiy);
+    assert.ok(BACKUPS.diy.ownedPool.includes(id) || piece, `${id}: a 自选 pick of the data, or a promoted piece (shared/promoted.js)`);
     const c = m.chars[id];
     assert.ok(c && c.avatar && c.portrait && c.spine?.front?.skel, `${id}: art in data/assets.json`);
   }

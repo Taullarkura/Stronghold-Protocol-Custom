@@ -42,7 +42,7 @@ function deploy(h, ps, id) {
   return p;
 }
 
-test('the derived bonds of the data: each owned pick its core bonds or 协防, 煌 alone two, every prototype 协防 (read from the data)', REAL, () => {
+test('the derived bonds of the data: each owned pick its core bonds or 协防, 煌, 缄默德克萨斯 and 莫斯提马 alone several, every prototype 协防 (read from the data)', REAL, () => {
   const owned = DATA.backups.diy.ownedPool; // never hard-coded: the pool changes (upstream's leaves out the collab 6★; this fork's has them, DESIGN §F6)
   const core = new Set(Object.entries(DATA.bonds).filter(([, b]) => b && b.isCore).map(([id]) => id));
   for (const id of owned) {
@@ -51,7 +51,7 @@ test('the derived bonds of the data: each owned pick its core bonds or 协防, �
     assert.ok((b.length === 1 && b[0] === 'emptyShip') || b.every((x) => core.has(x)), `${id}: ${b.join(', ')}`);
   }
   assert.deepEqual(OPS[HUANG].bonds, ['yanShip', 'victoriaShip']);
-  assert.deepEqual(owned.filter((id) => OPS[id].bonds.length > 1), [HUANG], '煌 alone has several');
+  assert.deepEqual(owned.filter((id) => OPS[id].bonds.length > 1), [HUANG, 'char_213_mostma', 'char_1028_texas2'], '煌, 莫斯提马 and 缄默德克萨斯 alone have several (the pool order)');
   assert.deepEqual(OPS.char_300_phenxi.bonds, ['lateranoShip']);
   assert.deepEqual(OPS.char_4098_vvana.bonds, ['kazimierzShip']);
   assert.deepEqual(OPS[CROSLY].bonds, ['siracusaShip']);

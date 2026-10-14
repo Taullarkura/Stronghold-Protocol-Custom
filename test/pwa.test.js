@@ -38,7 +38,9 @@ test('the manifest meets the install criteria (name, start_url, display, 192 and
 test('the page links the manifest and the iOS home-screen icon', () => {
   const page = readFileSync(pub('index.html'), 'utf8');
   assert.match(page, /<link rel="manifest" href="\/manifest\.webmanifest" \/>/);
-  assert.match(page, /<link rel="apple-touch-icon" href="\/icons\/apple-touch-icon\.png" \/>/);
+  // upstream 0.2.3 declares the icon's real size here (its own test/ui/pwa-install-023.test.js requires a `sizes` of
+  // every PNG icon link that matches the file); adopted in the merge — the owner's decision of 2026-10-11
+  assert.match(page, /<link rel="apple-touch-icon" href="\/icons\/apple-touch-icon\.png" sizes="180x180" \/>/);
   assert.deepEqual(pngSize(pub('icons/apple-touch-icon.png')), [180, 180]);
 });
 

@@ -24,9 +24,11 @@ test('matches: the 自选 match\'s human seat draws its 自选 pieces in its sho
   for (const [r, , f] of dg.diy.rounds) {
     for (const x of f ? f.split(' ') : []) {
       const [slot, charId] = x.split('→');
-      assert.equal(dg.diy.picks[`chess_char_${slot}`].charId, charId, `round ${r}: ${x} fights as its pick`);
+      // a merged piece is fielded as the slot's elite record (`chess_char_5_diy2_b`): the pick belongs to the slot, the
+      // two forms share it
+      assert.equal(dg.diy.picks[`chess_char_${slot.replace(/_b$/, '_a')}`].charId, charId, `round ${r}: ${x} fights as its pick`);
     }
   }
   // the stock: never above its cap (8 at tier 5, 5 at tier 6)
-  for (const [slot, left] of Object.entries(dg.diy.stock)) assert.ok(left >= 0 && left <= (BACKUPS.diy.slots[slot].tier === 5 ? 8 : 5), slot);
+  for (const [slot, left] of Object.entries(dg.diy.stock)) assert.ok(left >= 0 && left <= (BACKUPS.diy.slots[slot.replace(/_b$/, '_a')].tier === 5 ? 8 : 5), slot);
 });

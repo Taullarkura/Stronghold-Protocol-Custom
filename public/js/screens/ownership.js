@@ -1,5 +1,5 @@
 // 干员持有 (operator ownership, 0.2.0 补位 — the approved plan, owner's decision 2026-10-05): the second tab of the
-// 干员调配 overlay (screens/loadout.js). The 53 NORMAL chess of this season's shop, grouped by tier — each card shows the
+// 干员调配 overlay (screens/loadout.js). The 52 NORMAL chess of this season's shop, grouped by tier — each card shows the
 // operator and its official stand-in (avatar, name, the skill it fields) and switches between 持有 and 未持有 with a
 // tap. A chess marked 未持有 is shown as its stand-in in the match — shop and reward cards, hand, board, detail card,
 // result (portrait, name, model, skills, talents, range; a small 「替补」 mark — the owner's recall of the official mode,

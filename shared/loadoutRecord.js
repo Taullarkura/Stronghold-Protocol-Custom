@@ -125,7 +125,9 @@ export function loadoutRecord(rec0, lo) {
  * The attack range a (loadout-resolved) chess record fights with from its deployment — the detail card without a live
  * entry, the board's range overlay and the deploy wheel (DESIGN §16), the same tiles the battle unit starts with (prep
  * m.unitStats `range`): the selected skill's grid when it reads "被动效果：攻击范围扩大" (引星棘刺 S3 3-9: her own range
- * while she carries it, her kit); else an elite whose equipped module reads "攻击范围扩大" uses that module's own grid
+ * while she carries it, her kit) or when it is a deployment skill (`spType` ON_DEPLOY: it runs from the deployment on, so
+ * its grid is what the unit opens with — 予愿安洁莉娜 S1 极速送达 3-6 over her own 2-2, §F8); else an elite whose equipped
+ * module reads "攻击范围扩大" uses that module's own grid
  * — its range-only talent change (talentIndex −1), e.g. SPC-X = the 3×3 caster range + the centre tile [0,3] — as the
  * kits do (kits/shared/tier4.js moduleRangeGrid, shared/tier5.js moduleRangeUp); anything else its `rangeGrid`. Then grown by the 特性's
  * permanent 攻击距离 (traitRangeExtend: 信仰搅拌机 SPT-Y "攻击距离+1"). A running skill's range is the live entry's.
@@ -137,7 +139,8 @@ export function attackRangeGrid(rec) {
   let g = Array.isArray(rec.rangeGrid) ? rec.rangeGrid : null;
   const sk = rec.skill;
   const m = rec.module;
-  if (sk && Array.isArray(sk.rangeGrid) && sk.rangeGrid.length && /被动效果：攻击范围扩大/.test(String(sk.desc ?? ''))) {
+  if (sk && Array.isArray(sk.rangeGrid) && sk.rangeGrid.length
+    && (/被动效果：攻击范围扩大/.test(String(sk.desc ?? '')) || sk.spType === 'ON_DEPLOY')) {
     g = sk.rangeGrid;
   } else if (rec.isGolden && m && m.active && m.id && /攻击范围扩大/.test(String(rec.trait?.moduleDesc ?? ''))) {
     const mod = (Array.isArray(rec.modules) ? rec.modules : []).find((x) => x && x.uniEquipId === m.id);

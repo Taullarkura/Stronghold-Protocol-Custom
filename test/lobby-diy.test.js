@@ -18,6 +18,9 @@ const T6B = 'chess_char_6_diy2_a';
 const SIEGE = { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' };
 const SHARP = { charId: 'char_609_acguad' };
 const SHARP_FULL = { charId: 'char_609_acguad', skillIndex: 2, uniEquipId: 'uniequip_002_acguad' };
+/** Its tier-6 entry: 佩佩's NORMAL row left that tier on 2026-10-13 (owner's plan, docs/design/fork.md §F9), and Sharp's
+ *  module came with it — the module a prototype carries is its 补位 row's (DATA.md §18 `locked[tier][charId]`). */
+const SHARP_T6 = { ...SHARP_FULL, uniEquipId: null };
 
 class RecordingStub extends StubMatch {
   static instances = [];
@@ -94,7 +97,7 @@ describe('room.diy (lobby, stub match)', () => {
     const by = (id) => seats.find((s) => s.playerId === id);
     assert.deepEqual(by(host.id).diy, { [T5A]: SIEGE });
     assert.ok(Object.isFrozen(by(host.id).diy) && Object.isFrozen(by(host.id).diy[T5A]));
-    assert.deepEqual(by(guest.id).diy, { [T5A]: SHARP_FULL, [T6A]: SHARP_FULL }, 'a prototype may fill a tier-5 and a tier-6 slot');
+    assert.deepEqual(by(guest.id).diy, { [T5A]: SHARP_FULL, [T6A]: SHARP_T6 }, 'a prototype may fill a tier-5 and a tier-6 slot');
     assert.equal(seats.find((s) => s.isBot).diy, null, 'bots field no 自选 piece');
     // during the match: refused for this match (ROOM_STARTED) but stored for the next one
     const r = await err(host, { t: 'room.diy', picks: { [T6B]: SIEGE } }, ERR.ROOM_STARTED);
@@ -146,7 +149,7 @@ describe('room.diy (lobby + real match)', () => {
     await ok(a, { t: 'room.start' });
     await a.waitFor('m.public', (p) => p.phase === PHASE.INFO_CHECK, 5000);
     const priv = await a.waitFor('m.private', (p) => p.diy && typeof p.diy === 'object', 3000);
-    assert.deepEqual(priv.diy, { [T5A]: SIEGE, [T6A]: SHARP_FULL });
+    assert.deepEqual(priv.diy, { [T5A]: SIEGE, [T6A]: SHARP_T6 });
     assert.deepEqual(priv.diyBanned, []);
     await err(a, { t: 'room.diy', picks: {} }, ERR.ROOM_STARTED);
     await ok(a, { t: 'g.infoReady' });

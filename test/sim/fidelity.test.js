@@ -132,7 +132,8 @@ test('stage devices: active platforms (act1 m03) block ground paths and elevate 
 // generic kit on real chess (skill metadata/blackboards from data/chess.json)
 
 test('generic kind: duration −1 is instant/charges unless the skill is explicitly endless', () => {
-  assert.equal(specOf('chess_char_6_09_a').kind, 'charges', '塑心 可充能2次');
+  const cello = ds.getChess('chess_char_6_diy1_a', { diy: { charId: 'char_245_cello', skillIndex: 0 } });
+  assert.equal(genericSkillSpec(cello.skill, cello.skill.bb, cello).kind, 'charges', '塑心 可充能2次');
   assert.equal(specOf('chess_char_5_22_a').kind, 'instant', '妮芙');
   assert.equal(specOf('chess_char_5_12_a').kind, 'charges', '夕 下一次攻击');
   assert.equal(specOf('chess_char_3_17_a').kind, 'instant', '流星 立即');
@@ -162,7 +163,7 @@ test('generic passives only buff stats: 星熊 keeps 100 % attacks and counters 
   assert.equal(spec.kind, 'passive');
   assert.equal(spec.attack, undefined);
   assert.equal(spec.targeting, undefined);
-  assert.equal(specOf('chess_char_4_16_a').targeting, undefined, '缄默德克萨斯 keeps her own range');
+  assert.equal(specOf('chess_char_2_15_a').targeting, undefined, '协律 keeps her own range (her 攻击范围半径 is no targeting override; carrier of this check was 缄默德克萨斯, a 自选 operator since 2026-10-12)');
   const h = makeBattle({
     defs: { enemies: { enemy_x: enemyRec({ key: 'enemy_x', hp: 1e7, atk: 50, def: 0, speed: 1, bat: 1 }) } },
     units: [{ chessId: 'chess_char_4_17_a', row: 9, col: 6 }], enemies: [{ key: 'enemy_x', route: 0 }],
@@ -221,10 +222,11 @@ test('generic text rules: 泡泡 stops attacking; 小满 sleeps ≤3 enemies onc
   assert.ok(g2.s.shield < g2.s.maxHp * 0.8 && g2.s.shield > 0, 'decays');
 });
 
-test('generic element: 塑心 charges add 85 % ATK of 凋亡 (apoptosis) damage to the gauge', () => {
+test('generic element: 塑心 (a 自选 pick since 2026-10-12) charges add 85 % ATK of 凋亡 (apoptosis) damage to the gauge', () => {
   // the generic kit's numbers (kits/ops/chess_char_6_09-cello.js is a hand-written 塑心 kit whose talent amplifies apoptosis in range)
-  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: 'chess_char_6_09_a', row: 10, col: 4 }], enemies: [{ key: 'enemy_dummy', pos: [10, 6] }], timeLimit: 60, content: 'generic' });
-  const u = h.unit('chess_char_6_09_a');
+  const id = 'chess_char_6_diy1_a';
+  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ diy: { slot: id, charId: 'char_245_cello', skillIndex: 0 }, row: 10, col: 4 }], enemies: [{ key: 'enemy_dummy', pos: [10, 6] }], timeLimit: 60, content: 'generic' });
+  const u = h.unit(id);
   assert.ok(h.runUntil(() => u.skill.activations >= 1 && h.enemy('enemy_dummy').elem.apoptosis > 0, 40));
   const e = h.enemy('enemy_dummy');
   approx(e.elem.apoptosis, u.s.atk * 0.85 * u.skill.activations, 1e-3);

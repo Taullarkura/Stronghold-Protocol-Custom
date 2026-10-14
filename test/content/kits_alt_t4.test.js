@@ -24,6 +24,48 @@ const D = (id, skillIndex, moduleId) => ds.getChess(id, { skillIndex, ...(module
 /** Harness unit entry with a loadout. */
 const U = (chessId, row, col, skillIndex = null, moduleId = null, extra = {}) =>
   ({ chessId, row, col, ...(skillIndex != null ? { skillIndex } : {}), ...(moduleId ? { moduleId } : {}), ...extra });
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js — the owner's plan of 2026-10-12): 缄默德克萨斯's shop chess left the roster,
+ * so her kit is exercised through a tier-5 自选 slot, the production path (simdata getChess(slotId, { diy })): the pick
+ * names its skill and its module (her chess's defaults were S3 and uniequip_002_texas2). A 自选 piece carries no 特质.
+ */
+const TEX = { charId: 'char_1028_texas2', a: 'chess_char_5_diy1_a', b: 'chess_char_5_diy1_b', mod: 'uniequip_002_texas2' };
+/** Both forms of her 自选 piece: [normal (E2 Lv1), elite (E2 Lv60, rank 7)]. */
+const TEX_PAIR = [TEX.a, TEX.b];
+const DT = (id, skillIndex, moduleId = null) => ds.getChess(id, { diy: { charId: TEX.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) } });
+const UT = (id, row, col, skillIndex = null, moduleId = null, extra = {}) => ({
+  diy: { slot: TEX.a, charId: TEX.charId, ...(skillIndex != null ? { skillIndex } : {}), ...(moduleId ? { uniEquipId: moduleId } : {}) },
+  elite: id === TEX.b, row, col, ...extra,
+});
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js — the owner's plan of 2026-10-13): 卡涅利安's shop chess left the roster the
+ * same way, so her kit runs through a tier-5 自选 slot too — the pick names its skill (her chess's default was S2 沙缚镣锁)
+ * and its module (PLX-X `uniequip_002_billro` / PLX-Y `uniequip_003_billro`; `'none'` = no module). A 自选 piece carries
+ * no 特质, so `billroCharged`'s guard reads the profession's own guard values.
+ */
+const BIL = { charId: 'char_426_billro', a: 'chess_char_5_diy1_a', b: 'chess_char_5_diy1_b', x: 'uniequip_002_billro', y: 'uniequip_003_billro' };
+const BIL_PAIR = [BIL.a, BIL.b];
+const DB = (id, skillIndex, moduleId = null) => ds.getChess(id, { diy: { charId: BIL.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) } });
+const UB = (id, row, col, skillIndex = null, moduleId = null, extra = {}) => ({
+  diy: { slot: BIL.a, charId: BIL.charId, ...(skillIndex != null ? { skillIndex } : {}), ...(moduleId ? { uniEquipId: moduleId } : {}) },
+  elite: id === BIL.b, row, col, ...extra,
+});
+/** Her 自选 module choice per form: the normal form carries none, the elite none either in these skill tests. */
+const bilMod = (id) => (id === BIL.b ? 'none' : null);
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js — the owner's plan of 2026-10-13): 莫斯提马's shop chess left the roster the
+ * same way, so her kit runs through a tier-5 自选 slot too — the pick names its skill (whose default was S3 序时之匙, now
+ * listed in `skills` beside S1 / S2) and its module (SPC-Y `uniequip_002_mostma` / SPC-X `uniequip_003_mostma`; `'none'`
+ * = no module). A 自选 piece carries no 特质. The module's range reaches the battle through the elite form alone: the
+ * normal form's status carries `equipLevel` 0 (the module inactive, content moduleRangeGrid).
+ */
+const MST = { charId: 'char_213_mostma', a: 'chess_char_5_diy2_a', b: 'chess_char_5_diy2_b', y: 'uniequip_002_mostma', x: 'uniequip_003_mostma' };
+const MST_PAIR = [MST.a, MST.b];
+const DM = (id, skillIndex, moduleId = null) => ds.getChess(id, { diy: { charId: MST.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) } });
+const UM = (id, row, col, skillIndex, moduleId = null, extra = {}) => ({
+  diy: { slot: MST.a, charId: MST.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) },
+  elite: id === MST.b, row, col, ...extra,
+});
 const dmgBy = (h, u, pred = () => true) => h.hooksOf('damaged').filter((c) => c.source === u && pred(c));
 const tagged = (tag) => (c) => (c.dmg?.tags || []).includes(tag);
 const T4 = Object.values(C).filter((c) => c.tier === 4 && !c.isGolden && c.visible).map((c) => c.chessId).sort();
@@ -41,7 +83,7 @@ function battle(units, o = {}) {
 
 test('tier4 loadouts: every selectable skill of every visible chess is hand-authored (normal + elite)', () => {
   const rep = kitCoverage({ tier: 4 });
-  assert.equal(rep.summary.chess, 22);
+  assert.equal(rep.summary.chess, 21);   // 卡涅利安 left the tier-4 roster for the 自选 pool on 2026-10-13 (§F9): her kit keeps her skills (kits_alt_t4's 自选 cases below)
   assert.equal(rep.summary.covered, rep.summary.skills, JSON.stringify(rep.chess.flatMap((r) => r.skills.filter((s) => !s.covered).map((s) => `${r.name} S${s.index + 1}`))));
   for (const base of T4) {
     const { skills } = loadoutOptions(C[base], C[gold(base)]);
@@ -190,9 +232,9 @@ test('信仰搅拌机 modules: SPT-Y 老朋友 = range +1 and no reveal; SPT-X (
 // 莫斯提马
 
 test('莫斯提马 S1 攻击力强化·γ型: ATK +45 %/+60 %; talent 2 slow is NOT tripled (S3 only)', () => {
-  for (const id of pair('chess_char_4_02_a')) {
-    const bb = D(id, 0).skill.bb, t1 = D(id, 0).talents[1].bb;
-    const h = battle([U(id, 10, 3, 0)]);
+  for (const id of MST_PAIR) {
+    const bb = DM(id, 0).skill.bb, t1 = DM(id, 0).talents[1].bb;
+    const h = battle([UM(id, 10, 3, 0)]);
     h.step();
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [10, 4] });
@@ -200,14 +242,14 @@ test('莫斯提马 S1 攻击力强化·γ型: ATK +45 %/+60 %; talent 2 slow is 
     h.run(0.5);
     approx(u.s.atk, u.base.atk * (1 + bb.atk), 1e-6, `${id} ATK`);
     approx(e.findBuff(`mostma:slow:${u.id}`).mods.moveMul, 1 + t1.move_speed, 1e-9, 'plain talent slow');
-    approx(u.skill.timeLeft, D(id, 0).skill.duration - 0.5, 0.05);
+    approx(u.skill.timeLeft, DM(id, 0).skill.duration - 0.5, 0.05);
   }
 });
 
 test('莫斯提马 S2 荒时之锁: every enemy in range stunned until the skill ends, atk_scale arts per second', () => {
-  for (const id of pair('chess_char_4_02_a')) {
-    const sk = D(id, 1).skill, bb = sk.bb;
-    const h = battle([U(id, 10, 3, 1)]);
+  for (const id of MST_PAIR) {
+    const sk = DM(id, 1).skill, bb = sk.bb;
+    const h = battle([UM(id, 10, 3, 1)]);
     h.step();
     const u = h.unit(id);
     const es = [h.spawn('enemy_dummy', { pos: [10, 4] }), h.spawn('enemy_dummy', { pos: [9, 5] }), h.spawn('enemy_dummy', { pos: [11, 5] })];
@@ -231,32 +273,31 @@ test('莫斯提马 S2 荒时之锁: every enemy in range stunned until the skill
 });
 
 test('莫斯提马 module SPC-X 资深万国信使定制斗篷: 攻击范围扩大 (default SPC-Y and none do not)', () => {
-  const n = (m) => { const h = battle([U('chess_char_4_02_b', 10, 3, null, m)]); h.step(); return h.unit('chess_char_4_02_b').rangeKeys.length; };
-  assert.ok(n('uniequip_003_mostma') > n(null));
+  const n = (m) => { const h = battle([UM(MST.b, 10, 3, 2, m)]); h.step(); return h.unit(MST.b).rangeKeys.length; };
+  assert.ok(n(MST.x) > n(null));
   assert.equal(n(null), n('none'));
+  assert.equal(n(MST.y), n(null), 'SPC-Y 锁与匙之家 changes no range');
 });
 
 test('莫斯提马 SPC-X: the range becomes the module grid (only the centre tile [0,3] added, no rangeExtend); S3 keeps its own range', () => {
-  const id = 'chess_char_4_02_b';
-  const modGrid = C[id].modules.find((m) => m.uniEquipId === 'uniequip_003_mostma').talentChanges.find((t) => t.rangeGrid).rangeGrid;
   const rel = (u) => u.rangeKeys.map((k) => `${Math.floor(k / 21) - u.tileR},${(k % 21) - u.tileC}`).sort();
   const run = (m) => {
-    const h = battle([U(id, 10, 3, null, m)]);
+    const h = battle([UM(MST.b, 10, 3, 2, m)]);
     h.step();
-    const u = h.unit(id);
+    const u = h.unit(MST.b);
     const base = rel(u), initial = u.baseRangeKeys.length, ext = u.s.rangeExtend;
     assert.ok(u.skill.activate('test', { free: true }));
     h.step();
     return { base, initial, ext, skill: rel(u) };
   };
-  const x = run('uniequip_003_mostma'), def = run(null);
-  assert.deepEqual(x.base, modGrid.map(([r, c]) => `${r},${c}`).sort(), 'own range = module grid');
-  assert.equal(x.base.length, C[id].rangeGrid.length + 1, 'exactly one tile more');
+  const x = run(MST.x), def = run(null);
+  assert.deepEqual(x.base, [...def.base, '0,3'].sort(), 'own range = the default grid plus the centre tile');
+  assert.equal(x.base.length, def.base.length + 1, 'exactly one tile more');
   assert.ok(x.base.includes('0,3') && !x.base.includes('1,3') && !x.base.includes('-1,3'));
   assert.equal(x.initial, x.base.length, 'DEFAULT trigger range follows');
   assert.equal(x.ext, 0, 'no forward extension');
   assert.deepEqual(x.skill, def.skill, 'S3 range unchanged by the module');
-  assert.equal(x.skill.length, D(id, 2).skill.rangeGrid.length);
+  assert.equal(x.skill.length, DM(MST.b, 2).skill.rangeGrid.length);
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -654,16 +695,16 @@ test('莱恩哈特 S1 攻击力强化·γ型: ATK up for 30 s; module none: no r
 // ---------------------------------------------------------------------------------------------------------------
 // 缄默德克萨斯 / 星熊 / 泥岩
 
-test('缄默德克萨斯 S1 细雨无声: passive ATK up for its duration; hits silence 5 s/8 s with a fixed arts DoT per second', () => {
-  for (const id of pair('chess_char_4_16_a')) {
-    const sk = D(id, 0).skill, bb = sk.bb;
-    const h = battle([U(id, 10, 4, 0)]);
+test('缄默德克萨斯 S1 细雨无声 (through a 自选 slot): passive ATK up for its duration; hits silence 5 s/8 s with a fixed arts DoT per second', () => {
+  for (const id of TEX_PAIR) {
+    const sk = DT(id, 0).skill, bb = sk.bb;
+    const h = battle([UT(id, 10, 4, 0)]);
     h.step();
     const u = h.unit(id);
     assert.equal(u.skill.kind, 'duration');
     assert.equal(u.skill.active, true);
     assert.equal(u.skill.charges, 0);
-    approx(u.skill.spec.mods.atkPct, bb.atk + D(id, 0).talents[0].bb.atk, 1e-9, 'skill and 德克萨斯传统 ATK');
+    approx(u.skill.spec.mods.atkPct, bb.atk + DT(id, 0).talents[0].bb.atk, 1e-9, 'skill and 德克萨斯传统 ATK');
     assert.equal(h.snapshot().units.find((t) => t[0] === u.id)[6], sk.duration);
     const e = h.spawn('enemy_dummy', { pos: [10, 5] });
     h.run(3);
@@ -683,8 +724,8 @@ test('缄默德克萨斯 S1 细雨无声: passive ATK up for its duration; hits 
 });
 
 test('缄默德克萨斯 S2: two copies cut the RES of an enemy around both once (同名效果取最高, DESIGN §20.10)', () => {
-  const id = 'chess_char_4_16_a', bb = D(id, 1).skill.bb;
-  const h = battle([U(id, 10, 4, 1), U(id, 11, 4, 1)], { enemies: { enemy_res: dummy({ key: 'enemy_res', res: 50 }) } });
+  const id = TEX.a, bb = DT(id, 1).skill.bb;
+  const h = battle([UT(id, 10, 4, 1), UT(id, 11, 4, 1)], { enemies: { enemy_res: dummy({ key: 'enemy_res', res: 50 }) } });
   h.step();
   const two = h.b.allyUnits.filter((u) => u.def.id === id);
   assert.equal(two.length, 2);
@@ -696,9 +737,9 @@ test('缄默德克萨斯 S2: two copies cut the RES of an enemy around both once
 });
 
 test('缄默德克萨斯 S2 阵雨连绵: deploy burst atk_scale arts + RES down around her; ATK up; attacks become arts double hits', () => {
-  for (const id of pair('chess_char_4_16_a')) {
-    const sk = D(id, 1).skill, bb = sk.bb;
-    const h = battle([U(id, 10, 4, 1)], { enemies: { enemy_res: dummy({ key: 'enemy_res', res: 50 }) } });
+  for (const id of TEX_PAIR) {
+    const sk = DT(id, 1).skill, bb = sk.bb;
+    const h = battle([UT(id, 10, 4, 1)], { enemies: { enemy_res: dummy({ key: 'enemy_res', res: 50 }) } });
     h.step();
     const u = h.unit(id);
     const e = h.spawn('enemy_res', { pos: [10, 5] });
@@ -710,7 +751,7 @@ test('缄默德克萨斯 S2 阵雨连绵: deploy burst atk_scale arts + RES down
     approx(burst[0].amount, u.s.atk * bb.atk_scale * 0.5, 1e-6, 'arts burst vs RES 50');
     approx(e.s.res, 50 * (1 + bb.magic_resistance), 1e-6, 'RES down');
     assert.equal(far.s.res, 50);
-    approx(u.skill.spec.mods.atkPct, bb.atk + D(id, 1).talents[0].bb.atk, 1e-9);
+    approx(u.skill.spec.mods.atkPct, bb.atk + DT(id, 1).talents[0].bb.atk, 1e-9);
     approx(u.skill.timeLeft, sk.duration, 1e-6);
     h.run(2);
     const hits = dmgBy(h, u, (c) => c.dmg.isAttack);
@@ -729,9 +770,9 @@ test('缄默德克萨斯 S2 阵雨连绵: deploy burst atk_scale arts + RES down
 });
 
 test('缄默德克萨斯 S1/S2/S3: first kill reopens a full window, including a kill inside the deployment burst', () => {
-  for (const id of pair('chess_char_4_16_a')) for (const index of [0, 1, 2]) {
+  for (const id of TEX_PAIR) for (const index of [0, 1, 2]) {
     const life = [];
-    const h = battle([U(id, 10, 4, index)], { extra: { setup(b) {
+    const h = battle([UT(id, 10, 4, index)], { extra: { setup(b) {
       for (const name of ['skillStart', 'skillEnd']) b.on(name, (c) => life.push([name, c.reason]), { priority: 1000 });
     } } });
     h.b.start();
@@ -779,10 +820,10 @@ test('缄默德克萨斯 S1/S2/S3: first kill reopens a full window, including a
   }
 });
 
-test('缄默德克萨斯 module none: no ATK +10 % when alone (EXE-Y default has it)', () => {
-  const has = (m) => { const h = battle([U('chess_char_4_16_b', 10, 4, null, m)]); h.run(0.5); return !!h.unit('chess_char_4_16_b').findBuff('texas2:module'); };
-  assert.equal(has(null), true);
-  assert.equal(has('none'), false);
+test('缄默德克萨斯 module: no lonely ATK +10 % without the module; her EXE-Y (uniequip_002_texas2) has it, EXE-X does not', () => {
+  const has = (m) => { const h = battle([UT(TEX.b, 10, 4, 2, m)]); h.run(0.5); return !!h.unit(TEX.b).findBuff('texas2:module'); };
+  assert.equal(has(TEX.mod), true);
+  assert.equal(has(null), false);
   assert.equal(has('uniequip_003_texas2'), false);
 });
 
@@ -1138,10 +1179,10 @@ test('百炼嘉维尔 module CEN-Y 好锯多磨: −20 % physical damage taken a
 });
 
 test('卡涅利安 S1 沙暴守卫: SEARCH; ATK/DEF up; charged keeps the trait guard; 生命之餐 heals 40 %/80 %', () => {
-  for (const id of pair('chess_char_4_24_a')) {
-    const d = D(id, 0), bb = d.skill.bb, t0 = d.talents[0].bb;
+  for (const id of BIL_PAIR) {
+    const d = DB(id, 0, bilMod(id)), bb = d.skill.bb, t0 = d.talents[0].bb;
     for (const charged of [false, true]) {
-      const h = battle([U(id, 10, 4, 0, gold(id) === id ? 'none' : null)]);
+      const h = battle([UB(id, 10, 4, 0, bilMod(id))]);
       h.step();
       const u = h.unit(id);
       assert.equal(u.skill.rule, 'SEARCH');
@@ -1160,9 +1201,9 @@ test('卡涅利安 S1 沙暴守卫: SEARCH; ATK/DEF up; charged keeps the trait 
 });
 
 test('卡涅利安 S3 食噬之印: wider range, ATK ramps to +atk over the skill; charged hits mark (+20 %/mark, ≤ 5) until it ends', () => {
-  for (const id of pair('chess_char_4_24_a')) {
-    const sk = D(id, 2).skill, bb = sk.bb;
-    const h = battle([U(id, 10, 4, 2, gold(id) === id ? 'none' : null)]);
+  for (const id of BIL_PAIR) {
+    const sk = DB(id, 2, bilMod(id)).skill, bb = sk.bb;
+    const h = battle([UB(id, 10, 4, 2, bilMod(id))]);
     h.step();
     const u = h.unit(id);
     const n0 = u.rangeKeys.length;
@@ -1187,9 +1228,9 @@ test('卡涅利安 S3 食噬之印: wider range, ATK ramps to +atk over the skil
 
 test('卡涅利安 module PLX-Y 乡音: +3 % damage per enemy in range (≤ 5); PLX-X keeps part of the guard during any skill', () => {
   const ratio = (m) => {
-    const h = battle([U('chess_char_4_24_b', 10, 4, 1, m)]);
+    const h = battle([UB(BIL.b, 10, 4, 1, m ?? BIL.x)]);
     h.step();
-    const u = h.unit('chess_char_4_24_b');
+    const u = h.unit(BIL.b);
     for (let i = 0; i < 3; i++) h.spawn('enemy_dummy', { pos: [10, 5] });
     u.skill.addCharge(1);
     assert.ok(u.skill.activate('test'));
@@ -1197,12 +1238,12 @@ test('卡涅利安 module PLX-Y 乡音: +3 % damage per enemy in range (≤ 5); 
     const c = dmgBy(h, u, (c) => c.dmg.isAttack)[0];
     return { r: c.amount / u.s.atk, keep: !!u.findBuff('billro:keep') };
   };
-  const mb = C.chess_char_4_24_b.modules.find((m) => m.uniEquipId === 'uniequip_003_billro').talentChanges[0].bb;
-  const y = ratio('uniequip_003_billro'), x = ratio(null), none = ratio('none');
+  const mb = ds.raw.backups.units[BIL.charId].forms['2/60/7/1'].modules.find((m) => m.uniEquipId === BIL.y).talentChanges[0].bb;
+  const y = ratio(BIL.y), x = ratio(null), none = ratio('none');
   approx(y.r, 1 + mb.damage_scale * 3, 1e-6, 'three enemies');
   approx(none.r, 1, 1e-6);
   assert.deepEqual([x.keep, y.keep, none.keep], [true, false, false]);
-  const s1keep = (charges) => { const h = battle([U('chess_char_4_24_b', 10, 4, 0)]); h.step(); const u = h.unit('chess_char_4_24_b'); u.skill.addCharge(charges); u.skill.activate('test'); return !!u.findBuff('billro:keep'); };
+  const s1keep = (charges) => { const h = battle([UB(BIL.b, 10, 4, 0, BIL.x)]); h.step(); const u = h.unit(BIL.b); u.skill.addCharge(charges); u.skill.activate('test'); return !!u.findBuff('billro:keep'); };
   assert.equal(s1keep(1), true, 'uncharged S1 keeps the PLX-X part');
   assert.equal(s1keep(2), false, 'charged S1 keeps the whole guard instead');
 });

@@ -63,7 +63,7 @@ function cast(h, u, max = 15) {
 
 test('tier 5: every selectable skill of every visible chess has a hand-authored spec (normal + elite)', () => {
   const rep = kitCoverage({ tier: 5 });
-  assert.equal(rep.summary.chess, 19);
+  assert.equal(rep.summary.chess, 22);   // 19 official (18 of tier 5 plus 佩佩, who moved there on 2026-10-13) + the fork's promoted 予愿安洁莉娜 and 结城理 (shared/promoted.js, 2026-10-12) and 真言 (2026-10-13)
   assert.equal(rep.summary.covered, rep.summary.skills, rep.chess.flatMap((r) => r.skills.filter((s) => !s.covered).map((s) => `${r.name} S${s.index + 1}`)).join(', '));
   assert.equal(rep.summary.chessFullyCovered, rep.summary.chess);
 });

@@ -148,9 +148,13 @@ or a prototype (DATA.md §18, `shared/diy.js`). The prototypes run their stand-i
 an owned 6★ can be picked only once it has a kit of its own: one file per operator, the same rules as every kit above.
 Contributions are welcome — one operator per pull request is easiest to review.
 
-**Who.** The owned-6★ picks are `data/backups.json diy.ownedPool` (upstream: 72 operators; this fork: 79 — its owner's
+**Who.** The owned-6★ picks are `data/backups.json diy.ownedPool` (upstream: 72 operators; this fork: 78 — its owner's
 decision of 2026-10-08 brings the 7 collab 6★ back, `tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS`, kits
-`op-ash.js` … `op-makoto.js`, docs/design/fork.md §F6). The ones still without a kit:
+`op-ash.js` … `op-makoto.js`, docs/design/fork.md §F6, while the demoted 塑心, 缄默德克萨斯, 卡涅利安 and 莫斯提马 joined it
+(`shared/diyOnly.js` — §F8 / §F9 / §F10), and the promoted 克莱门莎, 结城理, 予愿安洁莉娜, 真言 and 维伊 left it for their
+own 可用干员 pieces, `shared/promoted.js` — their kits field those). A demoted operator keeps the kit file its shop chess had: the file stays
+keyed by that chess id and `index.js` aliases it under the operator's charId (`shared/diyOnly.js`, `DEMOTED_KITS`) — her
+only 自选 form is that kit, so every skill the slot may pick must be in its `skills`. The ones without a kit:
 
 ```sh
 node --input-type=module -e "import { readFileSync } from 'node:fs'; import { KITTED_CHARS } from './server/sim/content/kits/index.js';

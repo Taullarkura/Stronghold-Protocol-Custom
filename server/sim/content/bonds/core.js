@@ -13,8 +13,11 @@
 //                        prep: every `layer` layers → `count` item(s) from `pool` (bond_layer_added_reward_equip)
 //   谢拉格 kjeragShip    members deal ×base_damage_scale, vs cold / frozen enemies ×(base_ex_damage_scale +
 //                        ex_damage_scale_per_stack·L) instead; 6: cold wind (devices.js kjeragColdWind)
-//   拉特兰 lateranoShip  member ammo skills start with floor(ammo × (1 + base_ammo_percent + ammo_percent_per_stack·L));
-//                        6: every ammo used by a member → all members ATK +atk_per_consume (≤ max_atk_for_consume)
+//   拉特兰 lateranoShip  (FORK: the two tiers swap, tools/build-data.mjs FORK_BOND_OVERRIDES — the owner's plan of
+//                        2026-10-12) every ammo used by a member → all members ATK +atk_per_consume
+//                        (≤ max_atk_for_consume); 6: member ammo skills start with
+//                        floor(ammo × (1 + base_ammo_percent + ammo_percent_per_stack·L)), and a member whose skill carries
+//                        no ammo instead gets ASPD +floor(no_ammo_aspeed_base + no_ammo_aspeed_per_stack·L)
 //   阿戈尔 egirShip      members max HP +(base_max_hp + max_hp_per_stack·L) (直接乘算); battle start devour (see devour():
 //                        the marker's gained base ATK is a 最终加算, `atkFinal`, not scaled by its ATK +%);
 //                        5: max_free_respawn_cnt free redeploys, one per member on its first knock-out — the devour's
@@ -310,24 +313,48 @@ function installKjerag(battle, pid, bb, members) {
 // =====================================================================================================================
 // 拉特兰
 
+// FORK BOND OVERRIDE (tools/build-data.mjs FORK_BOND_OVERRIDES, the owner's plan of 2026-10-12): the two official tiers
+// swap. Once the bond is active, ANY member's consumed ammo lifts every member's ATK (+3 % each, ≤ +150 %); at 6 distinct
+// members the ammo gain follows (skill ammo ×(1 + 5 % + 1.5 % × L), floored, 归 the official base effect), and a member
+// whose skill carries no ammo (未携带弹药类技能) instead gains ASPD +floor(10 + 0.7 × L), re-read as the layers grow.
 function installLaterano(battle, pid, bb, members) {
   const memberSet = new Set(members);
+  const per = num(bb.atk_per_consume, 0), cap = num(bb.max_atk_for_consume, Infinity);
+  if (per > 0) {
+    const st = { used: 0, bonus: 0 };
+    battle.on('ammoUsed', ({ unit }) => {
+      if (!memberSet.has(unit) || st.bonus >= cap) return;
+      st.used++;
+      st.bonus = Math.min(cap, st.used * per);
+      for (const m of members) S.passiveBuff(battle, m, 'bond:laterano:ammo', S.directMods({ atk: st.bonus }));
+    });
+  }
+  if (!reached(battle, pid, 'lateranoShip', bb.power_bond_char_cnt)) return;
   battle.on('skillStart', ({ unit, skill }) => {
     if (!memberSet.has(unit) || !skill || skill.kind !== 'ammo' || !(skill.ammoLeft > 0)) return;
     const mul = 1 + num(bb.base_ammo_percent, 0) + num(bb.ammo_percent_per_stack, 0) * S.bondLayers(battle, pid, 'lateranoShip');
     const n = Math.floor(skill.ammoLeft * mul + 1e-9);
     if (Number.isFinite(n) && n > skill.ammoLeft) skill.ammoLeft = n;
   }, { priority: -10 });
-  if (!reached(battle, pid, 'lateranoShip', bb.power_bond_char_cnt)) return;
-  const per = num(bb.atk_per_consume, 0), cap = num(bb.max_atk_for_consume, Infinity);
-  if (!(per > 0)) return;
-  const st = { used: 0, bonus: 0 };
-  battle.on('ammoUsed', ({ unit }) => {
-    if (!memberSet.has(unit) || st.bonus >= cap) return;
-    st.used++;
-    st.bonus = Math.min(cap, st.used * per);
-    for (const m of members) S.passiveBuff(battle, m, 'bond:laterano:ammo', S.directMods({ atk: st.bonus }));
-  });
+  const aBase = num(bb.no_ammo_aspeed_base, 0), aStack = num(bb.no_ammo_aspeed_per_stack, 0);
+  if (aBase > 0 || aStack > 0) {
+    const key = 'bond:laterano:aspeed';
+    const apply = () => {
+      const n = Math.floor(aBase + aStack * S.bondLayers(battle, pid, 'lateranoShip'));
+      for (const m of members) {
+        if (m.skill?.kind === 'ammo' || !(n > 0)) { battle.removeBuff(m, key); continue; }
+        S.passiveBuff(battle, m, key, { aspd: n });
+      }
+    };
+    apply();
+    // a layer gain fires BEFORE the count is committed (battle/economy.js addLayers): recompute on the next tick, once
+    let pending = false;
+    battle.on('layerGain', ({ playerId, bondId }) => {
+      if (playerId !== pid || bondId !== 'lateranoShip' || pending) return;
+      pending = true;
+      battle.after(0, () => { pending = false; apply(); });
+    });
+  }
 }
 
 // =====================================================================================================================

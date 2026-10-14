@@ -240,13 +240,14 @@ describe('§21.26 found on the way — the client-result layer bound reads the l
     }
   });
 
-  test('an uncapped freeze trait leaves 谢拉格 bounded only by 999: the honest +112 passes; a bond without such a trait keeps 60 + 4·round', () => {
+  test('uncapped freeze traits allow their listed bonds up to 999: SilverAsh grants both 谢拉格 and 迅捷', () => {
     const s = spec(12, SEED_107_R12, { kjeragShip: { count: 6, active: true, tier: 2, layers: 39 }, swiftShip: { count: 2, active: true, tier: 1, layers: 0 } });
     assert.equal(check(s, { kjeragShip: 112 }), 'ok', 'the board of coop/FUNNY/107 R12');
     assert.equal(check(s, { kjeragShip: 960 }), 'ok', '999 − 39');
     assert.equal(check(s, { kjeragShip: 961 }), 'layer bound', 'never past 999');
     assert.equal(check(s, { swiftShip: 108 }), 'ok');
-    assert.equal(check(s, { swiftShip: 109 }), 'layer bound', 'no layer trait names 迅捷: the flat bound');
+    assert.equal(check(s, { swiftShip: 999 }), 'ok', '凛御银灰 grants a 迅捷 layer trait to the front 谢拉格 operator');
+    assert.equal(check(s, { swiftShip: 1000 }), 'layer bound', 'never past 999');
     assert.equal(check(s, { kjeragShip: 112 }, {}), 'layer bound', 'without game data: the flat bound as before');
   });
 

@@ -189,9 +189,19 @@ H.SERVER_ADD_BOND_ROUND_COIN_COST = {
 H.SERVER_ADD_REFRESH_CNT_MULTIPLIER_BOND_LAYER = {
   run(ctx) {
     const { bb, bbStr, garrison } = ctx.source;
-    let n = (ctx.roundStats().refreshes | 0) * num(bb.multiplier);
-    if (num(bb.max_layer, 0) > 0) n = Math.min(n, num(bb.max_layer));
-    addAll(ctx, ids(bbStr.bond), n, requireActiveOf(garrison));
+    // one value per listed bond, or one for all of them: an official record states a scalar (阿罗玛's garrison_122, two
+    // bonds, 2 / 2), a FORK one may state a comma list ("2,1" — the SERVER_ADD_MULTIPLE_BOND convention, garrison_156's
+    // bbStr.count "6,3"; shared/forkTraits.js, the owner's plan of 2026-10-12)
+    const listOf = (v) => (Array.isArray(v) ? v : String(v ?? '').split(',').map((x) => x.trim()).filter((x) => x !== ''));
+    const per = listOf(bb.multiplier), cap = listOf(bb.max_layer);
+    const at = (list, i) => num(list[i] ?? list[list.length - 1] ?? list[0], 0);
+    const refreshes = ctx.roundStats().refreshes | 0;
+    ids(bbStr.bond).forEach((bond, i) => {
+      let n = refreshes * at(per, i);
+      const max = at(cap, i);
+      if (max > 0) n = Math.min(n, max);
+      addAll(ctx, [bond], n, requireActiveOf(garrison));
+    });
   },
 };
 

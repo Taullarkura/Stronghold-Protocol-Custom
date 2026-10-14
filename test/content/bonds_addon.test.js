@@ -579,8 +579,10 @@ test('突袭 #51: the most advanced enemy out of reach → the jump goes to the 
 // the 10 s idle trigger; the reporter's footage of the official game shows 缄默德克萨斯 jumping within her passive's 10 s.
 // raidPoll (only there) counts a passive skill that is on as 技能就绪, and — since #109 made her skills deploy-timed
 // duration skills — a deploy-timed skill while its window runs; the landing rule (#51) still keeps it from hopping.
-test('突袭 #49: a passive skill that is on, or a deploy-timed skill while it runs (#109), counts as 技能就绪 — 缄默德克萨斯 jumps within a few seconds, then stays while her enemy is in range', () => {
-  const tex = 'chess_char_4_16_a';
+// Carrier: 宴 (a 突袭 member whose default skill is deploy-timed too) — 缄默德克萨斯 left the roster on 2026-10-12
+// (FORK 自选-ONLY, shared/diyOnly.js), and her old chess id would only resolve through Node's research fallback.
+test('突袭 #49: a passive skill that is on, or a deploy-timed skill while it runs (#109), counts as 技能就绪 — 宴 jumps within a few seconds, then stays while her enemy is in range', () => {
+  const tex = 'chess_char_1_18_a';
   const h = makeBattle({
     defs: { enemies: DUMMY }, bonds: { raidShip: bond(1, 10) }, enemies: [{ key: 'enemy_addon_dummy', pos: [9, 8] }],
     units: [{ chessId: tex, row: 12, col: 3 }], hooks: ['deploy', 'death'], autoFinish: false, timeLimit: 60,
@@ -598,7 +600,7 @@ test('突袭 #49: a passive skill that is on, or a deploy-timed skill while it r
 });
 
 test('突袭 #49 with #109: a deploy-timed skill counts only while its window runs — once it has ended, only the idle trigger is left', () => {
-  const tex = 'chess_char_4_16_a';
+  const tex = 'chess_char_1_18_a';
   const idle = bondBb('raidShip').no_attack_duration;
   const h = makeBattle({
     defs: { enemies: DUMMY }, bonds: { raidShip: bond(1, 10) }, enemies: [{ key: 'enemy_addon_dummy', pos: [9, 8] }],
@@ -877,7 +879,7 @@ test('远见 meta: 「购买价格永久-1资金」 has no floor but 0 — a pri
   const at = (basePrice) => ps.priceOf({ kind: 'chess', id: 'chess_char_1_09_a', basePrice });
   assert.equal(at(3), 2);
   assert.equal(at(2), 1);
-  assert.equal(at(1), 0, 'a price of 1 (至简 / 休露丝) becomes 0');
+  assert.equal(at(1), 0, 'a price of 1 (至简) becomes 0');
   assert.equal(at(0), 0, 'never negative');
   ps.counters['bondaddon:visi:disc'] = 1;                 // 80: 远见 chess only
   assert.equal(ps.priceOf({ kind: 'chess', id: 'chess_char_2_02_a', basePrice: 2 }), 1);

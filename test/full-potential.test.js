@@ -87,13 +87,15 @@ test('every chess, 自选 form and stand-in form: the raw keyframes plus every p
     n++;
     if (Object.keys(steps(c.charId)).length) withSteps++;
   }
-  assert.equal(n, 258);
+  // 258 upstream chess; the fork's promoted 克莱门莎 (shared/promoted.js, 2026-10-11) and 结城理 (2026-10-12) add a normal
+  // and an elite record each, and the demoted 塑心 (shared/diyOnly.js, 2026-10-12) leaves hers (both forms)
+  assert.equal(n, 260);
   assert.ok(withSteps >= 220, `chess with potential steps: ${withSteps}`);
   let forms = 0;
   for (const [charId, u] of Object.entries(backups.units)) {
     for (const f of Object.values(u.forms)) { check(`${charId}@${f.status.phase}/${f.status.level}`, charId, f.status, f.stats); forms++; }
   }
-  assert.equal(forms, 280);   // upstream 259 + this fork's 7 collab 6★ × 3 自选 slots (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS)
+  assert.equal(forms, 287);   // upstream 259 + this fork's 7 collab 6★ and its 4 demoted operators as picks (3 forms each) − the fork's 5 promoted pieces, each carrying its tier's 2 forms instead of a pick's 3 (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS, shared/promoted.js, shared/diyOnly.js — 维伊's 等级 4 leaves the last of them, 莫斯提马's 3 forms replace it: 285 → 287)
   // the 原型干员 stand-ins have no potential ranks: their numbers are the plain keyframes
   for (const id of ['char_600_cpione', 'char_602_cdfend', 'char_608_acpion', 'char_617_sharp2']) assert.equal((CT[id].potentialRanks || []).length, 0, id);
 });

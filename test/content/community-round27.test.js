@@ -8,10 +8,11 @@ const SW = 'chess_char_3_04_a';
 const wall = chessRec({ id: 'wall', skill: null, stats: { maxHp: 1e7, atk: 0, def: 0, blockCnt: 3 } });
 const dummy = enemyRec({ key: 'dummy', hp: 1e9, atk: 0, speed: 0 });
 const done = (h) => { checkInvariants(h.b); assert.deepEqual(h.b.errors, []); };
+const AGLNA2 = 'chess_char_1015_aglna2_a';   // the promoted piece of 予愿安洁莉娜 (shared/promoted.js)
 const diy = (charId, skillIndex, tier = 5) => ({ slot: `chess_char_${tier}_diy1_a`, charId, skillIndex });
 
 test('deployment duration starts at battle start, never advances from repeated start/read calls', () => {
-  const h = makeBattle({ autoFinish: false, units: [{ uid: 1, diy: diy('char_1015_aglna2', 0), row: 10, col: 4 }] });
+  const h = makeBattle({ autoFinish: false, units: [{ uid: 1, chessId: AGLNA2, skillIndex: 0, row: 10, col: 4 }] });
   const u = h.unit(1);
   assert.equal(h.b.started, false); assert.equal(u.deployed, false);
   assert.ok(!u.skill?.active);
@@ -89,7 +90,7 @@ for (const skillIndex of [0, 1, 2]) {
   test(`予愿 S${skillIndex + 1}: ground caster splash skips her while airborne and hits after landing`, () => {
     const h = makeBattle({ autoFinish: false, timeLimit: 120, hooks: ['damaged'], captureNoisy: true,
       defs: { chess: { wall }, enemies: { dummy } },
-      units: [{ uid: 1, diy: diy('char_1015_aglna2', skillIndex), row: 9, col: 5 },
+      units: [{ uid: 1, chessId: AGLNA2, skillIndex, row: 9, col: 5 },
         { uid: 2, chessId: 'wall', row: 10, col: 5 }] });
     h.step(); const u = h.unit(1), bait = h.unit(2);
     if (skillIndex > 0) assert.ok(u.skill.activate('test', { free: true }));
@@ -107,7 +108,7 @@ for (const skillIndex of [0, 1, 2]) {
 test('予愿起飞 still takes the brute leader splash explicitly marked 无视无法选择', () => {
   const h = makeBattle({ autoFinish: false, hooks: ['damaged'], captureNoisy: true,
     defs: { chess: { wall } },
-    units: [{ uid: 1, diy: diy('char_1015_aglna2', 0), row: 9, col: 5 }, { uid: 2, chessId: 'wall', row: 9, col: 4 }],
+    units: [{ uid: 1, chessId: AGLNA2, skillIndex: 0, row: 9, col: 5 }, { uid: 2, chessId: 'wall', row: 9, col: 4 }],
     enemies: [{ key: 'enemy_1320_wdrrl_2', route: { motion: 'WALK', start: [9, 8], end: [9, 1], checkpoints: [] }, mods: { hpMul: 1e3, atkMul: 0.1 } }] });
   h.run(14); const u = h.unit(1);
   assert.ok(u.s.flags.liftoff);

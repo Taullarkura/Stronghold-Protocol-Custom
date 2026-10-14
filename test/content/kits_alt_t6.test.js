@@ -52,7 +52,7 @@ const skillBuff = (u) => u.findBuff(`skill:${u.id}`);
 
 test('kit coverage: every selectable skill of every visible tier-6 chess is hand-authored (normal + elite, every module)', () => {
   const rep = kitCoverage({ tier: 6 });
-  assert.equal(rep.summary.chess, 19);
+  assert.equal(rep.summary.chess, 18);   // the fork demoted 塑心 (shared/diyOnly.js, 2026-10-12) and moved 佩佩's NORMAL row to 等级 5 (shared/chessAdjust.js, 2026-10-13): both left the tier-6 roster
   assert.equal(rep.summary.covered, rep.summary.skills, JSON.stringify(rep.chess.filter((r) => r.skills.some((s) => !s.covered)).map((r) => r.name)));
   for (const r of rep.chess) {
     for (const s of r.skills.filter((x) => !x.isDefault)) {
@@ -597,12 +597,31 @@ test('6_08 焰影苇草 S2 枯荣共息: fireballs on ground operators of her ra
 });
 
 // =================================================================================================================
-// 6_09 塑心
+// 6_09 塑心 — FORK 自选-ONLY OPERATOR (shared/diyOnly.js, 2026-10-12)
 
-test('6_09 塑心 S2 “安魂的弥撒”: normal attacks allowed; ASPD +, 2 targets; her and the top-ATK ally\'s damage adds ep_damage_ratio × her ATK 凋亡', () => {
-  for (const id of both('chess_char_6_09')) {
-    const sid = 'skchr_cello_2', bb = bbOf(id, sid);
-    const idle = run({ defs: { enemies: { e: dummy('e') } }, units: [U(id, sid, 10, 4, { carryState: IDLE })], enemies: [{ key: 'e', pos: [10, 6] }] });
+/**
+ * 塑心's shop chess left the roster, so her kit is exercised through a 自选 slot — the production path (shared/diy.js
+ * diyRecordOf / simdata getChess(slotId, { diy })), exactly as a player fields her: the pick names the skill (by the
+ * operator's own index) and, on the elite, the module (its chess's defaults were S1 and uniequip_002_cello). `elite`
+ * picks the slot's `_b` form. Two 塑心 can only meet in the sim — a match roster allows an owned operator one slot
+ * (shared/diy.js validateDiyPicks).
+ */
+const CELLO = Object.freeze({
+  charId: 'char_245_cello', slot: 'chess_char_6_diy1_a', slotB: 'chess_char_6_diy1_b',
+  idx: Object.freeze({ skchr_cello_1: 0, skchr_cello_2: 1, skchr_cello_3: 2 }),
+});
+const celloId = (elite) => (elite ? CELLO.slotB : CELLO.slot);
+const celloPick = (sid, uniEquipId = null, slot = CELLO.slot) => ({ slot, charId: CELLO.charId, skillIndex: CELLO.idx[sid], ...(uniEquipId ? { uniEquipId } : null) });
+/** The composed record of a 塑心 pick (its skill's blackboard and trigger, the talents, the module's trait part). */
+const celloRec = (elite, sid = 'skchr_cello_1', uniEquipId = null) => ds.getChess(celloId(elite), { diy: celloPick(sid, uniEquipId) });
+/** A harness units[] entry fielding her through the slot (`uniEquipId` goes into the pick, not the loadout). */
+const celloU = (elite, sid, row, col, { slot = CELLO.slot, uniEquipId = null, ...o } = {}) => ({ ...o, diy: celloPick(sid, uniEquipId, slot), elite, row, col });
+const celloTal = (elite, i, uniEquipId = null) => celloRec(elite, 'skchr_cello_1', uniEquipId).talents[i]?.bb ?? {};
+
+test('6_09 塑心 S2 “安魂的弥撒” (a FORK 自选-ONLY operator: fielded through a 自选 slot): normal attacks allowed; ASPD +, 2 targets; her and the top-ATK ally\'s damage adds ep_damage_ratio × her ATK 凋亡', () => {
+  for (const elite of [false, true]) {
+    const id = celloId(elite), sid = 'skchr_cello_2', bb = celloRec(elite, sid).skill.bb;
+    const idle = run({ defs: { enemies: { e: dummy('e') } }, units: [celloU(elite, sid, 10, 4, { carryState: IDLE })], enemies: [{ key: 'e', pos: [10, 6] }] });
     const iu = idle.unit(id);
     idle.run(3);
     assert.ok(idle.hooksOf('attack').some((c) => c.attacker === iu && !c.isSkill), 'attacks without the skill (S1-only rule)');
@@ -610,7 +629,7 @@ test('6_09 塑心 S2 “安魂的弥撒”: normal attacks allowed; ASPD +, 2 ta
 
     const h = run({
       defs: { chess: { big: plain('big', { stats: { atk: 2000 } }), small: plain('small', { stats: { atk: 100 } }) }, enemies: { e: dummy('e') } },
-      units: [U(id, sid, 10, 4, { carryState: READY }), { chessId: 'big', row: 10, col: 5 }, { chessId: 'small', row: 11, col: 5 }],
+      units: [celloU(elite, sid, 10, 4, { carryState: READY }), { chessId: 'big', row: 10, col: 5 }, { chessId: 'small', row: 11, col: 5 }],
       enemies: [{ key: 'e', pos: [10, 6] }, { key: 'e', pos: [11, 6] }],
     });
     const u = h.unit(id), big = h.unit('big'), small = h.unit('small');
@@ -633,12 +652,12 @@ test('6_09 塑心 S2 “安魂的弥撒”: normal attacks allowed; ASPD +, 2 ta
   }
 });
 
-test('6_09 塑心 S3 “自由的探戈”: no attack, skill range, ATK +; 精神逆构 ×scale_delta_to_one; top max HP / ATK / DEF allies +20/25 %', () => {
-  for (const id of both('chess_char_6_09')) {
-    const sid = 'skchr_cello_3', bb = bbOf(id, sid);
+test('6_09 塑心 S3 “自由的探戈” (a 自选 pick): no attack, skill range, ATK +; 精神逆构 ×scale_delta_to_one; top max HP / ATK / DEF allies +20/25 %', () => {
+  for (const elite of [false, true]) {
+    const id = celloId(elite), sid = 'skchr_cello_3', bb = celloRec(elite, sid).skill.bb;
     const h = run({
       defs: { chess: { tank: plain('tank', { stats: { maxHp: 9000, atk: 100, def: 900 } }), dps: plain('dps', { stats: { maxHp: 1000, atk: 1500, def: 50 } }) }, enemies: { e: dummy('e') } },
-      units: [U(id, sid, 10, 4, { carryState: READY }), { chessId: 'tank', row: 10, col: 5 }, { chessId: 'dps', row: 11, col: 5 }],
+      units: [celloU(elite, sid, 10, 4, { carryState: READY }), { chessId: 'tank', row: 10, col: 5 }, { chessId: 'dps', row: 11, col: 5 }],
       enemies: [{ key: 'e', pos: [10, 6] }],
     });
     const u = h.unit(id), tank = h.unit('tank'), dps = h.unit('dps');
@@ -655,7 +674,7 @@ test('6_09 塑心 S3 “自由的探戈”: no attack, skill range, ATK +; 精�
     assert.ok(!dps.findBuff('cello:tango:hp') && !tank.findBuff('cello:tango:atk'));
     const fills = h.hooksOf('elementHit').filter((c) => c.source === u && c.dmg.element === 'apoptosis' && c.t > t0);
     assert.ok(fills.length > 0);
-    approx(fills[0].dmg.mul, 1 + (tal(id, null, 1).ep_damage_scale - 1) * bb.scale_delta_to_one, '精神逆构 × N', 1e-9);
+    approx(fills[0].dmg.mul, 1 + (celloTal(elite, 1).ep_damage_scale - 1) * bb.scale_delta_to_one, '精神逆构 × N', 1e-9);
     done(h);
   }
 });
@@ -1444,17 +1463,17 @@ test('module 焰影苇草 “独属自己的一隅”: damage ×1.1 while an ope
   done(d);
 });
 
-test('module 塑心 音乐家的旅程: 精神逆构 field-wide ×1.2 and 150 元素伤害/s during 凋亡 bursts; 10 % 元素脆弱 in her range', () => {
-  const id = ELITE('chess_char_6_09'), M = 'uniequip_003_cello';
-  for (const moduleId of [M, null]) {
-    const h = run({ defs: { enemies: { far: dummy('far'), near: dummy('near') } }, units: [{ chessId: id, row: 10, col: 4, moduleId, carryState: IDLE }], enemies: [{ key: 'far', pos: [12, 16] }, { key: 'near', pos: [10, 5] }] });
+test('module 塑心 音乐家的旅程 (a 自选 pick names its module): 精神逆构 field-wide ×1.2 and 150 元素伤害/s during 凋亡 bursts; 10 % 元素脆弱 in her range', () => {
+  const M = 'uniequip_003_cello', id = CELLO.slotB;
+  for (const uniEquipId of [M, null]) {
+    const h = run({ defs: { enemies: { far: dummy('far'), near: dummy('near') } }, units: [celloU(true, 'skchr_cello_1', 10, 4, { uniEquipId, carryState: IDLE })], enemies: [{ key: 'far', pos: [12, 16] }, { key: 'near', pos: [10, 5] }] });
     const u = h.unit(id);
     h.run(0.5);
     const far = enemyOf(h, 'far');
     h.b.dealDamage(null, far, { type: 'element', element: 'apoptosis', amount: 100 });
     const fill = h.hooksOf('elementHit').filter((c) => c.target === far).pop();
-    approx(fill.dmg.mul, moduleId ? tal(id, MOD(M), 1).ep_damage_scale : 1, `module ${moduleId}: far enemy`);
-    if (moduleId) {
+    approx(fill.dmg.mul, uniEquipId ? celloTal(true, 1, M).ep_damage_scale : 1, `module ${uniEquipId}: far enemy`);
+    if (uniEquipId) {
       assert.ok(statuses(h, 'elemFragile', (c) => isKey(c.target, 'near') && Math.abs(c.value - 0.1) < 1e-9).length > 0, '10 % 元素脆弱 in range');
       h.b.dealDamage(null, far, { type: 'element', element: 'apoptosis', amount: 5000 });
       assert.ok(far.findBuff('apoptosisBurst'));
@@ -1462,7 +1481,7 @@ test('module 塑心 音乐家的旅程: 精神逆构 field-wide ×1.2 and 150 �
       h.run(2.05);
       const dot = dealt(h, u, (c) => c.target === far && c.type === 'elemental' && c.t > t0);
       assert.equal(dot.length, 2, 'every second');
-      approx(dot[0].amount, tal(id, MOD(M), 1).damage_value, '150 per second');
+      approx(dot[0].amount, celloTal(true, 1, M).damage_value, '150 per second');
     }
     done(h);
   }

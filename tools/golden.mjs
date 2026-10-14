@@ -30,7 +30,7 @@
 //            battles run on the server) does not own a few NORMAL chess — they fight as their 补位 stand-ins (0.2.0) — and
 //            one whose human seat slots 自选 picks (推进之王 and prototypes; its 调度中心 at level 5 from the first prep):
 //            its shop sells them and its AI fields them (0.2.0 自选编队, the digest's `diy`)
-//   standins 10 battles: every NORMAL chess record (normal + elite, 110) fielded as its 补位 stand-in (PlayerBattleInput
+//   standins 10 battles: every NORMAL chess record (normal + elite, 102) fielded as its 补位 stand-in (PlayerBattleInput
 //            standIn: true — DATA.md §18: the stand-in's body, its backup skill / module, its kit by charId; all 17
 //            stand-ins and every skill a chess names for them), 12 per battle by strength band, laid out by the stand-in's
 //            position on a real stage, against the round's real wave three times over, an item each, bonds from the board
@@ -683,7 +683,10 @@ export function standInScenarios() {
     for (let q = queue.length - 1; q >= 0; q--) if (picked.includes(queue[q]) && placed.has(queue[q].chessId)) queue.splice(q, 1);
     if (!placed.size) throw new Error('standins: no progress');
     const band = Math.max(...picked.filter((w) => placed.has(w.chessId)).map((w) => w.band));
-    const round = BAND_ROUND[band];
+    // the band's round, four rounds early: a 预备干员 stand-in has ~2–3k HP, and several carry a channeled 攻击力强化 (37 s
+    // at 1 SP/s: 预备干员-重装's and 预备干员-狙击's S2), so they need the waves weak enough to outlast their own SP
+    // (2026-10-13: at the band's own round they die at ~33 s and never cast it)
+    const round = Math.max(2, BAND_ROUND[band] - 4);
     const seed = deriveSeed(20261005, `standins:${i}`);
     const wave = normalWave(gd, round, seed);
     const pid = 'p1';
@@ -692,7 +695,10 @@ export function standInScenarios() {
       rect: { ...GEO.NORMAL_RECT }, timeLimit: wave.timeLimit, routes: wave.routes, waveId: wave.templateId, enemyOverrides: wave.overrides,
       flags: { layerGainsEnabled: true, ...gd.dp },
       players: [playerInput(pid, 0, units, { bonds: bondsOf(gd, units, LAYER_STEPS[i % LAYER_STEPS.length]), bandId: bands.next() })],
-      spawns: [0, 1, 2].flatMap((k) => wave.spawns.map((sp) => ({ ...sp, time: sp.time + k * Math.round(wave.timeLimit / 4), ownerPlayerId: pid })))
+      // the round's wave four times (a quarter of the time limit apart, as the roster family): the stand-ins are
+      // 预备干员 (2–3k HP) and 预备干员-重装 carries a channeled 攻击力强化·β型 (37 s, 1 SP/s), so they need the battle to
+      // outlast their SP — three waves at the band's own round left 风笛's stand-in dead at ~33 s, never cast (2026-10-13)
+      spawns: [0, 1, 2, 3].flatMap((k) => wave.spawns.map((sp) => ({ ...sp, time: sp.time + k * Math.round(wave.timeLimit / 4), ownerPlayerId: pid })))
         .concat(extraSpawns(gd, wave.routes, Array.from({ length: 8 }, () => ground.next()), round, pid, 6, 6)),
       about: `${first.elite ? 'elite' : 'normal'} band ${band} as stand-ins: ${units.map((u) => `${u.chessId}→${gd.standIn(u.chessId)?.charId ?? '?'}`).join(' ')}`,
     });
@@ -743,14 +749,12 @@ const MATCH_DIY_SEED = 70;
 
 /**
  * The NORMAL chess the 补位 match's human seat does not own: operators its AI fields with seed 14 (the digest's `standIns`
- * lists them per round; test/golden-standins.test.js wants at least 3 different ones). 缄默德克萨斯 and 铃兰 joined in 0.2.0
- * when the 调度中心 upgrade's new card (DESIGN §25.19) changed the seat's shop: 忍冬 → Sharp from round 4, 缄默德克萨斯 →
- * Misery from round 7, 铃兰 → 预备干员-辅助 from round 9, 安洁莉娜 → Raidian in round 12.
+ * lists them per round; test/golden-standins.test.js wants at least 3 different ones). The list follows the seat's shop —
+ * 0.2.0's 调度中心 upgrade card changed it once (DESIGN §25.19), the fork's 2026-10-12 roster edit (docs/design/fork.md
+ * §F8: 安洁莉娜 5 → 4, 缄默德克萨斯 demoted for 予愿安洁莉娜) re-rolled it again: 瑕光 → 郁金香 from round 4,
+ * 琳琅诗怀雅 → 预备干员-医疗 from round 6, 夕 → Raidian from round 11, 迷迭香 → Pith from round 12.
  */
-const MATCH_NOT_OWNED = Object.freeze([
-  'chess_char_3_12_a', 'chess_char_3_18_a', 'chess_char_4_16_a', 'chess_char_5_10_a', 'chess_char_5_20_a', 'chess_char_6_05_a', 'chess_char_6_06_a',
-  'chess_char_6_17_a', 'chess_char_6_19_a',
-]);
+const MATCH_NOT_OWNED = Object.freeze(['chess_char_3_04_a', 'chess_char_3_12_a', 'chess_char_5_12_a', 'chess_char_6_12_a']);
 
 const pieceStr = (p, r, c) => `${p.id.replace(/^chess_char_/, '')}@${r},${c}${p.dir && p.dir !== 'RIGHT' ? p.dir[0] : ''}${p.items && p.items.length ? `[${p.items.map((i) => i.id.replace(/^chess_item_/, '')).join('+')}]` : ''}`;
 function boardStr(ps) {

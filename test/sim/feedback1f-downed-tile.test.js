@@ -48,16 +48,17 @@ function realField({ pieces, round, seed, stageId }) {
   return createBattleFromSpec(spec, h.m.ds, { quiet: true, recordEvents: false });
 }
 
-// Six 突袭 members (宴 休谟斯 斯卡蒂 瑕光 伊内丝 缄默德克萨斯 史尔特尔 仇白 耀骑士临光 — real chess) on 战场#07 / 战场#08 (下半)
+// Six 突袭 members (宴 休谟斯 斯卡蒂 瑕光 伊内丝 克莱门莎 史尔特尔 仇白 耀骑士临光 — real chess; 缄默德克萨斯 is a 自选
+// operator since 2026-10-12, shared/diyOnly.js, so the fork's promoted 克莱门莎 takes her slot) on 战场#07 / 战场#08 (下半)
 // against the real round waves: on 0.1.0 each run put a member on a knocked-out operator — a 突袭 landing on the body
 // of a member that fell after its own jump, or a member's timed redeploy on its home tile where a teammate lay that
 // had jumped there and fallen.
 const RUNS = [
-  { stageId: 'act2autochess_m03', round: 12, seed: 4, pieces: [['chess_char_4_04_a', 12, 2], ['chess_char_4_16_a', 10, 2], ['chess_char_5_07_a', 12, 5], ['chess_char_6_15_a', 10, 5], ['chess_char_6_17_a', 9, 4], ['chess_char_1_18_a', 11, 6]] },
-  { stageId: 'act2autochess_m04', round: 6, seed: 3, pieces: [['chess_char_3_12_a', 12, 3], ['chess_char_4_04_a', 11, 3], ['chess_char_4_16_a', 10, 3], ['chess_char_5_07_a', 9, 3], ['chess_char_6_15_a', 12, 4], ['chess_char_6_17_a', 11, 4]] },
-  { stageId: 'act2autochess_m04', round: 12, seed: 1, pieces: [['chess_char_2_09_a', 12, 3], ['chess_char_3_05_a', 11, 3], ['chess_char_3_12_a', 10, 3], ['chess_char_4_04_a', 9, 3], ['chess_char_4_16_a', 12, 4], ['chess_char_5_07_a', 11, 4]] },
-  { stageId: 'act2autochess_m04', round: 12, seed: 1, pieces: [['chess_char_2_09_a', 12, 2], ['chess_char_3_05_a', 10, 2], ['chess_char_3_12_a', 12, 5], ['chess_char_4_04_a', 10, 5], ['chess_char_4_16_a', 9, 4], ['chess_char_5_07_a', 11, 6]] },
-  { stageId: 'act2autochess_m04', round: 12, seed: 4, pieces: [['chess_char_4_04_a', 12, 3], ['chess_char_4_16_a', 11, 3], ['chess_char_5_07_a', 10, 3], ['chess_char_6_15_a', 9, 3], ['chess_char_6_17_a', 12, 4], ['chess_char_1_18_a', 11, 4]] },
+  { stageId: 'act2autochess_m03', round: 12, seed: 4, pieces: [['chess_char_4_04_a', 12, 2], ['chess_char_4231_clemnt_a', 10, 2], ['chess_char_5_07_a', 12, 5], ['chess_char_6_15_a', 10, 5], ['chess_char_6_17_a', 9, 4], ['chess_char_1_18_a', 11, 6]] },
+  { stageId: 'act2autochess_m04', round: 6, seed: 3, pieces: [['chess_char_3_12_a', 12, 3], ['chess_char_4_04_a', 11, 3], ['chess_char_4231_clemnt_a', 10, 3], ['chess_char_5_07_a', 9, 3], ['chess_char_6_15_a', 12, 4], ['chess_char_6_17_a', 11, 4]] },
+  { stageId: 'act2autochess_m04', round: 12, seed: 1, pieces: [['chess_char_2_09_a', 12, 3], ['chess_char_3_05_a', 11, 3], ['chess_char_3_12_a', 10, 3], ['chess_char_4_04_a', 9, 3], ['chess_char_4231_clemnt_a', 12, 4], ['chess_char_5_07_a', 11, 4]] },
+  { stageId: 'act2autochess_m04', round: 12, seed: 1, pieces: [['chess_char_2_09_a', 12, 2], ['chess_char_3_05_a', 10, 2], ['chess_char_3_12_a', 12, 5], ['chess_char_4_04_a', 10, 5], ['chess_char_4231_clemnt_a', 9, 4], ['chess_char_5_07_a', 11, 6]] },
+  { stageId: 'act2autochess_m04', round: 12, seed: 4, pieces: [['chess_char_4_04_a', 12, 3], ['chess_char_4231_clemnt_a', 11, 3], ['chess_char_5_07_a', 10, 3], ['chess_char_6_15_a', 9, 3], ['chess_char_6_17_a', 12, 4], ['chess_char_1_18_a', 11, 4]] },
 ];
 
 test('F5 real match: no 突袭 landing, redeploy or summon ever takes the tile of a knocked-out operator; it comes back where it lies', () => {

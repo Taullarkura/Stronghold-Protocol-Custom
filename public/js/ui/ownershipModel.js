@@ -1,6 +1,6 @@
 // 干员持有 (operator ownership, 0.2.0 补位) — pure logic of the 干员持有 tab of the 干员调配 overlay (screens/ownership.js),
 // shared with the sync (ui/loadoutSync.js) and the tests. The approved plan (owner's decision 2026-10-05): a player marks
-// operators as not owned ("下掉"); only the 55 NORMAL chess can be dropped (shared/standIn.js isDroppableChess — the 74
+// operators as not owned ("下掉"); only the 54 NORMAL chess can be dropped (shared/standIn.js isDroppableChess — the 74
 // PRESET chess always field their own operator); default = everything owned; out of match (the next match takes it);
 // co-op: the player's own pieces only; no friend borrowing. A dropped chess is deployed and shown as its official
 // stand-in (data/backups.json; the owner's recall of 2026-10-06: cards, pieces and the result show the stand-in) while

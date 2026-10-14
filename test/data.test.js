@@ -75,14 +75,18 @@ test('numbers: every stats/bb/enemyScale object holds only finite numbers (no nu
   assert.deepEqual(bad.slice(0, 10), [], `${bad.length} bad numeric fields`);
 });
 
-test('chess: 266 records, 112 visible non-DIY (16/17/19/22/19/19 per tier)', () => {
-  assert.equal(Object.keys(chess).length, 266);
-  assert.equal(visible.length, 112);
+test('chess: 268 records, 114 visible non-DIY (16/18/19/21/22/18 per tier)', () => {
+  // the fork promoted 克莱门莎 from 自选干员 to 可用干员 (shared/promoted.js, 2026-10-11) and 结城理 (2026-10-12), demoted 塑心
+  // into the 自选 pool (shared/diyOnly.js, 2026-10-12) and un-hid 协律's tier-2 chess (build-data FORK_VISIBLE_CHESS,
+  // §F7); the plan of 2026-10-13 demoted 卡涅利安 for the promoted 真言 (§F9) and moved 佩佩's NORMAL row 等级 6 → 5
+  // (shared/chessAdjust.js) — upstream's 268 / 113 net of all of it
+  assert.equal(Object.keys(chess).length, 268);
+  assert.equal(visible.length, 114);
   const perTier = {};
   for (const c of visible) perTier[c.tier] = (perTier[c.tier] || 0) + 1;
-  assert.deepEqual(perTier, { 1: 16, 2: 17, 3: 19, 4: 22, 5: 19, 6: 19 });
+  assert.deepEqual(perTier, { 1: 16, 2: 18, 3: 19, 4: 21, 5: 22, 6: 18 });
   assert.equal(normalChess.filter((c) => c.isDiy).length, 4);
-  assert.equal(normalChess.filter((c) => c.isHidden).length, 17);
+  assert.equal(normalChess.filter((c) => c.isHidden).length, 16);   // 17 upstream, less the un-hidden 协律
 });
 
 test('chess: ids, golden pairs and references resolve', () => {
@@ -154,13 +158,57 @@ test('bonds: 23 bonds with valid members, thresholds and effects', () => {
   for (const c of normalChess) for (const b of c.bonds) assert.ok(bonds[b].members.includes(c.chessId), `${c.chessId} not in ${b}.members`);
 });
 
-test('garrisons: all referenced exist; 43 distinct effect keys', () => {
+test('garrisons: all referenced exist; 46 distinct effect keys', () => {
   const keys = new Set(Object.values(garrisons).map((g) => g.effectKey));
-  assert.equal(keys.size, 43);
+  assert.equal(keys.size, 46);   // 43 official + 3 fork keys: fork_gar_event_bonddead (乌尔比安's 特质, 2026-10-12),
+                                 // fork_gar_event_dollswap (结城理's second 特质, the same day, shared/promoted.js) and
+                                 // fork_gar_event_bondskill (真言's 特质, 2026-10-13)
   for (const g of Object.values(garrisons)) {
     assert.ok(typeof g.eventType === 'string' && typeof g.desc === 'string', g.garrisonId);
     for (const o of g.owners) assert.ok(chess[o], `${g.garrisonId}: owner ${o}`);
   }
+});
+
+test('fork freeze traits: isolated overrides and the shared grant records resolve to their intended bonds', () => {
+  assert.deepEqual(chess.chess_char_4_13_a.garrisonIds, ['garrison_fork_gnosis_freeze_a']);
+  assert.deepEqual(chess.chess_char_4_13_b.garrisonIds, ['garrison_fork_gnosis_freeze_b']);
+  assert.deepEqual(chess.chess_char_3_11_a.garrisonIds, ['garrison_111_a'], '雪猎 keeps the shared official trait');
+  assert.deepEqual(chess.chess_char_4_22_a.garrisonIds, ['garrison_fork_silverash_freeze_a']);
+  assert.deepEqual(chess.chess_char_3_14_a.garrisonIds, ['garrison_28_a'], '初雪 keeps the shared official trait');
+  for (const [id, bondId, add, prob] of [
+    ['garrison_fork_gnosis_freeze_a', 'skillfulShip', 1, 0.5],
+    ['garrison_fork_gnosis_freeze_b', 'skillfulShip', 2, 0.5],
+    ['garrison_fork_silverash_freeze_a', 'kjeragShip', 1, 0.6],
+    ['garrison_fork_silverash_freeze_b', 'kjeragShip', 2, 0.6],
+    ['garrison_fork_silverash2_freeze_a', 'kjeragShip,swiftShip', 1, 0.5],
+    ['garrison_fork_silverash2_freeze_b', 'kjeragShip,swiftShip', 2, 0.5],
+  ]) {
+    const g = garrisons[id];
+    assert.equal(g.effectKey, 'act1autochess_gar_event_enemy_abflag_inrange', id);
+    assert.equal(g.bb.bond_add_count, add, id);
+    assert.equal(g.bb.prob, prob, id);
+    assert.equal(g.bbStr.bond_id, bondId, id);
+  }
+  assert.equal(garrisons.garrison_126_a.bbStr.give_garrison_id, 'garrison_fork_silverash2_freeze_a');
+  assert.equal(garrisons.garrison_126_b.bbStr.give_garrison_id, 'garrison_fork_silverash2_freeze_b');
+});
+
+test('fork band adjustments: every adjusted strategy carries the authored effect, text and blackboards alike', async () => {
+  const { BAND_ADJUSTMENTS, bandAdjustmentEffect } = await import('../shared/bandAdjust.js');
+  assert.ok(BAND_ADJUSTMENTS.length > 0);
+  for (const adj of BAND_ADJUSTMENTS) {
+    const rec = bands[adj.bandId];
+    assert.ok(rec, `${adj.bandId} is in the build`);
+    assert.deepEqual({ desc: rec.desc, descRaw: rec.descRaw, buffs: rec.buffs, params: rec.params },
+      bandAdjustmentEffect(adj, rec.effectName), adj.bandId);
+    assert.deepEqual(rec.bondIds, adj.bond.split(','), `${adj.bandId}: still tied to its 盟约`);
+  }
+  // the owner's plan of 2026-10-14 (todoList/10.14计划更改.md): 每累计花费23资金，获得一个随机的「谢拉格」干员
+  const sc = bands.band_sciurus;
+  assert.equal(sc.effectName, '雪域礼赠', 'the official 效果 name stays');
+  assert.equal(sc.buffs[0].key, 'band_coin_cost_gain_random_char_by_shop_level', 'the official spend-gain key');
+  assert.deepEqual(sc.buffs[0].bb, { coin_cnt: 23, count: 1 });
+  assert.equal(sc.buffs[0].bbStr.bond, 'kjeragShip');
 });
 
 test('items: 115 item chess with valid effects, bonds and golden links', () => {
@@ -419,13 +467,17 @@ test('chess/tokens: talent tokens resolve and every token variant says where it 
   // 夕's skill "cnt" is a charge count, not a token count.
   assert.equal(tokens.token_10015_dusk_drgn.variants.chess_char_5_12_a.count, null);
   // Placeable (hand) tokens = the manually deployable summons (PRTS 卫戍协议/帮助 §战斗部署; user playtest #6): shop
-  // state DEFAULT or no shop-state entry (凯瑟琳's device), never HIDDEN, made by some owner loadout (talent or skill) —
-  // 赫默's 医疗探机 and 巫恋's 诅咒娃娃 included (in battle they wait on their tile for the skill).
+  // state DEFAULT or no shop-state entry (凯瑟琳's device), never HIDDEN, made by some owner loadout (talent or skill) AND
+  // shown by its owner — a skill's own object such as 予愿安洁莉娜's “一会儿见！” has no `display` source
+  // (tools/build-data.mjs summonRecord) — 赫默's 医疗探机 and 巫恋's 诅咒娃娃 included (in battle they wait on their tile
+  // for the skill).
   const makes = (list) => list.includes('talent') || list.includes('skill');
+  const shows = (list) => list.includes('display');
   for (const t of Object.values(tokens)) {
     if (t.kind !== 'summon') continue;
     const made = Object.values(t.variants).some((v) => makes(v.sources) || Object.values(v.bySkill || {}).some((b) => makes(b.sources)));
-    assert.equal(t.placeable, t.displayType !== 'HIDDEN' && made, `${t.tokenId} (${t.name}): placeable`);
+    const shown = Object.values(t.variants).some((v) => shows(v.sources) || Object.values(v.bySkill || {}).some((b) => shows(b.sources)));
+    assert.equal(t.placeable, t.displayType !== 'HIDDEN' && made && shown, `${t.tokenId} (${t.name}): placeable`);
   }
   assert.deepEqual(Object.values(tokens).filter((t) => t.placeable).map((t) => t.name).sort(),
     ['医疗探机', '诅咒娃娃', '斯卡蒂的海嗣', '流形', '狼群', '爬行号·防护单元'].sort());
@@ -511,15 +563,20 @@ test('chess: skills[] = every skill unlocked at the status, at the chess skill l
     assert.ok(wider(s.trigger.customRangeGrid, c.rangeGrid), `${c.chessId} ${s.skillId}: its running range strictly contains ${c.rangeId}`);
     if (s.rangeGrid) assert.deepEqual(s.trigger.customRangeGrid, s.rangeGrid, `${c.chessId} ${s.skillId}: the skill's own grid`);
   }
-  assert.equal(active.length, 78, '39 skills, normal + elite');
-  assert.equal(new Set(active.map(([c, s]) => `${c.baseId} ${s.skillId}`)).size, 39);
+  // 39 upstream skills; the fork promoted 克莱门莎 and 予愿安洁莉娜 to 可用干员 (shared/promoted.js, 2026-10-11/12), whose
+  // pieces carry two ACTIVE skills per form in the same two forms, 真言 (2026-10-13), whose piece carries one (S3), and
+  // 维伊 (2026-10-13), whose piece carries none; it demoted 塑心 (shared/diyOnly.js, 2026-10-12) and, on 2026-10-12/13,
+  // 缄默德克萨斯, 卡涅利安 and 莫斯提马, whose former chess carried none, two and one — 41 distinct over 82 records
+  assert.equal(active.length, 82, '41 skills, normal + elite');
+  assert.equal(new Set(active.map(([c, s]) => `${c.baseId} ${s.skillId}`)).size, 41);
   // from the SEARCH row (解放者 / 阵法术师 / 安洁莉娜) and 深巡 S2's deviation: the owner's decisions of 2026-10-05
+  // (卡涅利安's S1/S2 left with her chess: shared/diyOnly.js, the owner's plan of 2026-10-13)
   const fromSearch = active.filter(([, s]) => s.trigger.rawRule === 'SEARCH').map(([c, s]) => `${c.baseId} ${s.skillId}`);
-  assert.deepEqual([...new Set(fromSearch)].sort(), ['chess_char_3_08_a skchr_mint_1', 'chess_char_4_05_a skchr_beewax_1', 'chess_char_4_24_a skchr_billro_3', 'chess_char_5_19_a skchr_mlynar_2', 'chess_char_5_20_a skchr_aglina_3']);
-  assert.equal(fromSearch.length, 10);
-  // the SEARCH skills whose range does not grow keep the row (薄绿 / 蜜蜡 S2, 卡涅利安 S1 / S2, 玛恩纳 S1, 安洁莉娜 S2, 圣聆初雪 S1)
+  assert.deepEqual([...new Set(fromSearch)].sort(), ['chess_char_3_08_a skchr_mint_1', 'chess_char_4_05_a skchr_beewax_1', 'chess_char_5_19_a skchr_mlynar_2', 'chess_char_5_20_a skchr_aglina_3']);
+  assert.equal(fromSearch.length, 8);
+  // the SEARCH skills whose range does not grow keep the row (薄绿 / 蜜蜡 S2, 玛恩纳 S1, 安洁莉娜 S2, 圣聆初雪 S1)
   const search = Object.values(chess).flatMap((c) => (c.skills || []).filter((s) => s.trigger.rule === 'SEARCH').map((s) => `${c.baseId} ${s.skillId}`));
-  assert.deepEqual([...new Set(search)].sort(), ['chess_char_3_08_a skchr_mint_2', 'chess_char_4_05_a skchr_beewax_2', 'chess_char_4_24_a skchr_billro_1', 'chess_char_4_24_a skchr_billro_2', 'chess_char_5_19_a skchr_mlynar_1', 'chess_char_5_20_a skchr_aglina_2', 'chess_char_6_02_a skchr_sbell2_1']);
+  assert.deepEqual([...new Set(search)].sort(), ['chess_char_3_08_a skchr_mint_2', 'chess_char_4_05_a skchr_beewax_2', 'chess_char_5_19_a skchr_mlynar_1', 'chess_char_5_20_a skchr_aglina_2', 'chess_char_6_02_a skchr_sbell2_1']);
   const grown = (id, sid) => chess[id].skills.find((s) => s.skillId === sid).trigger;
   assert.deepEqual(grown('chess_char_5_07_a', 'skchr_surtr_3').customRangeGrid.length, chess.chess_char_5_07_a.rangeGrid.length + 2, '史尔特尔 S3 攻击距离+2: 1-1 grown by 2');
   assert.equal(grown('chess_char_5_03_a', 'skchr_blaze2_3').rule, 'DEFAULT', '烛煌 S3: 4-11 does not contain her 3-1');
@@ -804,7 +861,9 @@ test('independent re-derivation of every chess and enemy stat from the raw offic
     }
     n++;
   }
-  assert.equal(n, 258);
+  // 250 of the excel's 252 records: the fork demoted 莫斯提马 (shared/diyOnly.js, the owner's plan of 2026-10-13) and the
+  // build no longer carries her two (维伊's piece is a fork record the official dict does not name)
+  assert.equal(n, 250);
 
   const db = new Map(raw('levels/enemydata/enemy_database.json').enemies.map((e) => [e.Key, e.Value]));
   const ov = new Map((raw('levels/activities/act1autochess/level_autochess_enemy_data.json').enemyDbRefs || [])

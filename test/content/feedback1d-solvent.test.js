@@ -5,6 +5,11 @@
 // 卫戍协议/帮助 "受到伤害时释放技能"), and 信仰搅拌机 S3's counter (PRTS 备注 "反击受到任何伤害后均可触发，无需目标，视为普通
 // 攻击") fires on every drain tick, spending a bullet even with no enemy in range — next to 莫斯提马 (特质 "自身周围4格的干员
 // 每消耗6发弹药，使已激活的【拉特兰】层数+1/+2") that is 拉特兰 layers with no enemy involved.
+// Report D1's second half left the data on 2026-10-13: 莫斯提马 is 自选-only now (shared/diyOnly.js, §F10), and her
+// garrison_22 was the only 特质 that pooled ANOTHER operator's bullets — every ammo trait left in the season is self-only
+// (圣约送葬人 garrison_23, 蕾缪安 garrison_24 with its 3-in-a-row condition, 维伊's authored pair). The two 配料 tests
+// below therefore pin the drain (the cast, its timing, the target-less counters) and that the bullets no longer land
+// anywhere, with 拉特兰 active on the board; the ammo family itself is covered in test/content/garrisons_battle.test.js.
 // The same `periodic_damage` template drives 狂暴宿主组长 (PRTS "自身每秒受到500无来源真实伤害"), and 孽罪奇美拉's pollution aura
 // on operators is "受到…真实持续伤害" (PRTS) — both damage too. Operator 生命流失 (华法琳, 史尔特尔, 号角 …) stays a 流失.
 import { test } from 'node:test';
@@ -17,7 +22,7 @@ import { spawnYanyou } from '../../server/sim/content/tokens.js';
 
 const ds = getDefaultSource();
 const SOLVENT = 'chess_item_1_05_e_a', SOLVENT_B = 'chess_item_1_05_e_b';
-const MIXER = 'chess_char_4_01_a', MOSTIMA = 'chess_char_4_02_a', INSIDE = 'chess_char_1_01_a', YAK = 'chess_char_1_02_a';
+const MIXER = 'chess_char_4_01_a', LEMUEN = 'chess_char_6_01_a', INSIDE = 'chess_char_1_01_a', YAK = 'chess_char_1_02_a';
 const gold = (id) => id.replace(/_a$/, '_b');
 const DRAIN = DATA.items[SOLVENT].params.damage; // 60
 const isMixer = (u) => !!u && u.defId.startsWith('chess_char_4_01_');
@@ -26,10 +31,12 @@ const dummy = (o = {}) => enemyRec({ key: 'enemy_dummy', hp: 1e8, atk: 0, speed:
 const hpLoss = (c) => !!(c.dmg && (c.dmg.tags || []).includes('hpLoss'));
 
 /**
- * The real match path: a solo NORMAL match at PREP R3, 信仰搅拌机 (default S3) carrying 源石溶剂 with 莫斯提马 on the tile
- * above (her 周围4格) and 隐现 as the third 拉特兰 (3 distinct ⇒ 拉特兰 active), the BattleSpec of that board
+ * The real match path: a solo NORMAL match at PREP R3, 信仰搅拌机 (default S3) carrying 源石溶剂 with 蕾缪安 on the tile
+ * above and 隐现 as a third 拉特兰 (3 distinct ⇒ 拉特兰 active, so a layer gain WOULD show), the BattleSpec of that board
  * (Match._normalOpts → buildBattleSpec → createBattleFromSpec — what the server and the browser run). `noEnemies`: the
  * wave's spawns are dropped and the field runs to its time limit, so whatever happens comes from the drain alone.
+ * 莫斯提马 stood on that tile until 2026-10-13 — she was the one who turned the mixer's bullets into 拉特兰 layers
+ * (garrison_22, "自身周围4格的干员每消耗6发弹药…"; shared/diyOnly.js demoted her, §F10).
  */
 function realBattle({ elite = false, noEnemies = false, item = SOLVENT } = {}) {
   const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: 5 }).start();
@@ -38,7 +45,7 @@ function realBattle({ elite = false, noEnemies = false, item = SOLVENT } = {}) {
   const ps = h.ps('p_0');
   for (const p of [...ps.board.values()]) ps.returnCopies(p);
   ps.board.clear();
-  const mixId = elite ? gold(MIXER) : MIXER, mosId = elite ? gold(MOSTIMA) : MOSTIMA;
+  const mixId = elite ? gold(MIXER) : MIXER, mosId = elite ? gold(LEMUEN) : LEMUEN;
   const mix = give(m, ps, mixId, 'board', [9, 4]);
   give(m, ps, mosId, 'board', [10, 4]);
   give(m, ps, INSIDE, 'board', [11, 4]);
@@ -58,7 +65,7 @@ function realBattle({ elite = false, noEnemies = false, item = SOLVENT } = {}) {
   return { h, m, ps, b, rec, mixId, mosId };
 }
 
-test('D1 real path, drain alone: 信仰搅拌机 S3 fires on a 源石溶剂 tick (重装 "受到伤害时") and spends its bullets on target-less counters; 莫斯提马 turns them into 拉特兰 layers', () => {
+test('D1 real path, drain alone: 信仰搅拌机 S3 fires on a 源石溶剂 tick (重装 "受到伤害时") and spends its bullets on target-less counters', () => {
   for (const elite of [false, true]) {
     const { m, b, rec, mixId, mosId } = realBattle({ elite, noEnemies: true });
     const u = b.allyUnits.find(isMixer);
@@ -79,18 +86,17 @@ test('D1 real path, drain alone: 信仰搅拌机 S3 fires on a 源石溶剂 tick
     assert.ok(rec.ammo.every((a) => a.enemies === 0));
     const gaps = rec.ammo.slice(1).map((a, i) => a.t - rec.ammo[i].t);
     assert.ok(gaps.every((g) => g > 1 - 1e-6), `${mixId}: at most one counter per drain tick`);
-    // 莫斯提马's 特质 (garrison_22): +bond_add_count 拉特兰 per 6 bullets of the operators on her 4 tiles
-    const gar = DATA.garrisons[DATA.chess[mosId].garrisonIds[0]].bb;
-    const expected = Math.floor(rec.ammo.length / gar.consume_count) * gar.bond_add_count;
-    assert.ok(expected >= gar.bond_add_count);
-    assert.equal(res.perPlayer.p_0.layerGains.lateranoShip, expected, `${mixId}: ${rec.ammo.length} bullets → ${expected} layers`);
+    // 莫斯提马's 特质 (garrison_22) used to turn those bullets into 拉特兰 layers (floor(bullets / 6) × 1 or 2); she left
+    // the roster on 2026-10-13 and no 特质 pools another operator's bullets any more — with 拉特兰 active (3 distinct on
+    // the board) and 蕾缪安 nearby, nothing gains a layer
+    assert.equal(res.perPlayer.p_0.layerGains.lateranoShip ?? 0, 0, `${mixId}: ${rec.ammo.length} bullets, no trait to bank them`);
     assert.ok(u.stats.attacks >= rec.ammo.length, 'each counter counts as an attack (视为普通攻击)');
     checkInvariants(b);
     m.dispose?.();
   }
 });
 
-test('D1 real path, the round-3 wave: the drain casts S3 before any enemy touched her; the counters and 莫斯提马 add 拉特兰 layers', () => {
+test('D1 real path, the round-3 wave: the drain casts S3 before any enemy touched her; the counters fire with no trait left to bank them', () => {
   const { m, b, rec } = realBattle();
   const res = b.runToEnd(400);
   assert.equal(b.errorCount, 0, JSON.stringify(b.errors));
@@ -99,7 +105,8 @@ test('D1 real path, the round-3 wave: the drain casts S3 before any enemy touche
   assert.ok(rec.casts[0].t < firstHit, `the first cast (${rec.casts[0].t}) came before any enemy hit her (${firstHit})`);
   assert.equal(rec.casts[0].reason, 'TAKE_DAMAGE');
   assert.ok(rec.ammo.length >= 6, `bullets spent (${rec.ammo.length})`);
-  assert.ok((res.perPlayer.p_0.layerGains.lateranoShip ?? 0) >= 1, JSON.stringify(res.perPlayer.p_0.layerGains));
+  // 莫斯提马 is 自选-only since 2026-10-13 (§F10): the bullet-driven 拉特兰 layering the report found is gone from the data
+  assert.equal(res.perPlayer.p_0.layerGains.lateranoShip ?? 0, 0, JSON.stringify(res.perPlayer.p_0.layerGains));
   m.dispose?.();
 });
 

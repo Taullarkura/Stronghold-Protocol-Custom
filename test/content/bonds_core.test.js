@@ -271,12 +271,15 @@ test('谢拉格: ×1.25, vs cold / frozen ×(1.35+0.01L); 6: a cold wind every 2
 // ---------------------------------------------------------------------------------------------------------------------
 // 拉特兰
 
-test('拉特兰: ammo ×(1.05+0.015L) floored; 6: every ammo used → all members ATK +4 %, ≤ +200 %', () => {
+test('拉特兰 (FORK: the two tiers swap — tools/build-data.mjs FORK_BOND_OVERRIDES): every ammo used → all members ATK +3 %, ≤ +150 %; 6: ammo ×(1.05+0.015L) floored, and a member whose skill carries no ammo gets ASPD +floor(10+0.7L)', () => {
   const list = [];
   for (let i = 0; i < 6; i++) list.push([`l${i}_a`, ['lateranoShip'], { profession: 'SNIPER' }]);
   list.push(['none_a', ['preciShip'], { profession: 'SNIPER' }]);
+  const bb = bondBb('lateranoShip');
+  assert.deepEqual([bb.atk_per_consume, bb.max_atk_for_consume, bb.no_ammo_aspeed_base, bb.no_ammo_aspeed_per_stack], [0.03, 1.5, 10, 0.7]);
   const kits = {};
-  for (const [id] of list) kits[id] = () => ({ skill: { kind: 'ammo', ammo: 14 } });
+  // l5 carries no ammo skill: at 6 members it takes the ASPD fallback instead of the ammo gain
+  for (const [id] of list) kits[id] = () => ({ skill: { kind: id === 'l5_a' ? 'duration' : 'ammo', ammo: 14, duration: 5 } });
   const L = 10;
   for (const n of [3, 6]) {
     const ids = [...list.slice(0, n).map((x) => x[0]), 'none_a'];
@@ -285,19 +288,26 @@ test('拉特兰: ammo ×(1.05+0.015L) floored; 6: every ammo used → all member
     const a = h.unit('l0_a'), b = h.unit('l1_a'), x = h.unit('none_a');
     a.skill.activate('test', { free: true });
     x.skill.activate('test', { free: true });
-    assert.equal(a.skill.ammoLeft, Math.floor(14 * (1 + 0.05 + 0.015 * L)));
+    // the ammo gain needs the 6-member tier now
+    assert.equal(a.skill.ammoLeft, n === 6 ? Math.floor(14 * (1 + 0.05 + 0.015 * L)) : 14, `ammo at n=${n}`);
     assert.equal(x.skill.ammoLeft, 14, 'non-member unchanged');
-    for (let i = 0; i < 3; i++) a.skill.onAttackPerformed([], null);
-    if (n === 3) {
-      close(b.s.atk, 1000);
+    // the ATK gain is the BASE effect (the bond being active is enough)
+    const spent = (u, k) => { for (let i = 0; i < k; i++) { if (!u.skill.active) u.skill.activate('test', { free: true }); u.skill.onAttackPerformed([], null); } };
+    spent(a, 3);
+    close(b.s.atk, 1000 * (1 + 3 * 0.03), 1e-6, `n=${n}: 3 ammo → +9 %`);
+    close(x.s.atk, 1000, 1e-9, 'non-member gets nothing');
+    spent(a, 80);   // far past the cap (1 + 80 × 0.03 = +243 % → capped)
+    close(b.s.atk, 1000 * (1 + 1.5), 1e-6, `n=${n}: cap +150 %`);
+    if (n === 6) {
+      // the ASPD fallback: l5 has no ammo skill, the others do
+      assert.equal(h.unit('l5_a').s.aspd, 100 + Math.floor(10 + 0.7 * L), 'no ammo skill ⇒ ASPD +17');
+      assert.equal(h.unit('l0_a').s.aspd, 100, 'an ammo carrier keeps its ASPD');
+      h.b.addLayers('p1', 'lateranoShip', 20, 'test');
+      h.step(2);
+      assert.equal(h.unit('l5_a').s.aspd, 100 + Math.floor(10 + 0.7 * (L + 20)), 'the fallback re-reads the layers');
+      assert.equal(h.unit('l0_a').s.aspd, 100);
     } else {
-      close(b.s.atk, 1000 * (1 + 3 * 0.04));
-      close(x.s.atk, 1000, 1e-9, 'non-member gets nothing');
-      for (let k = 0; k < 80; k++) {
-        if (!a.skill.active) a.skill.activate('test', { free: true });
-        a.skill.onAttackPerformed([], null);
-      }
-      close(b.s.atk, 1000 * 3, 1e-6, 'cap +200 %');
+      assert.equal(h.unit('l2_a').s.aspd, 100, 'below 6 members: no fallback');
     }
     checkInvariants(h.b);
   }

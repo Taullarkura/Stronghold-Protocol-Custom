@@ -412,15 +412,18 @@ describe('enemy auras, winds, timing and shapes', () => {
     assert.equal(fx.sustains.size, 0);
   });
 
-  test('灵知 S3 cold wind: her field, no full-screen tint; the Kjerag gust keeps it', () => {
+  test('灵知 S3 cold wind: her field, the light flurry and the softer flash; the Kjerag gust keeps the strong one', () => {
     const gn = op(91, 5, 10);
     const fx = makeFx([gn]);
     skillEv(fx, gn, true);
     fx.simFx('coldWind', 5, 10, { x: 5, y: 10, id: 91 });
-    assert.equal(fx.tintT, 0);
+    // upstream 0.2.3, PR #386 (adopted in the merge — the owner's decision of 2026-10-11): an operator's own cold
+    // (灵知 S3, 麦哲伦 S1's pulse every 3 s) keeps the light flurry and the softer flash 0.35 / 0.8 s, where the
+    // Kjerag gust (no `id`) gets the blizzard and the strong one (test/render/fxchill.test.js, the same look)
+    assert.deepEqual([fx.tintA, fx.tintDur], [0.35, 0.8]);
     assert.ok(fx.sustains.has('coldWind:91'));
     fx.simFx('coldWind', 6, 10, { x: 6, y: 10, playerId: 1, n: 3, duration: 4 });
-    assert.ok(fx.tintT > 0);
+    assert.deepEqual([fx.tintA, fx.tintDur], [0.45, 1]);
   });
 
   test('boss 崩坍: a warning first, the rocks land `dur` later', () => {

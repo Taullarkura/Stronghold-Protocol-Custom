@@ -651,10 +651,11 @@ export function createBattleRunner(deps) {
   /**
    * Send an entry's b.result right behind its final b.progress (the rest of its replay log), on the same session: a
    * result request queued while offline would reach the server ahead of the replay log the next session sends again.
-   * Retried once on a timeout. `e.delivery`: 'pending' while a request is out, 'delivered' once the server answered
-   * (ok, or a refusal — final), 'undelivered' when it could not go out or never got there (LOST_RESULT_CODES): kept for
-   * redeliver() (the next session) and for an authoritative b.start of the finished battle. A battle the server ended
-   * before it stepped here (`noReplay`, applyEnd) sends its result alone.
+   * Retried once on a timeout, the retry behind that same final b.progress again. `e.delivery`: 'pending' while a
+   * request is out, 'delivered' once the server answered (ok, or a refusal — final), 'undelivered' when it could not go
+   * out or never got there (LOST_RESULT_CODES): kept for redeliver() (the next session) and for an authoritative
+   * b.start of the finished battle. A battle the server ended before it stepped here (`noReplay`, applyEnd) sends its
+   * result alone.
    */
   function deliver(e, retries = 1) {
     if (!e.result || e.delivery === 'pending') return;
@@ -670,7 +671,15 @@ export function createBattleRunner(deps) {
       try { req = net.request('b.result', msg, { timeout: 15000 }); } catch (err) { req = Promise.reject(err); }
       return Promise.resolve(req).then(() => { e.delivery = 'delivered'; }, (err) => {
         const code = err && err.code;
-        if (code === 'TIMEOUT' && tries > 0) return send(tries - 1);
+        if (code === 'TIMEOUT' && tries > 0) {
+          // the retry goes out behind the final b.progress again (the timed-out one may never have reached the server)
+          if (!e.noReplay && !report(e)) {
+            e.delivery = 'undelivered';
+            console.warn('[runner] b.result not sent (offline) — sent on the next session');
+            return null;
+          }
+          return send(tries - 1);
+        }
         if (LOST_RESULT_CODES.includes(code)) {
           e.delivery = 'undelivered';
           console.warn(`[runner] b.result not delivered (${code}) — sent again when the session resumes`);

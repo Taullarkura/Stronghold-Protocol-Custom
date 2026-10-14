@@ -1,9 +1,10 @@
 // test/backups.test.js — the data of 补位 (stand-ins) and 自选 (DIY slots): chess.json `backup` and data/backups.json
 // (docs/DATA.md §18; tools/build-data.mjs buildBackups; shared/standIn.js, shared/diy.js). These tests pin the data the
-// gameplay reads: the 133 base chess and their types, the 17 stand-in characters and their forms, every NORMAL chess
-// resolving to its stand-in, the 4 DIY slots, the legal picks (the 79 owned 6★ with their forms and summons — the 7 collab
-// 6★ upstream leaves out included: this fork's switch tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS, the fork owner's
-// decision of 2026-10-08 —, the prototypes and their locked selections) and the faction bonds.
+// gameplay reads: the 134 base chess and their types, the 17 stand-in characters and their forms, every NORMAL chess
+// resolving to its stand-in, the 4 DIY slots, the legal picks (the 78 owned 6★ with their forms and summons — the 7 collab
+// 6★ upstream leaves out included, minus the two the fork promoted to 可用干员, shared/promoted.js; tools/build-data.mjs
+// FORK_INCLUDE_COLLAB_PICKS, the fork owner's decision of 2026-10-08 —, the prototypes and their locked selections) and
+// the faction bonds.
 // With the official-data cache (.cache/gamedata) the backup fields, the stand-in numbers and the bond derivation are
 // re-derived from the raw tables.
 // Run: node --test test/backups.test.js
@@ -15,6 +16,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { standInRecord, composeUnitRecord, unitForm, statusKey, IDENTITY_FIELDS } from '../shared/standIn.js';
 import { diyRecordOf, lockedSelection } from '../shared/diy.js';
+import { DIY_ONLY_OPERATORS } from '../shared/diyOnly.js';
+import { PROMOTED_PIECES } from '../shared/promoted.js';
 import { composeStats, composeTalents, resolveLoadout, loadoutRecord, normalizeChess } from '../server/sim/simdata.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,10 +46,12 @@ const COLLAB_BONDS = {
   char_4123_ela: ['艾拉', 'emptyShip'], char_4141_marcil: ['玛露西尔', 'emptyShip'], char_4182_oblvns: ['丰川祥子', 'emptyShip'],
   char_4217_makoto: ['结城理', 'lateranoShip'],
 };
+/** The fork's promotions (shared/promoted.js): their picks left the pool for a PRESET piece of their own. */
+const PROMOTED = PROMOTED_PIECES.map((p) => p.charId);
 
-test('chess: 133 base chess — 74 PRESET / 55 NORMAL / 4 DIY — and every record keeps the five official backup fields', () => {
-  assert.equal(base.length, 133);
-  assert.deepEqual([ofType('PRESET').length, ofType('NORMAL').length, ofType('DIY').length], [74, 55, 4]);
+test('chess: 134 base chess — 79 PRESET / 51 NORMAL / 4 DIY — and every record keeps the five official backup fields', () => {
+  assert.equal(base.length, 134);
+  assert.deepEqual([ofType('PRESET').length, ofType('NORMAL').length, ofType('DIY').length], [79, 51, 4]);
   for (const c of all) {
     assert.deepEqual(Object.keys(c.backup), ['charId', 'tmplId', 'skillIndex', 'uniEquipId', 'potRank'], `${c.chessId}: backup fields`);
     assert.deepEqual(c.backup, chess[c.baseId].backup, `${c.chessId}: the elite shares its base row's backup`);
@@ -68,6 +73,8 @@ test('chess: the backup fields are the official shop row, verbatim', { skip: !HA
   const act = raw('activity_table').activity.AUTOCHESS_SEASON.act2autochess;
   for (const c of all) {
     const s = act.charShopChessDatas[c.baseId];
+    // FORK PROMOTED PIECES (shared/promoted.js): a promoted piece is authored, the season has no shop row for it
+    if (!s) continue;
     assert.deepEqual(c.backup, { charId: s.backupCharId, tmplId: s.backupTmplId, skillIndex: s.backupCharSkillIndex, uniEquipId: s.backupCharUniEquipId, potRank: s.backupCharPotRank }, c.chessId);
     assert.equal(c.chessType, s.chessType, c.chessId);
   }
@@ -78,7 +85,7 @@ const STAT_KEYS = ['maxHp', 'atk', 'def', 'res', 'cost', 'blockCnt', 'bat', 'asp
 test('backups: the 17 stand-in characters, each with a form for every status it fights at', () => {
   const ids = Object.keys(backups.units).filter((id) => backups.units[id].standsIn.length);
   assert.deepEqual(ids, [...RESERVES, ...ELITES]);
-  assert.deepEqual(Object.keys(backups.units), [...RESERVES, ...ELITES, ...backups.diy.ownedPool], 'the stand-ins, then the owned 6★ picks');
+  assert.deepEqual(Object.keys(backups.units), [...RESERVES, ...ELITES, ...backups.diy.ownedPool, ...PROMOTED], 'the stand-ins, then the owned 6★ picks, then the fork\'s promoted pieces (shared/promoted.js)');
   assert.deepEqual([...new Set(ofType('NORMAL').map((c) => c.backup.charId))].sort(), [...ids].sort(), 'the stand-ins are exactly the NORMAL chess backups');
   const statKeys = STAT_KEYS;
   for (const id of ids) {
@@ -162,17 +169,17 @@ test('backups: every NORMAL chess (both forms) resolves to its stand-in with the
     assert.deepEqual([def.id, def.baseId, def.charId, def.spine, def.skill.id, def.tier], [c.chessId, c.baseId, c.backup.charId, c.backup.charId, r.skill.skillId, c.tier]);
     assert.deepEqual(def.bonds, c.bonds);
   }
-  assert.equal(n, 110);
+  assert.equal(n, 102);
   for (const c of all.filter((x) => x.chessType !== 'NORMAL')) assert.equal(standInRecord(c, backups), null, `${c.chessId}: PRESET / DIY have no stand-in`);
-  // spot checks (zh_CN client data): 妮芙 → Stormeye S3 旋臂 + MAR-X; 莫斯提马 (T4) → Stormeye S2 without a module even
+  // spot checks (zh_CN client data): 妮芙 → Stormeye S3 旋臂 + MAR-X; 银灰 (T4) → 领主·Sharp S1 亮剑 without a module even
   // on the elite; 琳琅诗怀雅 → 预备干员-医疗 S3; 维娜·维多利亚 → 领主·Sharp S1 with LOR-X Lv3
   const s = (id) => standInRecord(chess[id], backups);
   assert.deepEqual([s('chess_char_5_22_b').skill.name, s('chess_char_5_22_b').module.type, s('chess_char_5_22_b').bonds], ['旋臂', 'MAR-X', ['swiftShip']]);
-  assert.deepEqual([s('chess_char_4_02_b').skill.name, s('chess_char_4_02_b').module], ['心手合一', { id: null, name: null, type: null, level: 1, active: false }]);
+  assert.deepEqual([s('chess_char_4_22_b').skill.name, s('chess_char_4_22_b').module], ['亮剑', { id: null, name: null, type: null, level: 1, active: false }]);
   assert.deepEqual([s('chess_char_3_04_a').name, s('chess_char_3_04_a').skill.name, s('chess_char_3_04_a').garrisonIds], ['预备干员-医疗', '治疗强化·γ型', ['garrison_98_a']]);
   assert.deepEqual([s('chess_char_6_07_b').skill.name, s('chess_char_6_07_b').module.type, s('chess_char_6_07_b').module.level, s('chess_char_6_07_b').assets.avatar], ['沉默的爆发', 'LOR-X', 3, 'char_617_sharp2_2']);
-  // 26 of the 55 stand-ins fight in another profession than the operator they replace
-  assert.equal(ofType('NORMAL').filter((c) => standInRecord(c, backups).profession !== c.profession).length, 26);
+  // 24 of the 51 stand-ins fight in another profession than the operator they replace
+  assert.equal(ofType('NORMAL').filter((c) => standInRecord(c, backups).profession !== c.profession).length, 24);
 });
 
 test('backups: the stand-in numbers re-derived from the raw official tables', { skip: !HAS_CACHE && 'no .cache/gamedata' }, () => {
@@ -202,7 +209,7 @@ test('backups: the stand-in numbers re-derived from the raw official tables', { 
     for (const e of lv.blackboard) if (!(e.valueStr && e.value === 0)) assert.ok(Math.abs(r.skill.bb[e.key] - e.value) < 1e-6, `${c.chessId}: skill bb ${e.key}`);
     n++;
   }
-  assert.equal(n, 110);
+  assert.equal(n, 102);
 });
 
 test('DIY: four slots (tiers 5, 5, 6, 6) — price 4, sell 1, TIER_6, no 特质, no bonds; listed from the matching shop level', () => {
@@ -247,9 +254,9 @@ test('DIY: prototype picks — the 9 elites at tiers 5 and 6, six 4★ reserves 
   assert.equal(diyRecordOf(chess.chess_char_5_01_a, { charId: 'char_608_acpion' }, data), null, 'not a DIY slot');
 });
 
-test('DIY: the 79 owned 6★ picks — a form at every slot status with all three skills, every module at stage 1 and 3, their summons', () => {
+test('DIY: the 78 owned 6★ picks — a form at every slot status with all three skills, every module at stage 1 and 3, their summons', () => {
   const { ownedPool } = backups.diy;
-  assert.equal(ownedPool.length, 79);
+  assert.equal(ownedPool.length, 78);
   let summoners = 0;
   for (const id of ownedPool) {
     const u = backups.units[id];
@@ -281,7 +288,7 @@ test('DIY: the 79 owned 6★ picks — a form at every slot status with all thre
     }
     if (summons) summoners++;
   }
-  assert.equal(summoners, 28, 'owned picks with summons (艾拉 and her 雷暴 mine the 28th)');
+  assert.equal(summoners, 27, 'owned picks with summons (艾拉 and her 雷暴 mine the 27th — 予愿安洁莉娜 left the pool for her own chess, §F8)');
   for (const [id, rec] of Object.entries(backups.tokens)) {
     assert.deepEqual(Object.keys(rec.variants), rec.owners, `${id}: owners = variant keys`);
     for (const o of rec.owners) assert.ok(/^char_\w+@\d+\/\d+\/\d+\/\d+$/.test(o) && ownedPool.includes(o.split('@')[0]), `${id}: owner ${o}`);
@@ -310,9 +317,13 @@ test('DIY: prototype picks carry the skill / module of their 补位 rows at the 
       if (rows.length) assert.deepEqual([l.skillIndex, l.uniEquipId], [chess[rows[0]].backup.skillIndex, chess[rows[0]].backup.uniEquipId], `${id}@${tier}`);
     }
   }
-  // the 6★ elites: S3 with their own module at both tiers; 领主·Sharp: S1; the reserves: S3 without a module
+  // the 6★ elites: S3 with their own module at every tier that has a 补位 row for them — 佩佩's move to tier 5
+  // (2026-10-13) left the tier-6 slot with no row for Sharp, so its module is null there —; 领主·Sharp: S1; the reserves:
+  // S3 without a module
   for (const id of ELITES) for (const tier of ['5', '6']) {
-    assert.deepEqual([locked[tier][id].skillIndex, locked[tier][id].uniEquipId], [id === 'char_617_sharp2' ? 0 : 2, `uniequip_002_${id.replace(/^char_\d+_/, '')}`], `${id}@${tier}`);
+    const rows = ofType('NORMAL').filter((c) => c.tier === Number(tier) && c.backup.charId === id);
+    assert.deepEqual([locked[tier][id].skillIndex, locked[tier][id].uniEquipId],
+      [id === 'char_617_sharp2' ? 0 : 2, rows.length ? `uniequip_002_${id.replace(/^char_\d+_/, '')}` : null], `${id}@${tier}`);
   }
   for (const id of prototypes['5'].filter((x) => RESERVES.includes(x))) assert.deepEqual([locked['5'][id].skillIndex, locked['5'][id].uniEquipId], [2, null], id);
   assert.deepEqual(locked['5'].char_605_cmedic, { skillIndex: 2, uniEquipId: null, from: [] }, '预备干员-医疗 has no tier-5 补位 row: S3 [ASSUMED]');
@@ -321,7 +332,7 @@ test('DIY: prototype picks carry the skill / module of their 补位 rows at the 
 test('DIY: the owned-6★ pool and the faction → bond rule (mainPower + every subPower vs powerIdList, else 协防干员)', () => {
   const { ownedPool, operators, prototypes } = backups.diy;
   const roster = new Set(base.map((c) => c.charId).filter(Boolean));
-  assert.equal(ownedPool.length, 79);
+  assert.equal(ownedPool.length, 78);
   for (const id of ownedPool) {
     assert.ok(!roster.has(id), `${id}: a roster operator is never a pick`);
     assert.deepEqual([operators[id].rarity, operators[id].obtainable], [6, true], id);
@@ -335,14 +346,20 @@ test('DIY: the owned-6★ pool and the faction → bond rule (mainPower + every 
   }
   const tally = {};
   for (const id of ownedPool) { const k = operators[id].bonds.join('+'); tally[k] = (tally[k] || 0) + 1; }
-  assert.deepEqual(tally, { emptyShip: 44, yanShip: 14, victoriaShip: 8, sargonShip: 4, siracusaShip: 4, lateranoShip: 2, kazimierzShip: 1, egirShip: 1, 'yanShip+victoriaShip': 1 });
+  // 莫斯提马 is the 炎 + 拉特兰 one: her mainPower laterano meets 拉特兰, its lungmen subPower adds 炎
+  assert.deepEqual(tally, { emptyShip: 43, yanShip: 14, victoriaShip: 8, sargonShip: 4, siracusaShip: 3, lateranoShip: 2, kazimierzShip: 1, 'yanShip+victoriaShip': 1, 'yanShip+siracusaShip': 1, 'yanShip+lateranoShip': 1 });
   // the fork: the collab operators upstream leaves out (copyright) are picks here, with their units and bonds, and nothing
   // is excluded (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS, the fork owner's decision of 2026-10-08) — 结城理 拉特兰 by
-  // his subPower laterano, the other six 协防干员 (no core bond meets their factions)
+  // his subPower laterano, the other six 协防干员 (no core bond meets their factions). 结城理 left the pool for his own
+  // PRESET piece on 2026-10-12 (shared/promoted.js), so he keeps a unit and no pick — his bonds live on the chess now.
   assert.deepEqual(backups.diy.excluded, [], 'nothing excluded');
-  assert.deepEqual(Object.entries(COLLAB_BONDS).map(([id]) => [id, ownedPool.includes(id), !!backups.units[id], operators[id]?.name, operators[id]?.bonds]),
-    Object.entries(COLLAB_BONDS).map(([id, [name, bond]]) => [id, true, true, name, [bond]]),
-    '灰烬, 麒麟R夜刀, 焰狐龙梓兰 (MH05: a 联动寻访, by its display number), 艾拉, 玛露西尔, 丰川祥子, 结城理');
+  const picks = Object.entries(COLLAB_BONDS).filter(([id]) => id !== 'char_4217_makoto');
+  assert.deepEqual(picks.map(([id]) => [id, ownedPool.includes(id), !!backups.units[id], operators[id]?.name, operators[id]?.bonds]),
+    picks.map(([id, [name, bond]]) => [id, true, true, name, [bond]]),
+    '灰烬, 麒麟R夜刀, 焰狐龙梓兰 (MH05: a 联动寻访, by its display number), 艾拉, 玛露西尔, 丰川祥子');
+  // 结城理 left the pool for his own PRESET piece on 2026-10-12 (shared/promoted.js): the piece carries his bonds now
+  assert.deepEqual([ownedPool.includes('char_4217_makoto'), !!backups.units.char_4217_makoto, chess.chess_char_4217_makoto_a.bonds],
+    [false, true, ['lateranoShip', 'steadShip']], '结城理: promoted (his pick record and unit stay, the pool does not offer him)');
   assert.deepEqual(operators.char_017_huang.bonds, ['yanShip', 'victoriaShip'], '煌: 炎 + 维多利亚 from her subPower (mainPower rhodes / elite)');
   for (const id of [...prototypes['5'], ...prototypes['6']]) assert.deepEqual(operators[id].bonds, ['emptyShip'], `${id}: no faction`);
 });
@@ -351,13 +368,17 @@ test('DIY: powers and the owned pool re-derived from character_table', { skip: !
   const CT = raw('character_table');
   const act = raw('activity_table').activity.AUTOCHESS_SEASON.act2autochess;
   const roster = new Set(Object.values(act.charShopChessDatas).map((r) => r.charId).filter(Boolean));
+  // FORK 自选-ONLY OPERATORS (shared/diyOnly.js): the shop chess the fork withdrew — build-data drops them from the roster
+  // copy, so its own legality check must too (the official table still lists them)
+  for (const p of DIY_ONLY_OPERATORS) roster.delete(p.charId);
   const collab = (c) => [c.mainPower, ...(c.subPower || [])].some((p) => ['rainbow', 'action4', 'mujica', 'sees', 'laios'].includes(p?.teamId))
     || /^(?:MH|RS|AM|PS|DD)\d/.test(c.displayNumber || '');
   const legal = Object.entries(CT).filter(([id, c]) => id.startsWith('char_') && c.rarity === 'TIER_6' && !['TOKEN', 'TRAP'].includes(c.profession) && !c.isNotObtainable && !roster.has(id));
-  assert.equal(legal.length, 79, 'the excel\'s 79 obtainable 6★ outside the chess pool');
-  // the fork keeps the collab picks (FORK_INCLUDE_COLLAB_PICKS): the pool is every legal 6★, and upstream's collab rule
-  // still finds exactly the 7 of COLLAB_BONDS among them
-  assert.deepEqual([...backups.diy.ownedPool].sort(), legal.map(([id]) => id).sort());
+  assert.equal(legal.length, 83, 'the excel\'s 83 obtainable 6★ outside the chess pool (79 upstream + the fork\'s demoted 塑心, 缄默德克萨斯, 卡涅利安 and 莫斯提马)');
+  // the fork keeps the collab picks (FORK_INCLUDE_COLLAB_PICKS): the pool is every legal 6★ less the promoted ones, and
+  // upstream's collab rule still finds exactly the 7 of COLLAB_BONDS among them
+  assert.deepEqual([...backups.diy.ownedPool].sort(),
+    legal.map(([id]) => id).filter((id) => !PROMOTED.includes(id)).sort());   // FORK: promoted picks (克莱门莎, 结城理)
   assert.deepEqual(legal.filter(([, c]) => collab(c)).map(([id]) => id).sort(), Object.keys(COLLAB_BONDS).sort());
   assert.deepEqual(backups.diy.excluded, []);
   for (const [id, o] of Object.entries(backups.diy.operators)) {
@@ -365,15 +386,16 @@ test('DIY: powers and the owned pool re-derived from character_table', { skip: !
     const want = [...new Set([c.mainPower, ...(c.subPower || [])].flatMap((p) => [p?.nationId, p?.groupId, p?.teamId]).filter(Boolean))];
     assert.deepEqual(o.powers, want, `${id}: powers`);
   }
-  // nine owned picks get their core bond from a subPower only (鸿雪, 真言, 假日威龙陈, 弑君者, 予愿安洁莉娜, 涤火杰西卡, 薇薇安娜, 煌,
-  // and the collab pick 结城理: 拉特兰 by his subPower laterano)
+  // nine owned picks get their core bond from a subPower only (鸿雪, 真言, 假日威龙陈, 弑君者, 予愿安洁莉娜, 涤火杰西卡, 薇薇安娜,
+  // 莫斯提马 — her mainPower laterano meets the core bond, its lungmen subPower adds 炎 to it — and the collab pick 煌;
+  // 结城理 was the ninth until the fork promoted him on 2026-10-12 — his piece carries 拉特兰 + 坚守)
   const coreOf = (powers) => Object.values(bonds).filter((b) => b.isCore && b.powerIdList.some((p) => powers.includes(p))).map((b) => b.bondId);
   const subOnly = backups.diy.ownedPool.filter((id) => {
     const m = CT[id].mainPower;
     return coreOf([m?.nationId, m?.groupId, m?.teamId].filter(Boolean)).join() !== coreOf(backups.diy.operators[id].powers).join();
   });
   assert.equal(subOnly.length, 9);
-  assert.ok(subOnly.includes('char_4217_makoto'), '结城理');
+  assert.ok(!subOnly.includes('char_4217_makoto'), '结城理: promoted, no pick any more');
 });
 
 test('composeUnitRecord: identity from the chess, everything else from the unit (no field of the replaced operator leaks)', () => {

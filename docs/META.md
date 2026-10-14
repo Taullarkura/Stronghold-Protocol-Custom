@@ -358,7 +358,7 @@ Every handler method is `(ctx, ev)`; `ev` is shared by all handlers of one dispa
 | `onSold` | a chess was sold (after refund of copies) | `{ piece, gain }` — **write `ev.gain`** to change the funds paid |
 | `onRefresh` | manual refresh | `{ slots, free, price }` (slots mutable, or use `ctx.setShopSlot`) |
 | `onPrice` | every price query of a shop slot (views + buy) — must be **pure** | `{ slot, kind, id, price }` — write `ev.price` / `ctx.setPrice` / `ctx.modifyPrice` |
-| `onBuy` | after a shop purchase (`g.buy` only) | `{ piece, slot, price, kind }` (`piece` = owned result, elite after a merge). The "购买" counters — 休露丝 首名<谢拉格> 1 资金, 玛恩纳 每购买一名<卡西米尔>, 升华 / 整备 "接下来购买的…" — hook it, so a free pick (promotion reward, 寻呼模块 / 信标 / 凯瑟琳 offers: `g.reward`) or a grant (紧急调度券, 简易通讯机, 拟态物质, strategies) never counts as a purchase (player report F2 after 0.1.0; PRTS 帮助 describes the promotion reward as a 0-cost temporary shop — whether the official 雪域礼赠 counts that pick is unknown, [ASSUMED] no) |
+| `onBuy` | after a shop purchase (`g.buy` only) | `{ piece, slot, price, kind }` (`piece` = owned result, elite after a merge). The "购买" counters — 玛恩纳 每购买一名<卡西米尔>, 升华 / 整备 "接下来购买的…" — hook it, so a free pick (promotion reward, 寻呼模块 / 信标 / 凯瑟琳 offers: `g.reward`) or a grant (紧急调度券, 简易通讯机, 拟态物质, strategies) never counts as a purchase (player report F2 after 0.1.0; PRTS 帮助 describes the promotion reward as a 0-cost temporary shop) |
 | `onMerge` | chess or item merge | `{ kind, piece, baseId|itemId, consumed:[uid], area? }` — a chess merge's `area` is where its elite went: 'board' (a consumed copy's tile) \| 'hand' \| 'temp' |
 | `onLevelUp` | shop level up | `{ level, price }` |
 | `onSpend` | a payment's action is complete (buy / refresh / levelUp / reward / effect) | `{ amount, reason, total }` (`total` = funds spent this match) |
@@ -372,7 +372,7 @@ Every handler method is `(ctx, ev)`; `ev` is shared by all handlers of one dispa
 
 Dispatch order per player: `global` → `band` → `bond` (data order) → garrisons (board in reading order — top row first, `board.js boardOrder` —, then hand)
 → equipped items → EffectRefs (insertion order). `onPrice` runs the priced chess's own 特质 first (购买价格为N sets the
-price that 远见's discount and the strategies' caps then act on). Every call is isolated with try/catch (the error is
+price that 远见's discount then acts on). Every call is isolated with try/catch (the error is
 logged once and counted in `match.dispatcher.errors`); nested dispatches are capped at depth 6.
 The equipped-items step walks a snapshot (the owned chess and each holder's items as they stand when it begins: every
 [holder, item] pair, taken before the first item runs) and runs an item only if, when its turn comes, it is still

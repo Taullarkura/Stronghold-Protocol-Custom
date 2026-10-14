@@ -11,12 +11,11 @@
 //   preparation_start_gain_chess_every_n_round {round} 杜宾     every `round` rounds (round % n = 0): bbStr.chess
 //   give_coin_in_round {round,coin}                    老鲤     income of round `round` = coin (R1/R2 0, R3 15)
 //   prep_start_gain_chess_from_pool_in_round {round}   老鲤     round start of `round`: 1 chess of pool
-//   band_coin_cost_gain_random_char_by_shop_level      绮良     every coin_cnt funds spent → count random chess ≤ shop level
+//   band_coin_cost_gain_random_char_by_shop_level {coin_cnt,count[,bond]}  绮良/休露丝  every coin_cnt funds spent → count random
+//                                                               chess ≤ shop level (of `bond` alone when the blackboard names one)
 //   up_shop_next_refresh_must_present_bond_char        佩佩     level-up to a level of lvlist → the next manual refresh (its usual
 //                                                               price) prefers <bond>
 //   gain_bond_char_per_round {round,preround,bond}     哈洛德   rounds round, round+preround, …: a <bond> chess (≤ shop level, else any tier)
-//   first_buy_in_round_char_price_change {price,bond}  休露丝   first <bond> chess of the round costs `price` (bought in the
-//                                                               shop: onBuy — a free pick / grant never uses it up)
 //   band_cost_coin_reach_cnt_gain_chess_from_pool      潘格尼尼 once coin_cnt funds spent in total: 1 chess of pool (elite 拉特兰 ≥ T4)
 //   round_start_bond_check_gain_layer                  余       round start of `round`: exactly factioncount active bonds → +count1, else each active +count2
 //                                                               — never to a bond without layers (noStack; the owner's decision of 2026-10-08)
@@ -170,16 +169,18 @@ K.prep_start_gain_chess_from_pool_in_round = (ps) => ({
   },
 });
 
-K.band_coin_cost_gain_random_char_by_shop_level = (ps) => ({
+K.band_coin_cost_gain_random_char_by_shop_level = (ps, bandId) => ({
   onSpend(ctx, ev) {
     const p = ps[0];
     const step = int(p.coin_cnt, 0);
     if (step <= 0 || !(ev.amount > 0)) return;
-    let acc = ctx.incCounter('band:kirara:acc', ev.amount);
+    const key = `band:${bandId}:acc`;
+    let acc = ctx.incCounter(key, ev.amount);
     while (acc >= step) {
-      acc = ctx.incCounter('band:kirara:acc', -step);
+      acc = ctx.incCounter(key, -step);
       for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) {
-        const id = ctx.rollChess({ maxTier: Math.max(1, ctx.shopLevel()) });
+        // `bond` (休露丝's 谢拉格) limits the draw to that 盟约; absent (绮良) it is any operator ≤ shop level
+        const id = ctx.rollChess({ bond: p.bond ?? null, maxTier: Math.max(1, ctx.shopLevel()) });
         if (id) ctx.grantChess(id, { source: 'band' });
       }
     }
@@ -219,18 +220,6 @@ K.gain_bond_char_per_round = (ps) => ({
       const id = rollBond(ctx, p.bond, { anyTier: true });
       if (id) ctx.grantChess(id, { source: 'band' });
     }
-  },
-});
-
-K.first_buy_in_round_char_price_change = (ps) => ({
-  onPrice(ctx, ev) {
-    const p = ps[0];
-    if (ev.kind !== 'chess' || !hasBond(ctx, ev.id, p.bond)) return;
-    if (ctx.counter('band:sciurus:r') === ctx.round) return;
-    ctx.setPrice(Math.min(num(ev.price, 0), int(p.price, 1)));
-  },
-  onBuy(ctx, ev) {
-    if (ev.kind === 'chess' && hasBond(ctx, ev.slot.id, ps[0].bond)) ctx.setCounter('band:sciurus:r', ctx.round);
   },
 });
 

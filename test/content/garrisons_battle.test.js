@@ -67,7 +67,7 @@ const expectAll = (h, targets, n, msg) => {
 // ---------------------------------------------------------------------------------------------------------------------
 // layer events
 
-test('useskill (莎草 42 / 菲莱 43 / 百炼嘉维尔 128 / 塑心 90 / 纯烬艾雅法拉 140): per-id amount per skill and per-battle cap', () => {
+test('useskill (莎草 42 / 菲莱 43 / 百炼嘉维尔 128 / 纯烬艾雅法拉 140): per-id amount per skill and per-battle cap', () => {
   for (const gid of idsOfKey('act1autochess_gar_event_useskill')) {
     if (!D.garrisons[gid].owners.some((o) => D.chess[o].visible)) continue; // granted ids: see the ADD_BOND tests
     const g = GR(gid);
@@ -97,10 +97,8 @@ test('useskill (莎草 42 / 菲莱 43 / 百炼嘉维尔 128 / 塑心 90 / 纯烬
   assert.deepEqual(one('garrison_128_b', 1, { sargonShip: B(0) }), { sargonShip: 18 });
   assert.deepEqual(one('garrison_140_a', 1, { yanShip: B(5), steadShip: B(9) }), { steadShip: 3 });
   assert.deepEqual(one('garrison_140_b', 1, { yanShip: B(5), steadShip: B(9) }), { steadShip: 6 });
-  const mates = [{ id: 'm1', row: 10, col: 6 }];
-  assert.deepEqual(one('garrison_90_a', 1, { yanShip: B(1) }, mates), { yanShip: 2 }, '塑心: 2 in the row × 1');
-  assert.deepEqual(one('garrison_90_a', 9, { yanShip: B(1) }, mates), { yanShip: 10 }, 'cap 10');
-  assert.deepEqual(one('garrison_90_b', 9, { yanShip: B(1) }, mates), { yanShip: 20 }, 'elite: × 2, cap 20');
+  // (塑心's garrison_90 — the 2-per-row-mate bond_actived_maxstack with its own cap — left the data: the fork fields her
+  //  through a 自选 slot instead, and a 自选 piece carries no 特质; see shared/diyOnly.js)
   assert.deepEqual(one('garrison_43_a', 1, { sargonShip: B(0, false) }), {}, 'inactive bond: nothing');
 });
 
@@ -172,6 +170,125 @@ test('selfdead (幽灵鲨 46 / 砾 75 / 归溟幽灵鲨 40): per knock-out; 归�
   checkInvariants(h.b);
 });
 
+test('fork_gar_event_bonddead (乌尔比安 12 — a FORK 特质, the owner\'s decision of 2026-10-12): every 【阿戈尔】 operator of the player knocked out adds 2 / 4 layers; a non-member, a retreat and a teammate\'s operator do not', () => {
+  assert.deepEqual(idsOfKey('fork_gar_event_bonddead'), ['garrison_12_a', 'garrison_12_b'], 'the two 乌尔比安 ids, official 特质 key replaced');
+  for (const gid of idsOfKey('fork_gar_event_bonddead')) {
+    assert.equal(GR(gid).eventTypeDesc, '持续叠加', `${gid}: 作战能力 → 持续叠加`);
+    const per = num(GR(gid).bb.bond_add_count);
+    const sc = scenario(gid);
+    const h = battle({
+      units: [{ id: 'ulpia', g: [gid], row: 10, col: 4, bonds: ['egirShip'] }, { id: 'fish', row: 10, col: 6, bonds: ['egirShip'] }, { id: 'plain', row: 11, col: 6 }],
+      bonds: sc.bonds,
+    });
+    const kill = (b, u) => { b.b.dealDamage(null, u, { amount: 1e9, type: 'true' }); b.step(1); };
+    kill(h, h.unit('plain'));
+    expectAll(h, sc.targets, 0, `${gid}: an operator outside 【阿戈尔】 adds nothing`);
+    kill(h, h.unit('fish'));
+    expectAll(h, sc.targets, per, `${gid}: another 【阿戈尔】 of the player`);
+    kill(h, h.unit('ulpia'));
+    expectAll(h, sc.targets, per * 2, `${gid}: the holder itself is a member too`);
+    // a retreat is no knock-out (the official `_selfdead` rule)
+    const r = battle({ units: [{ id: 'ulpia', g: [gid], row: 10, col: 4, bonds: ['egirShip'] }], bonds: sc.bonds });
+    r.b.retreat(r.unit('ulpia'), { reason: 'test' });
+    r.step(1);
+    expectAll(r, sc.targets, 0, `${gid}: a retreat is not a knock-out`);
+    // no per-battle cap, like the official `_selfdead` family it mirrors
+    for (let i = 0; i < 20; i++) { r.b.redeploy(r.unit('ulpia'), { free: true }); r.step(1); kill(r, r.unit('ulpia')); }
+    expectAll(r, sc.targets, per * 20, `${gid}: every knock-out counts (no cap)`);
+    cover(gid);
+  }
+  // the holder's OWN player only (the owner's decision): a teammate's 【阿戈尔】 knocked out feeds nothing. A real 联防
+  // field adds no layers at all (support.gainLayers), so the rule is asserted with the flag forced on.
+  const h2 = makeBattle({
+    kind: 'unite', seed: 3, autoFinish: false, timeLimit: 60, flags: { layerGainsEnabled: true },
+    defs: { chess: { mine: rec('mine', ['garrison_12_b'], { bonds: ['egirShip'] }), mate: rec('mate', [], { bonds: ['egirShip'] }) }, enemies: { e_dummy: dummy() } },
+    players: [
+      { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, bonds: { egirShip: B(0) }, bandId: null, playerEffects: [], units: [{ uid: 1, kind: 'chess', chessId: 'mine', row: 10, col: 3 }] },
+      { playerId: 'p2', seat: 1, side: 'L', colOffset: 8, bonds: { egirShip: B(0) }, bandId: null, playerEffects: [], units: [{ uid: 2, kind: 'chess', chessId: 'mate', row: 10, col: 2 }] },
+    ],
+  });
+  h2.step(1);
+  h2.b.dealDamage(null, h2.unit('mate'), { amount: 1e9, type: 'true' });
+  h2.step(1);
+  assert.equal(gains(h2).egirShip ?? 0, 0, 'a teammate\'s 【阿戈尔】 does not feed it');
+  h2.b.dealDamage(null, h2.unit('mine'), { amount: 1e9, type: 'true' });
+  h2.step(1);
+  assert.equal(gains(h2).egirShip ?? 0, 4, 'the player\'s own does');
+  checkInvariants(h2.b);
+});
+
+test('fork_gar_event_dollswap (结城理 — a FORK 特质 of his promoted piece, shared/promoted.js, 2026-10-12): every <替身> switch, each way, adds 4 / 8 layers to the active 【拉特兰】【坚守】, capped at 12 / 24 per bond per battle', () => {
+  assert.deepEqual(idsOfKey('fork_gar_event_dollswap'), ['garrison_fork_makoto_swap_a', 'garrison_fork_makoto_swap_b'], 'the two authored ids');
+  for (const gid of idsOfKey('fork_gar_event_dollswap')) {
+    assert.equal(GR(gid).eventTypeDesc, '持续叠加', `${gid}: 持续叠加`);
+    const per = num(GR(gid).bb.bond_add_count), cap = capOf(gid);
+    const h = battle({
+      units: [{ id: 'makoto', g: [gid], row: 11, col: 4, o: { profession: 'SPECIAL', subProfessionId: 'dollkeeper' } }],
+      bonds: { lateranoShip: B(0), steadShip: B(0), egirShip: B(0) },
+    });
+    const u = h.unit('makoto');
+    const swap = () => { h.b.dealDamage(null, u, { amount: 1e9, type: 'true' }); h.step(1); };
+    swap();                                     // a lethal hit puts the <替身> on the field (professions.js installDollkeeper)
+    assert.ok(u.alive && u.trait.doll, `${gid}: the <替身>`);
+    assert.deepEqual(gains(h), { lateranoShip: per, steadShip: per }, `${gid}: body → substitute`);
+    h.run(21);                                  // the 替身's 20 s, then the switch back
+    assert.ok(u.alive && !u.trait.doll, `${gid}: the 本体 again`);
+    assert.deepEqual(gains(h), { lateranoShip: per * 2, steadShip: per * 2 }, `${gid}: substitute → body`);
+    assert.equal(gains(h).egirShip, undefined, `${gid}: an unrelated bond (阿戈尔) is not touched`);
+    for (let i = 0; i < 6; i++) { swap(); h.run(21); }   // 6 more round trips: far past the cap
+    assert.deepEqual(gains(h), { lateranoShip: cap, steadShip: cap }, `${gid}: at most ${cap} layers per bond per battle`);
+    checkInvariants(h.b);
+    // an INACTIVE listed bond gains nothing ("使已激活的…": support.gainLayers requireActive)
+    const off = battle({
+      units: [{ id: 'makoto', g: [gid], row: 11, col: 4, o: { profession: 'SPECIAL', subProfessionId: 'dollkeeper' } }],
+      bonds: { lateranoShip: B(0), steadShip: B(0, false) },
+    });
+    off.b.dealDamage(null, off.unit('makoto'), { amount: 1e9, type: 'true' });
+    off.step(1);
+    assert.deepEqual(gains(off), { lateranoShip: per }, `${gid}: 坚守 inactive ⇒ 拉特兰 only`);
+    checkInvariants(off.b);
+    cover(gid);
+  }
+});
+
+test('fork_gar_event_bondskill (真言 — a FORK 特质 of her promoted piece, shared/promoted.js, 2026-10-13): every skill activation of an operator carrying 【萨尔贡】 or 【迅捷】 adds 1 / 2 layers to the active 【萨尔贡】【迅捷】, capped at 24 / 48 per bond per battle', () => {
+  assert.deepEqual(idsOfKey('fork_gar_event_bondskill'), ['garrison_fork_mantra_a', 'garrison_fork_mantra_b'], 'the two authored ids');
+  for (const gid of idsOfKey('fork_gar_event_bondskill')) {
+    assert.equal(GR(gid).eventTypeDesc, '持续叠加', `${gid}: 持续叠加`);
+    const per = num(GR(gid).bb.bond_add_count), cap = capOf(gid);
+    const h = battle({
+      units: [
+        { id: 'mantra', g: [gid], row: 10, col: 4, bonds: ['sargonShip', 'swiftShip'] },
+        { id: 'sargon', g: [], row: 10, col: 6, bonds: ['sargonShip'] },   // either bond is enough (the owner's answer)
+        { id: 'swift', g: [], row: 10, col: 8, bonds: ['swiftShip'] },
+        { id: 'other', g: [], row: 11, col: 4, bonds: ['yanShip'] },
+        { id: 'none', g: [], row: 11, col: 6 },
+      ],
+      bonds: { sargonShip: B(0), swiftShip: B(0), yanShip: B(0) },
+    });
+    skill(h, h.unit('sargon'));
+    assert.deepEqual(gains(h), { sargonShip: per, swiftShip: per }, `${gid}: a 【萨尔贡】 ally's cast`);
+    skill(h, h.unit('swift'));
+    skill(h, h.unit('mantra'));                      // the holder carries both bonds: her own casts count
+    assert.deepEqual(gains(h), { sargonShip: per * 3, swiftShip: per * 3 }, `${gid}: every carrier's cast, the holder's included`);
+    skill(h, h.unit('other'));
+    skill(h, h.unit('none'));
+    assert.deepEqual(gains(h), { sargonShip: per * 3, swiftShip: per * 3 }, `${gid}: neither bond ⇒ nothing (the extra 炎 stays put)`);
+    for (let i = 0; i < 40; i++) skill(h, h.unit('sargon'));
+    assert.deepEqual(gains(h), { sargonShip: cap, swiftShip: cap }, `${gid}: at most ${cap} layers per bond per battle`);
+    checkInvariants(h.b);
+    // an INACTIVE listed bond gains nothing ("使已激活的…": support.gainLayers requireActive)
+    const off = battle({
+      units: [{ id: 'mantra', g: [gid], row: 10, col: 4, bonds: ['sargonShip', 'swiftShip'] }, { id: 'swift', g: [], row: 10, col: 6, bonds: ['swiftShip'] }],
+      bonds: { sargonShip: B(0), swiftShip: B(0, false) },
+    });
+    skill(off, off.unit('swift'));
+    assert.deepEqual(gains(off), { sargonShip: per }, `${gid}: 迅捷 inactive ⇒ 萨尔贡 only`);
+    checkInvariants(off.b);
+    cover(gid);
+  }
+});
+
 test('consume_ammo (莫斯提马 22 x-5 / 圣约送葬人 23+55 / 蕾缪安 24 row of 3): per consume_count ammo, per-id caps', () => {
   for (const gid of idsOfKey('act1autochess_gar_event_consume_ammo')) {
     const g = GR(gid);
@@ -207,32 +324,48 @@ test('consume_ammo (莫斯提马 22 x-5 / 圣约送葬人 23+55 / 蕾缪安 24 r
   assert.deepEqual(rem('garrison_24_a', 2), {}, '蕾缪安: 2 in the row');
   assert.deepEqual(rem('garrison_24_a', 3), { lateranoShip: 2, preciShip: 2 });
   assert.deepEqual(rem('garrison_24_b', 3), { lateranoShip: 4, preciShip: 4 });
-  const most = (gid) => {
-    const h = battle({ units: [{ id: 'most', g: [gid], row: 10, col: 5 }, { id: 'nb', row: 10, col: 6 }, { id: 'nb2', row: 9, col: 5 }], bonds: { lateranoShip: B(0) } });
-    for (let i = 0; i < 3; i++) h.b.emit('ammoUsed', { unit: h.unit('nb') });
-    for (let i = 0; i < 3; i++) h.b.emit('ammoUsed', { unit: h.unit('nb2') });
-    return gains(h);
+  // the fork's own record of the family — 维伊's authored 特质 (shared/promoted.js, the owner's plan of 2026-10-13): the
+  // SELF-only scope (`range_id: '0-1'`, the official 圣约送葬人 garrison_23 shape) and the trigger count its cap encodes
+  // (consume 6 × 6 triggers = +3 × 6 = 18 layers, elite +6 × 6 = 36)
+  const veen = (gid) => {
+    const h = battle({
+      units: [{ id: 'veen', g: [gid], row: 10, col: 5 }, { id: 'nb', row: 10, col: 6 }, { id: 'far', row: 12, col: 8 }],
+      bonds: { lateranoShip: B(0) },
+    });
+    const every = num(GR(gid).bb.consume_count, 1), per = num(GR(gid).bb.bond_add_count);
+    for (let i = 0; i < every * 3; i++) h.b.emit('ammoUsed', { unit: h.unit('nb') });
+    for (let i = 0; i < every * 3; i++) h.b.emit('ammoUsed', { unit: h.unit('far') });
+    assert.deepEqual(gains(h), {}, `${gid}: a neighbour's / an out-of-range operator's ammo is not the holder's`);
+    for (let k = 1; k <= 8; k++) {
+      for (let i = 0; i < every; i++) h.b.emit('ammoUsed', { unit: h.unit('veen') });
+      assert.deepEqual(gains(h), { lateranoShip: Math.min(k * per, capOf(gid)) }, `${gid} × ${k} triggers`);
+    }
+    checkInvariants(h.b);
+    cover(gid);
   };
-  assert.deepEqual(most('garrison_22_a'), { lateranoShip: 1 }, '莫斯提马: ammo of the 4 neighbours is pooled');
-  assert.deepEqual(most('garrison_22_b'), { lateranoShip: 2 });
+  assert.deepEqual(idsOfKey('act1autochess_gar_event_consume_ammo').filter((g) => g.startsWith('garrison_fork_')), ['garrison_fork_veen_a', 'garrison_fork_veen_b'], '维伊');
+  assert.equal(GR('garrison_fork_veen_b').bb.max_add_count_per_battle, num(GR('garrison_fork_veen_b').bb.bond_add_count) * 6, '维伊 elite: 6 triggers');
+  veen('garrison_fork_veen_a');
+  veen('garrison_fork_veen_b');
 });
 
-test('enemy_abflag_inrange (初雪 / 银灰 28): entering 冻结 in range × prob; a refreshed freeze is not a new entry', () => {
+test('enemy_abflag_inrange: entering 冻结 in range × prob; a refreshed freeze is not a new entry', () => {
   for (const gid of idsOfKey('act1autochess_gar_event_enemy_abflag_inrange')) {
-    if (!D.garrisons[gid].owners.some((o) => D.chess[o].visible)) continue; // 29: granted by 凛御银灰 (ADD_BOND test)
-    const h = battle({ units: [{ id: 'sa', g: [gid], row: 10, col: 4 }], bonds: { kjeragShip: B(0) }, enemies: [{ key: 'e_dummy', pos: [10, 5] }, { key: 'e_dummy', pos: [12, 9] }] });
+    if (!D.garrisons[gid].owners.some((o) => D.chess[o]?.visible)) continue; // dynamically granted traits are checked below
+    const sc = scenario(gid);
+    const h = battle({ units: [{ id: 'op', g: [gid], row: 10, col: 4 }], bonds: sc.bonds, enemies: [{ key: 'e_dummy', pos: [10, 5] }, { key: 'e_dummy', pos: [12, 9] }] });
     alwaysHit(h);
     const near = h.enemies().find((e) => Math.round(e.y) === 10), far = h.enemies().find((e) => Math.round(e.y) === 12);
     h.b.applyStatus(far, 'freeze', { duration: 1 });
     assert.deepEqual(gains(h), {}, `${gid}: out of range`);
     h.b.applyStatus(near, 'freeze', { duration: 1 });
     const per = num(GR(gid).bb.bond_add_count);
-    assert.deepEqual(gains(h), { kjeragShip: per }, gid);
+    expectAll(h, sc.targets, per, gid);
     h.b.applyStatus(near, 'freeze', { duration: 2 });
-    assert.deepEqual(gains(h), { kjeragShip: per }, `${gid}: already frozen`);
+    expectAll(h, sc.targets, per, `${gid}: already frozen`);
     h.b.removeStatus(near, 'freeze');
     h.b.applyStatus(near, 'freeze', { duration: 1 });
-    assert.deepEqual(gains(h), { kjeragShip: 2 * per }, `${gid}: frozen again`);
+    expectAll(h, sc.targets, 2 * per, `${gid}: frozen again`);
     cover(gid);
   }
   // probability (deterministic battle rng): ≈ 50 % of 40 entries × 2
@@ -248,6 +381,28 @@ test('enemy_abflag_inrange (初雪 / 银灰 28): entering 冻结 in range × pro
   c.b.applyStatus(c.enemies()[0], 'cold', { duration: 5 });
   assert.deepEqual(gains(c), { kjeragShip: 1 });
   checkInvariants(c.b);
+});
+
+test('enemy_abflag_inrange fork traits: 灵知 adds 灵巧; 银灰 adds 谢拉格 at 60%', () => {
+  for (const [gid, bonds, per] of [
+    ['garrison_fork_gnosis_freeze_a', { skillfulShip: B(0) }, { skillfulShip: 1 }],
+    ['garrison_fork_gnosis_freeze_b', { skillfulShip: B(0) }, { skillfulShip: 2 }],
+    ['garrison_fork_silverash_freeze_a', { kjeragShip: B(0) }, { kjeragShip: 1 }],
+    ['garrison_fork_silverash_freeze_b', { kjeragShip: B(0) }, { kjeragShip: 2 }],
+  ]) {
+    const h = battle({
+      units: [{ id: 'holder', g: [gid], row: 10, col: 4 }],
+      bonds,
+      enemies: [{ key: 'e_dummy', pos: [10, 5] }],
+    });
+    alwaysHit(h);
+    h.b.applyStatus(h.enemies()[0], 'freeze', { duration: 1 });
+    assert.deepEqual(gains(h), per, gid);
+    cover(gid);
+  }
+  assert.equal(num(GR('garrison_fork_silverash_freeze_a').bb.prob), 0.6);
+  assert.equal(num(GR('garrison_fork_silverash_freeze_b').bb.prob), 0.6);
+  assert.equal(num(GR('garrison_28_a').bb.prob), 0.5, '初雪 retains the original probability');
 });
 
 test('onstart (砾 143 / 瑕光 106 / 史尔特尔 107 / 锏 155): every deploy, per-id caps', () => {
@@ -386,7 +541,7 @@ test('ADD_BOND 华法琳 72: the front operator gets garrison_95 (own active bon
   }
 });
 
-test('ADD_BOND 寒芒克洛丝 73 (front → 精准 +1 / +2, cap 10 / 20) and 凛御银灰 126 (front 【谢拉格】 → 60 % freeze trait)', () => {
+test('ADD_BOND 寒芒克洛丝 73 (front → 精准 +1 / +2, cap 10 / 20) and 凛御银灰 126 (front 【谢拉格】 → 50 % freeze trait)', () => {
   for (const [gid, per, cap] of [['garrison_73_a', 1, 10], ['garrison_73_b', 2, 20]]) {
     const give = GR(gid).bbStr.give_garrison_id;
     const h = battle({ units: [{ id: 'cross', g: [gid], row: 10, col: 4 }, { id: 'front', row: 10, col: 5 }], bonds: { preciShip: B(0) } });
@@ -398,15 +553,16 @@ test('ADD_BOND 寒芒克洛丝 73 (front → 精准 +1 / +2, cap 10 / 20) and �
   }
   for (const [gid, per] of [['garrison_126_a', 1], ['garrison_126_b', 2]]) {
     const give = GR(gid).bbStr.give_garrison_id;
-    assert.equal(num(GR(give).bb.prob), 0.6);
+    assert.equal(num(GR(give).bb.prob), 0.5);
+    assert.deepEqual(ids(GR(give).bbStr.bond_id), ['kjeragShip', 'swiftShip']);
     const h = battle({
       units: [{ id: 'svash', g: [gid], row: 10, col: 4 }, { id: 'kj', row: 10, col: 5, bonds: ['kjeragShip'] }],
-      bonds: { kjeragShip: B(0) }, enemies: [{ key: 'e_dummy', pos: [10, 6] }],
+      bonds: { kjeragShip: B(0), swiftShip: B(0) }, enemies: [{ key: 'e_dummy', pos: [10, 6] }],
     });
     alwaysHit(h);
     assert.deepEqual(h.eventsOf('fx').filter((e) => e[1] === 'garrisonGrant').map((e) => e[4].key), [give]);
     h.b.applyStatus(h.enemies()[0], 'freeze', { duration: 1 });
-    assert.deepEqual(gains(h), { kjeragShip: per }, `${gid}: the granted trait fires (enemy in the front operator's range)`);
+    assert.deepEqual(gains(h), { kjeragShip: per, swiftShip: per }, `${gid}: the granted trait fires on both bonds`);
     const other = battle({ units: [{ id: 'svash', g: [gid], row: 10, col: 4 }, { id: 'o', row: 10, col: 5, bonds: ['yanShip'] }], bonds: { kjeragShip: B(0) } });
     assert.equal(other.eventsOf('fx').filter((e) => e[1] === 'garrisonGrant').length, 0, 'not a 【谢拉格】 operator');
     cover(gid); cover(give);
@@ -579,12 +735,12 @@ test('attrByBond (26 ids): floor(Σ layers of the listed ACTIVE bonds / divide_n
     cover(gid);
   }
   const h = battle({
-    units: [{ id: 'mz', g: ['garrison_07_a'], row: 9, col: 4 }, { id: 'ur', g: ['garrison_12_b'], row: 9, col: 6 }, { id: 'rs', g: ['garrison_09_b'], row: 12, col: 6 },
+    units: [{ id: 'mz', g: ['garrison_07_a'], row: 9, col: 4 }, { id: 'mzB', g: ['garrison_07_b'], row: 9, col: 6 }, { id: 'rs', g: ['garrison_09_b'], row: 12, col: 6 },
       { id: 'yx', g: ['garrison_16_a'], row: 11, col: 4 }, { id: 'yx2', g: ['garrison_16_b'], row: 11, col: 6 }, { id: 'sk', g: ['garrison_84_b'], row: 10, col: 4 }],
     bonds: { egirShip: B(25), yanShip: B(6), kjeragShip: B(30, false), lateranoShip: B(10) },
   });
   approx(h.unit('mz').s.atk, 500 * 1.08, '水月: 25 / 3 = 8 × 1 %');
-  approx(h.unit('ur').s.atk, 500 * 1.24, '乌尔比安 精锐: 25 / 2 = 12 × 2 %');
+  approx(h.unit('mzB').s.atk, 500 * 1.16, '水月 精锐: 25 / 3 = 8 × 2 %');
   approx(h.unit('rs').s.atk, 500 * (1 + 0.02 * 13), '迷迭香 精锐 core bonds: (25 + 6 + 10) / 3 = 13 × 2 %, inactive 谢拉格 ignored');
   assert.equal(h.unit('yx').findBuff('gar:garrison_16_a').mods.aspd, 2, '隐现: 10 / 5 × 1');
   assert.equal(h.unit('yx2').findBuff('gar:garrison_16_b').mods.aspd, 4);

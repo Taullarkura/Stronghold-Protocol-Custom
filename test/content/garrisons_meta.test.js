@@ -458,7 +458,9 @@ test('coin / refresh counters: 溯光星源 121 per 3 spent, 阿罗玛 122 / 安
         s.activate(...ids(g.bbStr.bond));
         s.ps.round.refreshes = n;
         s.prepEnd();
-        onlyGains(s, Object.fromEntries(ids(g.bbStr.bond).map((b) => [b, Math.min(n * g.bb.multiplier, g.bb.max_layer)])), `${gid} ${n}`);
+        // one value per listed bond (`multiplier: "2,1"`, `max_layer: "8,4"`; a scalar covers them all)
+        const at = (v, i) => { const l = ids(v); return Number(l[Math.min(i, l.length - 1)]); };
+        onlyGains(s, Object.fromEntries(ids(g.bbStr.bond).map((b, i) => [b, Math.min(n * at(g.bb.multiplier, i), at(g.bb.max_layer, i))])), `${gid} ${n}`);
       }
     }
     cover(gid);
@@ -481,11 +483,13 @@ test('coin / refresh counters: 溯光星源 121 per 3 spent, 阿罗玛 122 / 安
   give(s.m, s.ps, 'chess_char_6_16_b', 'board', [10, 4]);
   give(s.m, s.ps, 'chess_char_4_10_a', 'board', [11, 4]);
   give(s.m, s.ps, 'chess_char_5_20_b', 'board', [12, 4]);
-  s.activate('skillfulShip', 'arcaneShip', 'siracusaShip');
+  s.activate('skillfulShip', 'arcaneShip', 'siracusaShip', 'miraShip');
   s.ps.round.spent = 9;
   s.ps.round.refreshes = 5;
   s.prepEnd();
-  onlyGains(s, { skillfulShip: 12, arcaneShip: 12 + 6, siracusaShip: 6 + 24 }, '溯光星源 精锐 3 × 4; 阿罗玛 min(10, 6); 安洁莉娜 精锐 min(40, 24)');
+  // 安洁莉娜 精锐: the fork's two-bond refresh 特质 (shared/chessAdjust.js, 2026-10-12) 叙拉古 +4 ≤16 / 奇迹 +2 ≤8
+  onlyGains(s, { skillfulShip: 12, arcaneShip: 12 + 6, siracusaShip: 6 + 16, miraShip: 8 },
+    '溯光星源 精锐 3 × 4; 阿罗玛 min(10, 6); 安洁莉娜 精锐 min(20, 16) / min(10, 8)');
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -545,14 +549,14 @@ test('SERVER_GAIN_EQUIP (诗怀雅 133, 耶拉 92, 卡涅利安 / 蜜蜡 49, 缪
     cover(gid);
   }
   const s = setup();
-  s.acquire('chess_char_4_24_b');
-  assert.deepEqual(handItems(s.ps), ['chess_item_3_05_e_b'], '卡涅利安 精锐: two 迅捷作战粮 merge into the golden one');
+  s.acquire('chess_char_4_05_b');
+  assert.deepEqual(handItems(s.ps), ['chess_item_3_05_e_b'], '蜜蜡 精锐: two 迅捷作战粮 merge into the golden one');
   const t = setup();
   t.acquire('chess_char_3_03_a');
   assert.deepEqual(handItems(t.ps), ['chess_item_1_03_e_a'], '诗怀雅: 1 盟约之币');
 });
 
-test('free refreshes: 普罗旺斯 113 获得时, 德克萨斯 120 / 巫恋 132 售出时, 缄默德克萨斯 114 进入休整期时 (board only)', () => {
+test('free refreshes: 普罗旺斯 113 获得时, 德克萨斯 120 / 巫恋 132 售出时', () => {
   for (const { gid, g, owners } of idsOf('SERVER_GAIN', 'SERVER_GAIN_FREE_REFRESH_COUNT')) {
     for (const owner of owners) { const s = setup(); s.acquire(owner); assert.equal(s.ps.shop.freeRefreshes, g.bb.count, gid); }
     cover(gid);
@@ -576,9 +580,8 @@ test('free refreshes: 普罗旺斯 113 获得时, 德克萨斯 120 / 巫恋 132 
   const u = setup();
   u.acquire('chess_char_1_07_b');
   u.sell(give(u.m, u.ps, 'chess_char_1_08_a', 'hand'));
-  give(u.m, u.ps, 'chess_char_4_16_b', 'board', [10, 4]);
   u.roundStart();
-  assert.equal(u.ps.shop.freeRefreshes, 2 + 1 + 2);
+  assert.equal(u.ps.shop.freeRefreshes, 2 + 1);
 });
 
 test('funds: 能天使 26 / 新约能天使 32 获得时, 格雷伊 67 / 泥岩 21 售出时 → next round; 琳琅诗怀雅 98 (hand needs 炎 / 投资人)', () => {
@@ -825,18 +828,20 @@ test('塞雷娅 99 / 白面鸮 86: the copier runs the front operator\'s prep-en
     for (const owner of owners) {
       const w = setup();
       give(w.m, w.ps, owner, 'board', [10, 4]);
-      give(w.m, w.ps, 'chess_char_4_16_b', 'board', [10, 5]);         // 缄默德克萨斯 精锐 +2 free refreshes
+      give(w.m, w.ps, 'chess_char_5_21_b', 'board', [10, 5]);         // 寒檀 精锐 远见 +8
+      w.activate('visiShip');
       w.roundStart();
-      assert.equal(w.ps.shop.freeRefreshes, 4, gid);
+      assert.equal(w.G('visiShip'), 16, `${gid}: 寒檀 8 + copied 8`);
     }
     cover(gid);
   }
   const w = setup();
-  give(w.m, w.ps, 'chess_char_4_21_a', 'board', [10, 3]);             // 白面鸮 → 白面鸮 (hidden 5_16) → 缄默德克萨斯
+  give(w.m, w.ps, 'chess_char_4_21_a', 'board', [10, 3]);             // 白面鸮 → 白面鸮 (hidden 5_16) → 寒檀
   give(w.m, w.ps, 'chess_char_5_16_a', 'board', [10, 4]);
-  give(w.m, w.ps, 'chess_char_4_16_a', 'board', [10, 5]);
+  give(w.m, w.ps, 'chess_char_5_21_a', 'board', [10, 5]);
+  w.activate('visiShip');
   w.roundStart();
-  assert.equal(w.ps.shop.freeRefreshes, 3);
+  assert.equal(w.G('visiShip'), 4 + 4 + 4);
 });
 
 test('triggerGainEffects export (band 铃兰): re-runs 获得时 garrisons ×投资人 and returns the effects run', () => {

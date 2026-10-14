@@ -115,7 +115,7 @@ test('g.unitStats follows the prep state: another item changes the numbers; prep
 
 test('prep stat previews do not spend a deployment skill duration in the next real battle', () => {
   const { h, m, ps } = setup(27);
-  const id = 'chess_char_4_16_a'; // 缄默德克萨斯: a real timed deployment skill
+  const id = 'chess_char_2_12_a'; // 砾: a real timed deployment skill (S2 鼠群, a 10 s window)
   const piece = give(m, ps, id, 'board', legalTileFor(m, ps, id));
   const previews = [];
   const create = m.newBattle.bind(m);

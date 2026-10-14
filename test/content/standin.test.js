@@ -63,7 +63,7 @@ test('data: every NORMAL chess record resolves to its stand-in def — the chess
     assert.ok(isStandInDef(d) && !isStandInDef(own));
     n++;
   }
-  assert.equal(n, 110);
+  assert.equal(n, 102);   // 108 − the two 缄默德克萨斯 chess that left the roster (FORK 自选-ONLY, 2026-10-12; 莫斯提马's two left on 2026-10-13, shared/diyOnly.js)
 });
 
 test('data: a source without backups.json fields the chess itself (a browser that did not fetch it); with it, the stand-in', () => {
@@ -255,7 +255,7 @@ test('the eight 预备干员: every chess record they replace fields the stand-i
     assert.equal(h.b.errors.length, 0, `${where}: ${JSON.stringify(h.b.errors[0])}`);
     seen.add(charId);
   }
-  assert.equal(RESERVE_RECORDS.length, 28);
+  assert.equal(RESERVE_RECORDS.length, 26);
   assert.deepEqual([...seen].sort(), RESERVES);
 });
 

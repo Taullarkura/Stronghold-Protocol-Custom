@@ -23,6 +23,21 @@ const ds = getDefaultSource();
 const dummy = (o = {}) => enemyRec({ key: 'enemy_dummy', hp: 1e8, speed: 0, ...o });
 const keyOf = (e) => Math.round(e.y) * 21 + Math.round(e.x);
 
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js — the owner's plan of 2026-10-13): 卡涅利安's shop chess left the roster, so
+ * the E3 cases run her kit through a tier-5 自选 slot, the production path (simdata getChess(slotId, { diy })): the pick
+ * names its skill (S1–S3, her chess's default was S2) and its module (PLX-X on the elite, her former default). `BIL_FORM`
+ * is her two forms' slot ids; `unitOf` builds the harness entry for her or any chess.
+ */
+const BIL = { charId: 'char_426_billro', a: 'chess_char_5_diy1_a', b: 'chess_char_5_diy1_b', x: 'uniequip_002_billro' };
+const BIL_FORM = [BIL.a, BIL.b];
+const isBil = (id) => id === BIL.a || id === BIL.b;
+const SB = (id, skillIndex = null) => ds.getChess(id, { diy: { charId: BIL.charId, ...(skillIndex != null ? { skillIndex } : {}), ...(id === BIL.b ? { uniEquipId: BIL.x } : {}) } });
+const unitOf = (id, row, col, skillIndex = null) => (isBil(id)
+  ? { diy: { slot: BIL.a, charId: BIL.charId, ...(skillIndex != null ? { skillIndex } : {}), ...(id === BIL.b ? { uniEquipId: BIL.x } : {}) }, elite: id === BIL.b, row, col }
+  : { chessId: id, row, col, ...(skillIndex != null ? { skillIndex } : {}) });
+
+
 /** attackId → Map(target → damage) of the normal attacks `u` landed. */
 function perAttack(h, u) {
   const out = new Map();
@@ -40,7 +55,7 @@ function perAttack(h, u) {
 function hitsAll(id, skillIndex, pos, { equal = true, row = 10, col = 5 } = {}) {
   const h = makeBattle({
     defs: { enemies: { enemy_dummy: dummy() } },
-    units: [{ chessId: id, row, col, ...(skillIndex != null ? { skillIndex } : {}) }],
+    units: [unitOf(id, row, col, skillIndex)],
     timeLimit: 120, hooks: ['damaged'], captureNoisy: true,
   });
   h.step();
@@ -69,7 +84,7 @@ function hitsAll(id, skillIndex, pos, { equal = true, row = 10, col = 5 } = {}) 
 const SPREAD = [[10, 7], [10, 3], [12, 5], [9, 5], [11, 6]];
 
 test('E3 卡涅利安: every attack of each skill hits every enemy in her range, with equal damage (normal + elite)', () => {
-  for (const id of ['chess_char_4_24_a', 'chess_char_4_24_b']) {
+  for (const id of BIL_FORM) {
     hitsAll(id, 0, SPREAD); // S1 沙暴守卫
     hitsAll(id, 1, SPREAD); // S2 沙缚镣锁 (default)
     // S3 食噬之印 widens the range to x-2: an enemy on the wider range only is hit by the same attacks
@@ -78,8 +93,8 @@ test('E3 卡涅利安: every attack of each skill hits every enemy in her range,
 });
 
 test('E3 卡涅利安 S2: the 停顿 (charged: 束缚) lands on every enemy each attack hits', () => {
-  const id = 'chess_char_4_24_a', bb = ds.getChess(id).skill.bb;
-  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 60, hooks: ['statusApplied', 'damaged'], captureNoisy: true });
+  const id = BIL.a, bb = SB(id, 1).skill.bb;
+  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [unitOf(id, 10, 5, 1)], timeLimit: 60, hooks: ['statusApplied', 'damaged'], captureNoisy: true });
   h.step();
   const u = h.unit(id);
   const es = SPREAD.map((p) => h.spawn('enemy_dummy', { pos: p }));
@@ -139,11 +154,11 @@ test('E3 real stage + real wave: 卡涅利安 targets AND damages every enemy on
   const mods = { hpMul: (sc.hp ?? 1) ** (sc.kHp ?? 0), atkMul: (sc.atk ?? 1) ** (sc.kAtk ?? 0), speedMul: sc.speed ?? 1 };
   assert.ok(spawnsFromTemplate(tpl, { mods }).spawns.length > 0);
   for (const skillIndex of [1, 2]) {
-    const id = 'chess_char_4_24_b';
+    const id = BIL.b;
     const h = makeBattle({
       stageId: 'act2autochess_m01', waveTemplate: tpl, mods, timeLimit: rc.combatTimeLimit, seed: 11, flags: { startOpCooldown: 3 },
       units: [
-        { chessId: id, row: 10, col: 6, skillIndex },
+        unitOf(id, 10, 6, skillIndex),
         { chessId: 'chess_char_1_02_a', row: 10, col: 7 }, { chessId: 'chess_char_1_02_a', row: 11, col: 7 },
         { chessId: 'chess_char_1_01_a', row: 9, col: 7 }, { chessId: 'chess_char_2_14_a', row: 12, col: 6 },
       ],
@@ -180,9 +195,9 @@ test('E3 real stage + real wave: 卡涅利安 targets AND damages every enemy on
 });
 
 test('E3 卡涅利安 S3 食噬之印 values: ATK climbs from +0 % in 1 s steps to the full bonus at 20 s (PRTS 备注), normal + elite', () => {
-  for (const id of ['chess_char_4_24_a', 'chess_char_4_24_b']) {
-    const bb = ds.getChess(id, { skillIndex: 2 }).skill.bb;
-    const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5, skillIndex: 2 }], timeLimit: 60, hooks: [] });
+  for (const id of BIL_FORM) {
+    const bb = SB(id, 2).skill.bb;
+    const h = makeBattle({ units: [unitOf(id, 10, 5, 2)], timeLimit: 60, hooks: [] });
     h.step();
     const u = h.unit(id);
     u.skill.addCharge(1);
@@ -200,8 +215,8 @@ test('E3 卡涅利安 S3 食噬之印 values: ATK climbs from +0 % in 1 s steps 
 });
 
 test('E3 卡涅利安 S1 沙暴守卫 charged: the skill-off trait stays in force — the DEF/RES guard AND 不攻击 (PRTS 备注 "应用蓄力时：应用技能未开启时的特性"); uncharged she strikes every enemy in range', () => {
-  for (const id of ['chess_char_4_24_a', 'chess_char_4_24_b']) {
-    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5, skillIndex: 0 }], timeLimit: 120, hooks: ['damaged'], captureNoisy: true });
+  for (const id of BIL_FORM) {
+    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [unitOf(id, 10, 5, 0)], timeLimit: 120, hooks: ['damaged'], captureNoisy: true });
     h.step();
     const u = h.unit(id);
     const es = SPREAD.map((p) => h.spawn('enemy_dummy', { pos: p }));
@@ -235,9 +250,9 @@ function ratios(h, u, e) {
 }
 
 test('E3 卡涅利安 S3 食噬之印 charged: each attack stacks the mark BEFORE its damage — ×1.2 on the first hit, ×2.0 from the 5th (PRTS 备注), normal + elite', () => {
-  for (const id of ['chess_char_4_24_a', 'chess_char_4_24_b']) {
-    const per = ds.getChess(id, { skillIndex: 2 }).skill.bb['attack@damage_scale'];
-    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy({ res: 0 }) } }, units: [{ chessId: id, row: 10, col: 5, skillIndex: 2 }], timeLimit: 120, hooks: [], captureNoisy: true });
+  for (const id of BIL_FORM) {
+    const per = SB(id, 2).skill.bb['attack@damage_scale'];
+    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy({ res: 0 }) } }, units: [unitOf(id, 10, 5, 2)], timeLimit: 120, hooks: [], captureNoisy: true });
     h.step();
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
@@ -263,10 +278,10 @@ test('E3 卡涅利安 S3 食噬之印 charged: each attack stacks the mark BEFOR
 });
 
 test('E3 卡涅利安 S3 charged: one mark per enemy — a second 卡涅利安 adds stacks without the bonus, the setter keeps it (PRTS 备注 popup)', () => {
-  const A = 'chess_char_4_24_a', B = 'chess_char_4_24_b';
+  const A = BIL.a, B = BIL.b;
   const h = makeBattle({
     defs: { enemies: { enemy_dummy: dummy({ res: 0 }) } }, timeLimit: 120, hooks: [], captureNoisy: true,
-    units: [{ chessId: A, row: 10, col: 5, skillIndex: 2 }, { chessId: B, row: 10, col: 7, skillIndex: 2 }],
+    units: [unitOf(A, 10, 5, 2), unitOf(B, 10, 7, 2)],
   });
   h.step();
   const a = h.unit(A), b = h.unit(B);
@@ -297,11 +312,11 @@ test('E3 卡涅利安 S3 charged: one mark per enemy — a second 卡涅利安 a
 test('E3 audit: a 流形 copying a 阵法术师 / 轰击术师 fires a single-target bolt — the copy takes no attack shape (tokens.js and the 缪尔赛思 kit)', () => {
   const MF = TOKEN_IDS.manifold;
   for (const kit of ['managed', 'token']) {
-    for (const src of ['chess_char_4_10_a', 'chess_char_4_24_a']) {
+    for (const src of ['chess_char_4_10_a', BIL.a]) {
       const h = makeBattle({
         defs: { enemies: { enemy_dummy: dummy() } }, timeLimit: 60, autoFinish: false, hooks: ['damaged'], captureNoisy: true,
         ...(kit === 'token' ? { kits: { chess_char_6_11_a: () => ({ skill: null, talents: [], generic: true }) } } : {}),
-        units: [{ chessId: 'chess_char_6_11_a', row: 12, col: 2, uid: 1 }, { chessId: src, row: 12, col: 6, uid: 2 }, { kind: 'token', tokenId: MF, row: 9, col: 6, uid: 3, ownerUid: 1 }],
+        units: [{ chessId: 'chess_char_6_11_a', row: 12, col: 2, uid: 1 }, { ...unitOf(src, 12, 6, 1), uid: 2 }, { kind: 'token', tokenId: MF, row: 9, col: 6, uid: 3, ownerUid: 1 }],
       });
       h.step();
       const m = h.b.allyUnits.find((u) => u.defId === MF && u.alive);

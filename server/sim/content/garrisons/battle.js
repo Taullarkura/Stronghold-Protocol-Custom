@@ -21,7 +21,20 @@
 //                       amounts: by_count / by_charcount_samerow / by_charlevel; conditions character_same_row /
 //                       character_same_col (≥ check_count incl. self). Gains go through support.gainLayers with
 //                       reason 'garrison', source = the trait's owner, cap = max_add_count_per_battle per (instance, bond)
-//                       — per instance for bond_actived_maxstack (塑心: the highest bond may change, the cap does not).
+//                       — per instance for bond_actived_maxstack (塑心's garrison_90: the highest bond may change, the cap
+//                       does not; the fork demoted 塑心 into the 自选 pool, so the family's only shipped member now is
+//                       纯烬艾雅法拉's garrison_140, which carries no max_add_count_per_battle).
+//   fork_gar_event_bonddead (乌尔比安's 特质, a FORK record — build-data forkGarrisonOverrides; no official 特质 listens to
+//                       another operator's knock-out): every knock-out of a member of `bond_id` of the holder's own
+//                       player feeds the holder's layers (the holder included: it is a member itself).
+//   fork_gar_event_dollswap (结城理's second 特质, a FORK record — build-data forkGarrisonRecords): every <替身> switch of
+//                       the holder (the engine's `dollSwap`, both directions) feeds the listed active bonds, capped by
+//                       max_add_count_per_battle like the official family it mirrors (garrison_40 归溟幽灵鲨, whose
+//                       text carries "替身与本体进行切换时" beside 自身被击倒 — this one listens to the switch alone).
+//   fork_gar_event_bondskill (真言's 特质, a FORK record — build-data forkGarrisonRecords): every skill activation of an
+//                       operator of the holder's own player that CARRIES one of the listed bonds feeds them (the official
+//                       `_useskill` family fires for the holder's own casts only; 真言's text covers the whole board of
+//                       her player), capped per battle like the official family.
 //   act1autochess_gar_event_addition_cnt (魔王)  layerGain: a 'garrison' gain whose source stands on the tile in front
 //                       of 魔王 (range_id 1-1) — or was knocked out there this instant (幽灵鲨 "被击倒时"; engine ctx.tile)
 //                       — gets +extra_cnt per bond (the extra does not count toward the source's per-battle cap).
@@ -190,9 +203,11 @@ export function fireGain(battle, it) {
   const bonds = targetBonds(battle, it);
   if (!bonds.length) return 0;
   let n = amountOf(battle, it);
-  // bond_actived_maxstack (塑心 garrison_90 "当前已激活且层数最多的盟约层数+1（每场作战至多10层）"): the cap is the instance's
-  // own over the battle, whichever bond is the highest at each gain — per (instance, bond) a change of the highest bond
-  // granted a fresh 10 (PR #178 review). The base amount counts toward it (魔王's extra does not, as in gainLayers).
+  // bond_actived_maxstack (the official 塑心 garrison_90 "当前已激活且层数最多的盟约层数+1（每场作战至多10层）" — 塑心 is a 自选-only
+  // operator in this fork, so no shipped 特质 reaches this branch any more; the family's rule stays): the cap is the
+  // instance's own over the battle, whichever bond is the highest at each gain — per (instance, bond) a change of the
+  // highest bond granted a fresh 10 (PR #178 review). The base amount counts toward it (魔王's extra does not, as in
+  // gainLayers).
   const whole = it.bbStr.bond_type === 'bond_actived_maxstack' && Number.isFinite(it.cap);
   if (whole) {
     n = Math.min(Math.floor(n), Math.max(0, Math.floor(it.cap) - (it.wholeUsed ?? 0)));
@@ -241,6 +256,63 @@ function ammoScope(it, u) {
 }
 
 const INSTALLERS = {
+  /**
+   * FORK — 乌尔比安's 特质 (the owner's decision of 2026-10-12; the official record is 作战能力 "【阿戈尔】每叠加2层，本干员攻击力
+   * +1%", GAIN_BUFF/attrByBond, build-data FORK_GARRISON_OVERRIDES): every knock-out (`killed` — a retreat or a 联防 forced
+   * exit is none) of a member of the listed bonds on the HOLDER's own player's side feeds the holder's bond layers. The
+   * holder counts itself (it is a member too, like the official `_selfdead`); a teammate's operator does not (the
+   * owner's decision; 联防 fields add no layers at all — support.gainLayers). No per-battle cap, like the official
+   * `_selfdead` family it mirrors.
+   */
+  fork_gar_event_bonddead(battle, list) {
+    battle.on('death', ({ unit, reason }) => {
+      if (reason !== 'killed' || !unit || !S.isOp(unit)) return;
+      for (const it of list) {
+        if (unit.ownerId !== it.unit.ownerId) continue;   // the holder's own player only (owner's decision)
+        const bonds = it.bonds ?? (it.bonds = ids(it.bbStr.bond_id));
+        if (!bonds.some((b) => S.isMember(battle, unit, b))) continue;
+        fireGain(battle, it);
+      }
+    });
+  },
+
+  /**
+   * FORK — 结城理's second 特质 (the owner's decision of 2026-10-12; a promotion of shared/promoted.js, authored by
+   * build-data forkGarrisonRecords): every <替身> switch of the HOLDER (`dollSwap`, fired both ways — into the 替身 and
+   * back) feeds the listed bonds. The official family it mirrors is 归溟幽灵鲨's garrison_40 ("自身被击倒或替身与本体进行切换时"),
+   * handled by `_selfdead` above; this trait listens to the switch alone, and its `max_add_count_per_battle` cap works
+   * like any other gain (support.gainLayers: per bond, per battle).
+   */
+  fork_gar_event_dollswap(battle, list) {
+    const m = byUnit(list);
+    battle.on('dollSwap', ({ unit }) => {
+      const arr = m.get(unit);
+      if (arr) for (const it of arr) fireGain(battle, it);
+    });
+  },
+
+  /**
+   * FORK — 真言's 特质 (the owner's plan of 2026-10-13; a promotion of shared/promoted.js, authored by build-data
+   * forkGarrisonRecords): every skill activation of an operator CARRYING one of the listed bonds (the holder included —
+   * she carries both) feeds the holder's active listed bonds. The trait's text is "场上所有【萨尔贡】【迅捷】干员开启技能时…",
+   * so the caster set is the whole board of the holder's own player (the official `_useskill` family fires for
+   * the HOLDER's casts alone: `byUnit(list)`); the owner's answer of 2026-10-13 reads the trailing "只要带有萨尔贡和迅捷两个
+   * 盟约中的一个就可生效" as that membership test, for both qualities. A teammate's operator does not count (the same
+   * decision fork_gar_event_bonddead carries). Gains go through support.gainLayers, so `max_add_count_per_battle` caps
+   * them per bond, per battle.
+   */
+  fork_gar_event_bondskill(battle, list) {
+    for (const it of list) it.bonds ??= ids(it.bbStr.bond_id);
+    battle.on('skillStart', ({ unit }) => {
+      if (!unit || !S.isOp(unit)) return;
+      for (const it of list) {
+        if (unit.ownerId !== it.unit.ownerId) continue;   // the holder's own player only
+        if (!it.bonds.some((b) => S.isMember(battle, unit, b))) continue;
+        fireGain(battle, it);
+      }
+    });
+  },
+
   act1autochess_gar_event_useskill(battle, list) {
     const m = byUnit(list);
     battle.on('skillStart', ({ unit }) => {

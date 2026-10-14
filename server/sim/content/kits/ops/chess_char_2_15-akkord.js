@@ -1,15 +1,19 @@
-// server/sim/content/kits/ops/chess_char_2_15-akkord.js — 协律 (char_4051_akkord) kit, tier 2 (hidden).
+// server/sim/content/kits/ops/chess_char_2_15-akkord.js — 协律 (char_4051_akkord) kit, tier 2. The fork un-hid this chess
+// (tools/build-data.mjs FORK_VISIBLE_CHESS, docs/design/fork.md §F7), so its kit is required like every visible one's.
 // Conventions of the tier-2 kits: ../shared/tier2.js; kit contract and rules: ../README.md.
 
-import { num, talentBb, traitBb, onHitBy, alliesInGridOf, toggleBuff } from '../shared/tier1.js';
+import {
+  num, talentBb, traitBb, alliesInGridOf, onHitBy, instantKind, toggleBuff,
+} from '../shared/tier1.js';
 import { hypot } from '../../../detmath.js';
 
 export default {
   // ---------------------------------------------------------------------------------------------------------------
-  // 2_15 协律 (hidden) 震爆调谐: ATK +atk; each attack sets off a sonic boom at every other operator in range:
-  // attack@aoe_atk_scale × ATK arts within attack@range_radius. 律脉同构: ATK +atk with another operator in range.
-  // Elite module (BLA-X): damage grows with distance, up to +damage_scale at max_dist tiles.
-  chess_char_2_15_a: (bb, chess) => {
+  // 2_15 协律 震爆调谐 (S2, the default): ATK +atk; each attack sets off a sonic boom at every other operator in range:
+  // attack@aoe_atk_scale × ATK arts within attack@range_radius. 律脉同构: ATK +atk with another operator in range. Elite
+  // module (BLA-X): damage grows with distance, up to +damage_scale at max_dist tiles.
+  // S1 反拍重音 (alt, 可充能2次): the next attack deals atk_scale × ATK arts (145 % / 170 %).
+  chess_char_2_15_a: (bb, chess, def) => {
     const t = talentBb(chess, 0);
     const tb = traitBb(chess);
     const rad = num(bb['attack@range_radius'], 0.9), sc = num(bb['attack@aoe_atk_scale']);
@@ -26,6 +30,9 @@ export default {
             }
           }
         },
+      },
+      skills: {
+        skchr_akkord_1: { kind: instantKind(def), attack: { atkScale: num(bb.atk_scale, 1), dmgType: 'arts' } },
       },
       talents: [{ install(battle, unit) {
         const v = num(t.atk);

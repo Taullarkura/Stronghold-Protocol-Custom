@@ -254,18 +254,41 @@ test('哈洛德 人才盲盒: from R4 every 2 rounds a <维多利亚> operator',
   cover('band_harold');
 });
 
-test('休露丝 雪域礼赠: the first <谢拉格> operator bought each round costs 1', () => {
-  const { m, ps, at } = setup({ band: 'band_sciurus', seed: 3 });
-  ps.shop.slots = [slotOf('chess_char_2_05_a'), slotOf('chess_char_3_11_a'), slotOf('chess_char_2_06_a')];
-  assert.equal(ps.priceOf(ps.shop.slots[0]), 1);
-  assert.equal(ps.priceOf(ps.shop.slots[1]), 1);
-  assert.equal(ps.priceOf(ps.shop.slots[2]), 3, 'not 谢拉格');
-  const f0 = ps.funds;
-  assert.deepEqual(m.handle('p_0', { t: 'g.buy', slot: 1 }), OK);
-  assert.equal(f0 - ps.funds, 1);
-  assert.equal(ps.priceOf(ps.shop.slots[0]), 3, 'second one: full price');
-  at(m.round + 1);
-  assert.equal(ps.priceOf(ps.shop.slots[0]), 1, 'new round');
+test('休露丝 雪域礼赠: every 23 funds spent ⇒ 1 random <谢拉格> operator of tier ≤ shop level', () => {
+  const seed = seedWithBond('kjeragShip', 2, 2);
+  const { m, ps } = setup({ band: 'band_sciurus', seed });
+  ps.shop.level = 2;
+  ps.funds = 200;
+  const grants = spyGrants(ps);
+  const spend = (n) => { ps.spend(n); ps._afterSpend(n, 'test'); };
+  spend(22);
+  assert.equal(grants.length, 0);
+  spend(1);
+  assert.equal(grants.length, 1, 'the 23rd fund grants one');
+  spend(46);
+  assert.equal(grants.length, 3, '46 more ⇒ 2 more');
+  for (const id of grants) assert.ok(DATA.chess[id].bonds.includes('kjeragShip') && DATA.chess[id].tier <= 2 && !DATA.chess[id].isGolden, id);
+  // a purchase spends through the same counter (g.buy → onSpend): the 角峰's 2 资金 + 21 more reach 23
+  ps.shop.slots = [slotOf('chess_char_1_02_a')];
+  assert.deepEqual(m.handle('p_0', { t: 'g.buy', slot: 0 }), OK);
+  spend(21);
+  assert.equal(grants.length, 4);
+  for (const id of grants) assert.ok(DATA.chess[id].bonds.includes('kjeragShip'), id);
+  cover('band_sciurus');
+});
+
+test('休露丝 雪域礼赠: the draw is limited to <谢拉格> — nothing is granted while none of the tier is in the pool', () => {
+  const seed = seedWithBond('kjeragShip', 2, 2);
+  const { m, ps } = setup({ band: 'band_sciurus', seed });
+  ps.shop.level = 2;
+  ps.funds = 200;
+  const grants = spyGrants(ps);
+  const visible = (c) => c.visible && !c.isGolden && c.tier <= 2;
+  for (const c of Object.values(DATA.chess)) if (visible(c) && c.bonds.includes('kjeragShip') && m.pool.has(c.chessId)) m.pool.take(c.chessId, 99);
+  assert.ok(Object.values(DATA.chess).some((c) => visible(c) && !c.bonds.includes('kjeragShip') && m.pool.left(c.chessId) > 0), 'other operators of the tier remain');
+  ps.spend(23);
+  ps._afterSpend(23, 'test');
+  assert.equal(grants.length, 0, '绮良\'s roll (no bond) would have drawn one of them');
   cover('band_sciurus');
 });
 

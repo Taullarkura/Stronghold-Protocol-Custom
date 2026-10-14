@@ -25,6 +25,16 @@ export default withDefaults({
     const g = grid(def.skill?.rangeGrid);
     const force = num(bb['attack@force'], num(bb.force, 0));
     const S3 = isSel(def, 'skchr_mostma_3');
+    // S3 序时之匙 is the chess's default skill (the `skill` block below); a 自选 piece has no default — its kit's fallback
+    // never applies (content/index.js skillIsDefault: an other-body def) — so every skill is listed here as well: a 自选
+    // pick may name any of the three (FORK 自选-ONLY, shared/diyOnly.js)
+    const s3Spec = () => ({
+      kind: 'duration',
+      mods: { atkPct: num(bb.atk) },
+      targeting: { ...(g ? { rangeGrid: g } : {}), allInRange: true },
+      attack: { projectile: 'none', splashRadius: 0, onHit({ battle, unit, target }) { if (target && target.alive) shove(battle, target, unit, force); } },
+      onAttack({ battle, unit }) { battle.fx('ripple', { x: unit.x, y: unit.y, id: unit.id }); },
+    });
     return {
       skills: alt(def, {
         'skcom_atk_up[3]': () => ({ kind: 'duration', mods: { atkPct: num(bb.atk) } }),
@@ -53,15 +63,10 @@ export default withDefaults({
           },
           onEnd({ unit }) { unit.mem.timeLock = null; },
         }),
+        skchr_mostma_3: s3Spec,
       }),
       install(battle, unit) { applyModuleRange(battle, unit, def); }, // module SPC-X: 攻击范围扩大 (module range grid)
-      skill: {
-        kind: 'duration',
-        mods: { atkPct: num(bb.atk) },
-        targeting: { ...(g ? { rangeGrid: g } : {}), allInRange: true },
-        attack: { projectile: 'none', splashRadius: 0, onHit({ battle, unit, target }) { if (target && target.alive) shove(battle, target, unit, force); } },
-        onAttack({ battle, unit }) { battle.fx('ripple', { x: unit.x, y: unit.y, id: unit.id }); },
-      },
+      skill: s3Spec(),
       talents: [
         { install(battle, unit) { spAura(battle, unit, num(t0.sp_recovery_per_sec, 0.4), (a) => a.def?.profession === 'CASTER'); } },
         { install(battle, unit) { // 主观缓时: enemies in range −15 % move speed (×talent_scale during S3)

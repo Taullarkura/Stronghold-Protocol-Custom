@@ -199,8 +199,8 @@ test('arrangeSteps yields only TRANSIENT and ends on the board arrange() makes, 
   }
 });
 
-// seed 17: the lineup grows round by round (no summons); seed 5: the seat owns a placed summon from round 3 on
-for (const [seed, from, to] of [[17, 1, 5], [5, 3, 6]]) test(`an autoplay seat never shows a half-built board at a callback boundary of its prep (seed ${seed})`, () => {
+// seed 17: the lineup grows round by round (no summons); seed 29: the seat owns a placed summon from round 4 on
+for (const [seed, from, to] of [[17, 1, 5], [29, 4, 6]]) test(`an autoplay seat never shows a half-built board at a callback boundary of its prep (seed ${seed})`, () => {
   const { match, clock, options, room } = fixture(seed);
   try {
     const h1 = match.players.get('h1');
@@ -222,7 +222,7 @@ for (const [seed, from, to] of [[17, 1, 5], [5, 3, 6]]) test(`an autoplay seat n
     }
     assert.ok(transients > 0, 'the arrangements step through TRANSIENT yields');
     assert.ok(seen.withdrawals > 0, 'the arrangements withdrew pieces');
-    if (seed === 5) assert.ok(seen.summons > 0, 'the arrangements lifted summons');
+    if (seed === 29) assert.ok(seen.summons > 0, 'the arrangements lifted summons');
     assert.equal(match.errorCount, 0);
   } finally { match.dispose(); }
 });

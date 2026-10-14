@@ -1,7 +1,9 @@
-// test/content/op_aglna2.test.js — the 自选 operator kit of 予愿安洁莉娜 (char_1015_aglna2, 6★ 巡空者; kit
+// test/content/op_aglna2.test.js — the operator kit of 予愿安洁莉娜 (char_1015_aglna2, 6★ 巡空者; kit
 // server/sim/content/kits/ops/op-aglna2.js) and of her S3 marker “一会儿见！” (token_10071_aglna2_agairp), fielded the
-// production way (a DIY slot + its `diy` pick, simdata getDiy) in every form: tiers 5 / 6, normal (E2 Lv1, skill rank 4)
-// and elite (E2 Lv60, rank 7) — she has no module. Numbers from data/backups.json; the fidelity checklist of kits/README.md.
+// production way since the fork promoted her to 可用干员 (shared/promoted.js, the owner's plan of 2026-10-12): her own PRESET
+// chess `chess_char_1015_aglna2_a` / `_b`, both forms — normal (E2 Lv1, skill rank 4, no module) and elite (E2 Lv60,
+// rank 7, the tier-5 练度) — with her 盟约 叙拉古 and her <休整期结束时> refresh 特质 (shared/forkTraits.js). Every number is
+// read back from data/backups.json; the fidelity checklist of kits/README.md.
 // The engine's 缚地 status her S2 brings: test/sim/feedback5-groundbind.test.js.
 // Run: node --test test/content/op_aglna2.test.js
 
@@ -19,11 +21,12 @@ const BACKUPS = load('backups');
 const AGL = 'char_1015_aglna2';
 const MARKER = 'token_10071_aglna2_agairp';
 const FORMS = BACKUPS.units[AGL].forms;
-const SLOT = { 5: 'chess_char_5_diy1_a', 6: 'chess_char_6_diy1_a' };
+/** The promoted piece (a tier-5 PRESET 可用干员: shared/promoted.js, the owner's plan of 2026-10-12). */
+const PIECE = { a: `chess_${AGL}_a`, b: `chess_${AGL}_b` };
 const S1 = 'skchr_aglna2_1', S2 = 'skchr_aglna2_2', S3 = 'skchr_aglna2_3';
-const statusOf = (tier, elite) => (elite ? (tier === 5 ? '2/60/7/1' : '2/60/7/3') : '2/1/4/0');
-const formOf = (tier, elite) => FORMS[statusOf(tier, elite)];
-const skillOf = (tier, elite, id) => formOf(tier, elite).skills.find((s) => s.skillId === id);
+const statusOf = (elite) => (elite ? '2/60/7/1' : '2/1/4/0');
+const formOf = (elite) => FORMS[statusOf(elite)];
+const skillOf = (elite, id) => formOf(elite).skills.find((s) => s.skillId === id);
 const approx = (a, b, msg, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps * Math.max(1, Math.abs(b)), `${msg}: ${a} vs ${b}`);
 const dummy = (key, o = {}) => enemyRec({ key, hp: 1e9, speed: 0, mass: 0, ...o });
 const ENEMIES = {
@@ -33,17 +36,17 @@ const ENEMIES = {
   enemy_walk: enemyRec({ key: 'enemy_walk', hp: 1e9, speed: 0.6, mass: 0, atk: 100 }),
   enemy_flywalk: enemyRec({ key: 'enemy_flywalk', hp: 1e9, speed: 0.6, mass: 0, motion: 'FLY', atk: 100 }),
 };
-const FORMS_ALL = [[5, false], [6, false], [5, true], [6, true]];
-const label = ([tier, elite]) => `T${tier} ${elite ? 'elite' : 'normal'}`;
+const FORMS_ALL = [[false], [true]];
+const label = ([elite]) => (elite ? 'elite' : 'normal');
 const ANY_ATK = (h, u) => h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack);
 const extras = (h, u) => h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes('aglna2:extra'));
 
 /** 予愿安洁莉娜 as uid 1 at (row, col) facing RIGHT, plus `others`. */
-function field({ tier = 5, elite = false, skill = 0, row = 10, col = 4, others = [], seed = 5 } = {}) {
+function field({ elite = false, skill = 0, row = 10, col = 4, others = [], seed = 5 } = {}) {
   const h = makeBattle({
     defs: { enemies: ENEMIES }, timeLimit: 900, autoFinish: false, seed,
     flags: { dpPerSec: 0, dpMax: 999 }, hooks: ['damaged', 'skillStart', 'skillEnd', 'statusApplied', 'deploy', 'dodge'], captureNoisy: true,
-    units: [{ uid: 1, diy: { slot: SLOT[tier], charId: AGL, skillIndex: skill }, elite, row, col }, ...others],
+    units: [{ uid: 1, chessId: elite ? PIECE.b : PIECE.a, skillIndex: skill, row, col }, ...others],
   });
   h.step();
   return { h, u: h.unit(1) };
@@ -53,17 +56,18 @@ function done(h) {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
 
-test('予愿安洁莉娜 in every 自选 form: her operator kit (all three skills authored), the form\'s stats, 2-2, melee physical that hits air units, blocks 2, 叙拉古, no 特质; S1 a timed deployment skill, S2 / S3 the data\'s ACTIVE_RANGE', () => {
+test('予愿安洁莉娜 as the promoted piece, both forms: her operator kit (all three skills authored), the form\'s stats, 2-2, melee physical that hits air units, blocks 2, 盟约 叙拉古, her own refresh 特质; S1 a timed deployment skill, S2 / S3 the data\'s ACTIVE_RANGE', () => {
   assert.equal(OPERATOR_KITS[AGL], KITS[AGL]);
   for (const f of FORMS_ALL) {
-    const [tier, elite] = f;
+    const [elite] = f;
     for (const skill of [0, 1, 2]) {
-      const { h, u } = field({ tier, elite, skill });
-      const form = formOf(tier, elite);
-      assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [AGL, SLOT[tier], form.skills[skill].skillId, false, 'skills'], label(f));
+      const { h, u } = field({ elite, skill });
+      const form = formOf(elite);
+      assert.deepEqual([u.def.charId, u.def.diyFor ?? null, u.skill.id, !!u.kit.generic, u.kit.skillSource], [AGL, null, form.skills[skill].skillId, false, 'skills'], label(f));
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def], [form.stats.maxHp, form.stats.atk, form.stats.def], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.base.bat], [2, 'melee', 'phys', true, 1.5], `${label(f)}: 巡空者`);
-      assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['siracusaShip'], []], `${label(f)}: bonds / 特质`);
+      assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds, u.def.raw.backup.uniEquipId],
+        [['siracusaShip'], CHESS[elite ? PIECE.b : PIECE.a].garrisonIds, null], `${label(f)}: 盟约 / 特质 / no module`);
       if (skill === 0) {
         assert.deepEqual([u.skill.rule, u.skill.kind, u.skill.active], ['NEVER', 'duration', true], `${label(f)}: S1 runs from the deployment`);
         assert.deepEqual(u.liveRangeGrid, form.skills[0].rangeGrid, `${label(f)}: 3-6 while it runs`);
@@ -76,23 +80,32 @@ test('予愿安洁莉娜 in every 自选 form: her operator kit (all three skill
       done(h);
     }
   }
-  // E2 Lv1 1884 / 661 / 410, E2 Lv60 2216 / 772 / 483
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk, FORMS['2/60/7/3'].stats.atk], [1884, 661, 772, 772]);
-  assert.deepEqual(FORMS['2/60/7/3'].modules ?? [], []);
+  // E2 Lv1 1884 / 661 / 410, E2 Lv60 2216 / 772 / 483 (the only two forms of her piece; no module)
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk, FORMS['2/60/7/1'].stats.def],
+    [1884, 661, 2216, 772, 483]);
+  assert.deepEqual(FORMS['2/60/7/1'].modules ?? [], []);
 });
 
-test('a 自选 pick: 予愿安洁莉娜 is offered at tiers 5 and 6 (she has a kit) and a roster with her passes validateDiyPicks', () => {
+test('the promoted piece: chess_char_1015_aglna2_a / _b are visible tier-5 PRESET chess (price 4, 盟约 叙拉古, her refresh 特质) with S3 as the default skill, and she is no longer a 自选 pick', () => {
   const data = { chess: CHESS, backups: BACKUPS };
-  assert.ok(KITTED_CHARS.includes(AGL));
-  for (const t of [5, 6]) assert.ok(diyPool(t, { data, kitted: KITTED_CHARS }).includes(AGL), `tier ${t}`);
-  assert.deepEqual(validateDiyPicks({ [SLOT[5]]: { charId: AGL, skillIndex: 2, uniEquipId: null } }, { data, kitted: KITTED_CHARS }),
-    { ok: true, picks: { [SLOT[5]]: { charId: AGL, skillIndex: 2, uniEquipId: null } } });
+  for (const [id, elite] of [[PIECE.a, false], [PIECE.b, true]]) {
+    const c = CHESS[id];
+    assert.deepEqual([c.chessType, c.tier, c.price, c.bonds, c.visible, c.isDiy, c.backup.skillIndex, c.backup.uniEquipId],
+      ['PRESET', 5, 4, ['siracusaShip'], true, false, 2, null], `${id}: the record`);
+    assert.deepEqual(c.garrisonIds, [`garrison_fork_aglna2_${elite ? 'b' : 'a'}`], `${id}: 特质`);
+  }
+  assert.equal(CHESS[PIECE.a].goldenId, PIECE.b);
+  assert.ok(KITTED_CHARS.includes(AGL), 'her operator kit stays registered (the piece fields it)');
+  for (const t of [5, 6]) assert.ok(!diyPool(t, { data, kitted: KITTED_CHARS }).includes(AGL), `tier ${t}: not offered`);
+  // a stale roster that still names her is refused on its own (shared/diy.js checkDiyPick)
+  assert.match(validateDiyPicks({ 'chess_char_5_diy1_a': { charId: AGL, skillIndex: 2, uniEquipId: null } }, { data, kitted: KITTED_CHARS }).detail,
+    /not a tier-5 自选 pick/);
 });
 
 test('trait 巡空者: on the ground she blocks ground enemies, not flyers; airborne (起飞) she blocks flyers, not ground enemies, and no ground enemy selects her; taking off releases the ground enemies, landing the flyers', () => {
-  for (const f of [[5, false], [6, true]]) {
-    const [tier, elite] = f;
-    const { h, u } = field({ tier, elite, skill: 1, row: 9, col: 4 });
+  for (const f of FORMS_ALL) {
+    const [elite] = f;
+    const { h, u } = field({ elite, skill: 1, row: 9, col: 4 });
     u.skill.spCostMul = 1000;   // (no cast of its own: the test takes off below)
     const w = h.spawn('enemy_walk', { routeIndex: 0 });
     assert.ok(h.runUntil(() => w.blockedBy === u, 30), `${label(f)}: blocks the walker on the ground`);
@@ -117,12 +130,12 @@ test('trait 巡空者: on the ground she blocks ground enemies, not flyers; airb
 
 test('T1 飘浮大地之上: every damage she outputs adds ATK × 45 % arts on a target of weight ≤ 3, else × 30 % — dodged hits too, never on itself; airborne, every enemy of her range is 失重 (weight −1, not with another 失重), gone when she lands', () => {
   for (const f of FORMS_ALL) {
-    const [tier, elite] = f;
-    const t0 = formOf(tier, elite).talents[0].bb;
+    const [elite] = f;
+    const t0 = formOf(elite).talents[0].bb;
     assert.deepEqual([t0.atk_scale_lo, t0.atk_scale_hi, t0.mass_level], [0.3, 0.45, 3], label(f));
     // on the ground (S3 picked, not cast): weight 0 ⇒ 45 %, weight 4 ⇒ 30 %
     {
-      const { h, u } = field({ tier, elite, skill: 2 });
+      const { h, u } = field({ elite, skill: 2 });
       u.skill.sp = 0;
       const a = h.spawn('enemy_dummy', { pos: [10, 5] });
       assert.ok(h.runUntil(() => ANY_ATK(h, u).length > 0, 3));
@@ -145,7 +158,7 @@ test('T1 飘浮大地之上: every damage she outputs adds ATK × 45 % arts on a
     }
     // airborne (S1): 失重 in range — the weight-4 enemy counts as 3 ⇒ 45 %
     {
-      const { h, u } = field({ tier, elite, skill: 0 });
+      const { h, u } = field({ elite, skill: 0 });
       const heavy = h.spawn('enemy_heavy', { pos: [11, 6] });
       const far = h.spawn('enemy_heavy', { pos: [10, 8] });
       const marked = h.spawn('enemy_dummy', { pos: [9, 5] });
@@ -167,15 +180,15 @@ test('T1 飘浮大地之上: every damage she outputs adds ATK × 45 % arts on a
 
 test('T2 天穹间的舞步: while she is on the field every airborne allied operator (her included) has ATK +18 % and, while it blocks, 生命回复速度 +10 % max HP (hpRegenRatio — no heal, 禁疗 does not stop it); none on the ground', () => {
   for (const f of FORMS_ALL) {
-    const [tier, elite] = f;
-    const t1 = formOf(tier, elite).talents[1].bb;
+    const [elite] = f;
+    const t1 = formOf(elite).talents[1].bb;
     assert.deepEqual([t1.atk, t1.hp_recovery_per_sec_by_max_hp_ratio], [0.18, 0.1], label(f));
     const others = [{ uid: 2, chessId: 'chess_char_1_02_a', row: 12, col: 3 }];
-    const { h, u } = field({ tier, elite, skill: 0, row: 9, col: 4, others });
+    const { h, u } = field({ elite, skill: 0, row: 9, col: 4, others });
     const yak = h.unit(2);
     h.run(0.3);
     assert.deepEqual(u.findBuff('talent:aglna2:dance')?.mods, { atkPct: 0.18 }, `${label(f)}: airborne, not blocking`);
-    approx(u.s.atk, u.base.atk * (1 + skillOf(tier, elite, S1).bb.atk + 0.18), `${label(f)}: ATK`);
+    approx(u.s.atk, u.base.atk * (1 + skillOf(elite, S1).bb.atk + 0.18), `${label(f)}: ATK`);
     assert.equal(yak.findBuff('talent:aglna2:dance'), null, `${label(f)}: 角峰 on the ground: none`);
     h.b.addBuff(u, { key: 'test:healFree', flags: { noHeal: true, healFree: true } });
     const fl = h.spawn('enemy_flywalk', { routeIndex: 2 });
@@ -190,7 +203,7 @@ test('T2 天穹间的舞步: while she is on the field every airborne allied ope
     done(h);
   }
   // S3 picked, before its cast: on the ground — no buff
-  const { h, u } = field({ tier: 6, elite: true, skill: 2 });
+  const { h, u } = field({ elite: true, skill: 2 });
   h.run(1);
   assert.equal(u.findBuff('talent:aglna2:dance'), null);
   done(h);
@@ -198,10 +211,10 @@ test('T2 天穹间的舞步: while she is on the field every airborne allied ope
 
 test('S1 极速送达 (被动 ON_DEPLOY): at each deployment she takes off for 56 s — range 3-6, ATK +75 % / +100 %, 2 targets at once — then lands', () => {
   for (const f of FORMS_ALL) {
-    const [tier, elite] = f;
-    const sk = skillOf(tier, elite, S1);
+    const [elite] = f;
+    const sk = skillOf(elite, S1);
     assert.deepEqual([sk.skillType, sk.spType, sk.duration, sk.bb.atk, sk.bb['attack@max_target'], sk.rangeId], ['PASSIVE', 'ON_DEPLOY', 56, elite ? 1 : 0.75, 2, '3-6'], label(f));
-    const { h, u } = field({ tier, elite, skill: 0 });
+    const { h, u } = field({ elite, skill: 0 });
     assert.ok(u.skill.active && u.s.flags.liftoff, `${label(f)}: airborne from the deployment`);
     approx(u.skill.timeLeft, 56 - 1 / 30, `${label(f)}: 56 s`, 1e-3);
     const a = h.spawn('enemy_dummy', { pos: [9, 6] });
@@ -212,7 +225,7 @@ test('S1 极速送达 (被动 ON_DEPLOY): at each deployment she takes off for 5
     assert.deepEqual(same.map((c) => c.target).sort((x, y) => x.id - y.id), [a, b].sort((x, y) => x.id - y.id), `${label(f)}: two targets`);
     h.runUntil(() => !u.skill.active, 60);
     assert.ok(!u.s.flags.liftoff && !u.s.flags.blockFly, `${label(f)}: landed`);
-    assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2`);
+    assert.deepEqual(u.liveRangeGrid, formOf(elite).rangeGrid, `${label(f)}: 2-2`);
     h.run(0.4);   // (her T2 lapses within one refresh)
     approx(u.s.atk, u.base.atk, `${label(f)}: ATK back`);
     // a redeployment takes off again
@@ -225,12 +238,12 @@ test('S1 极速送达 (被动 ON_DEPLOY): at each deployment she takes off for 5
 
 test('S2 重力自定义 (MANUAL, data ACTIVE_RANGE on 3-10): takes off; 2.5 s 吟唱 (no attack, 无敌, control statuses refused) while the sweep (3.0 wide, 1.3 thick, 6 tiles/s, 4 tiles ahead) 浮空s ground enemies 10 / 12 s and 缚地s flyers 20 / 22 s; then ATK +105 % / +135 %, interval −0.6 / −0.8 s, arts, 4 / 5 targets, range 3-10; 22 s', () => {
   for (const f of FORMS_ALL) {
-    const [tier, elite] = f;
-    const sk = skillOf(tier, elite, S2);
+    const [elite] = f;
+    const sk = skillOf(elite, S2);
     assert.deepEqual([sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb['attack@max_target'], sk.bb.chant_duration, sk.bb.buff_duration_levitate, sk.bb.buff_duration_ground_bound, sk.spCost, sk.initSp, sk.rangeId],
       [22, elite ? 1.35 : 1.05, elite ? -0.8 : -0.6, elite ? 5 : 4, 2.5, elite ? 12 : 10, elite ? 22 : 20, elite ? 29 : 32, elite ? 20 : 17, '3-10'], label(f));
     assert.deepEqual(sk.trigger.customRangeGrid, sk.rangeGrid);
-    const { h, u } = field({ tier, elite, skill: 1 });
+    const { h, u } = field({ elite, skill: 1 });
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0, `${label(f)}: no enemy, no cast`);
@@ -265,7 +278,7 @@ test('S2 重力自定义 (MANUAL, data ACTIVE_RANGE on 3-10): takes off; 2.5 s �
     assert.ok(one.every((c) => c.type === 'arts'), `${label(f)}: arts`);
     h.runUntil(() => !u.skill.active, 30);
     approx(h.hooksOf('skillEnd').at(-1).t - h.hooksOf('skillStart').at(-1).t, 22, `${label(f)}: 22 s from the cast`, 0.01);
-    assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2 back`);
+    assert.deepEqual(u.liveRangeGrid, formOf(elite).rangeGrid, `${label(f)}: 2-2 back`);
     assert.ok(!u.s.flags.liftoff, `${label(f)}: landed`);
     done(h);
   }
@@ -273,11 +286,11 @@ test('S2 重力自定义 (MANUAL, data ACTIVE_RANGE on 3-10): takes off; 2.5 s �
 
 test('S3 酸橙的心事 (MANUAL, data ACTIVE_RANGE on 3-9): 30 / 31 bullets, ATK +20 % / +30 %, 对空庇护 55 % / 60 %, range 3-9 + the 8 around her; each attack 275 % / 305 % on ≤ 3 ground enemies and flyers up to 4; flyers in range ×0.6 speed', () => {
   for (const f of FORMS_ALL) {
-    const [tier, elite] = f;
-    const sk = skillOf(tier, elite, S3);
+    const [elite] = f;
+    const sk = skillOf(elite, S3);
     assert.deepEqual([sk.bb['attack@trigger_time'], sk.bb.atk, sk.bb.damage_resistance, sk.bb['attack@atk_scale'], sk.bb['attack@max_target'], sk.bb['attack@max_walk_target'], sk.bb.move_speed, sk.bbStr['attack@attack_range_id'], sk.spCost, sk.initSp],
       [elite ? 31 : 30, elite ? 0.3 : 0.2, elite ? 0.6 : 0.55, elite ? 3.05 : 2.75, 4, 3, -0.4, 'x-4', elite ? 36 : 42, elite ? 22 : 19], label(f));
-    const { h, u } = field({ tier, elite, skill: 2 });
+    const { h, u } = field({ elite, skill: 2 });
     u.skill.gainSp(999);
     const grounds = [[10, 8], [10, 5], [11, 6], [9, 6]].map((p) => h.spawn('enemy_dummy', { pos: p }));
     assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast with an enemy in 3-9`);
@@ -312,15 +325,15 @@ test('S3 酸橙的心事 (MANUAL, data ACTIVE_RANGE on 3-9): 30 / 31 bullets, AT
     u.skill.addAmmo(0);
     h.runUntil(() => !u.skill.active, 120);
     assert.equal(h.hooksOf('skillEnd').at(-1).reason, 'ammo', `${label(f)}: ends with its bullets`);
-    assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2 back`);
+    assert.deepEqual(u.liveRangeGrid, formOf(elite).rangeGrid, `${label(f)}: 2-2 back`);
     done(h);
   }
 });
 
 test('S3 move: blocking nothing, she flies (2 tiles/s, 无敌, disarmed) to the tile of an unblocked flyer she can block inside the original 3-9, lands there by a 【移动】 (the skill and its bullets kept) and blocks it; “一会儿见！” marks her deployment tile; her range stays that 3-9 + the 8 around her; at the end she goes back and the marker leaves', () => {
-  for (const f of [[5, false], [6, true]]) {
-    const [tier, elite] = f;
-    const { h, u } = field({ tier, elite, skill: 2 });
+  for (const f of FORMS_ALL) {
+    const [elite] = f;
+    const { h, u } = field({ elite, skill: 2 });
     u.skill.gainSp(999);
     const fl = h.spawn('enemy_fly', { pos: [11, 7] });
     assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast`);
@@ -344,13 +357,13 @@ test('S3 move: blocking nothing, she flies (2 tiles/s, 无敌, disarmed) to the 
     u.skill.end('test');
     assert.deepEqual([u.tileR, u.tileC], [10, 4], `${label(f)}: back home at the end`);
     assert.ok(!m.alive, `${label(f)}: the marker left`);
-    assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2`);
+    assert.deepEqual(u.liveRangeGrid, formOf(elite).rangeGrid, `${label(f)}: 2-2`);
     assert.equal(u.extraRangeKeys, null);
     done(h);
   }
   // blocking something, she stays
   {
-    const { h, u } = field({ tier: 5, skill: 2 });
+    const { h, u } = field({ skill: 2 });
     u.skill.gainSp(999);
     const fl = h.spawn('enemy_fly', { pos: [11, 7] });
     assert.ok(h.runUntil(() => fl.blockedBy === u, 5), 'she flew to it and blocks it');

@@ -11,6 +11,29 @@ const kits = TIER_KITS[3];
 
 const ds = getDefaultSource();
 const D = (id) => ds.getChess(id);
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js — the owner's plan of 2026-10-12): 缄默德克萨斯's shop chess left the roster,
+ * so her kit is exercised through a tier-5 自选 slot, the production path (simdata getChess(slotId, { diy })): the pick
+ * names its skill and its module (her chess's defaults were S3 and uniequip_002_texas2). A 自选 piece carries no 特质.
+ */
+const TEX = { charId: 'char_1028_texas2', a: 'chess_char_5_diy1_a', b: 'chess_char_5_diy1_b', slot2: 'chess_char_5_diy2_a', mod: 'uniequip_002_texas2' };
+const DT = (id, skillIndex, moduleId = null) => ds.getChess(id, { diy: { charId: TEX.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) } });
+const UT = (id, row, col, skillIndex = 2, moduleId = null, extra = {}) => ({
+  diy: { slot: TEX.a, charId: TEX.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) },
+  elite: id === TEX.b, row, col, ...extra,
+});
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js — the owner's plan of 2026-10-13): 卡涅利安's shop chess left the roster the
+ * same way, so her kit runs through a tier-5 自选 slot too — the pick names its skill (her chess's default was S2 沙缚镣锁)
+ * and its module (PLX-X `uniequip_002_billro` is her elite's default in `D`-less records, PLX-Y `uniequip_003_billro` the
+ * other; `'none'` = no module). A 自选 piece carries no 特质.
+ */
+const BIL = { charId: 'char_426_billro', a: 'chess_char_5_diy1_a', b: 'chess_char_5_diy1_b', x: 'uniequip_002_billro', y: 'uniequip_003_billro' };
+const DB = (id, skillIndex, moduleId = null) => ds.getChess(id, { diy: { charId: BIL.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) } });
+const UB = (id, row, col, skillIndex, moduleId = null, extra = {}) => ({
+  diy: { slot: BIL.a, charId: BIL.charId, skillIndex, ...(moduleId ? { uniEquipId: moduleId } : {}) },
+  elite: id === BIL.b, row, col, ...extra,
+});
 const approx = (a, b, eps = 1e-6, msg = '') => assert.ok(Math.abs(a - b) <= eps * Math.max(1, Math.abs(b)), `${msg} ${a} ≈ ${b}`);
 const dummy = (o = {}) => enemyRec({ key: 'enemy_dummy', hp: 1e8, speed: 0, ...o });
 const withTags = (rec, tags) => ({ ...rec, tags });
@@ -651,9 +674,9 @@ test('录武官 / 华法琳 elite trait: heals on allies below 50 % are ×1.15',
   }
 });
 
-test('缄默德克萨斯 S3 (passive): deploy burst 2 × 115 % arts + 1.5 s stun, sword rain ≤ 2 targets/s for 6 s; talents', () => {
-  const id = 'chess_char_4_16_a', bb = D(id).skill.bb, t0 = D(id).talents[0].bb, t1 = D(id).talents[1].bb;
-  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 120, hooks: ['damaged', 'statusApplied'], captureNoisy: true });
+test('缄默德克萨斯 S3 (passive, a FORK 自选-ONLY operator through a 自选 slot): deploy burst 2 × 115 % arts + 1.5 s stun, sword rain ≤ 2 targets/s for 6 s; talents', () => {
+  const id = TEX.a, bb = DT(id, 2).skill.bb, t0 = DT(id, 2).talents[0].bb, t1 = DT(id, 2).talents[1].bb;
+  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [UT(id, 10, 5)], timeLimit: 120, hooks: ['damaged', 'statusApplied'], captureNoisy: true });
   h.step();
   const u = h.unit(id);
   approx(u.s.aspd, u.base.aspd + t1.attack_speed, 1e-9, 'swordplay ASPD');
@@ -666,11 +689,11 @@ test('缄默德克萨斯 S3 (passive): deploy burst 2 × 115 % arts + 1.5 s stun
   assert.equal(burst.length, 6, 'two hits on each of the 3 surrounding enemies');
   approx(burst[0].amount, u.s.atk * bb['appear.atk_scale'], 1e-6);
   assert.equal(noisy(h, 'statusApplied').filter((c) => c.source === u && c.status === 'stun' && c.duration === bb['appear.stun']).length, 3);
-  h.run(D(id).skill.duration + 1.5);
+  h.run(DT(id, 2).skill.duration + 1.5);
   const rain = dmgBy(h, u, (c) => c.dmg?.tags?.includes('swordRain'));
   const waves = new Map();
   for (const c of rain) waves.set(c.t, (waves.get(c.t) ?? 0) + 1);
-  assert.equal(waves.size, D(id).skill.duration, 'one rain per second while the passive lasts');
+  assert.equal(waves.size, DT(id, 2).skill.duration, 'one rain per second while the passive lasts');
   assert.ok([...waves.values()].every((n) => n === bb.max_target), '≤ 2 distinct targets');
   approx(rain[0].amount, u.base.atk * (1 + t0.atk) * bb.atk_scale, 1e-6);
   assert.equal(u.skill.active, false, 'ATK bonus ends with the skill');
@@ -678,8 +701,8 @@ test('缄默德克萨斯 S3 (passive): deploy burst 2 × 115 % arts + 1.5 s stun
 });
 
 test('缄默德克萨斯: first kill ⇒ full heal + recast; 剑术 buff removed', () => {
-  const id = 'chess_char_4_16_a';
-  const h = makeBattle({ defs: { enemies: { enemy_weak: dummy({ key: 'enemy_weak', hp: 50 }), enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 60, hooks: [] });
+  const id = TEX.a;
+  const h = makeBattle({ defs: { enemies: { enemy_weak: dummy({ key: 'enemy_weak', hp: 50 }), enemy_dummy: dummy() } }, units: [UT(id, 10, 5)], timeLimit: 60, hooks: [] });
   h.step();
   const u = h.unit(id);
   h.spawn('enemy_dummy', { pos: [10, 6] });
@@ -847,9 +870,9 @@ test('百炼嘉维尔 S3: ATK/ASPD/block up; only 50 % damage now, the rest as 2
   approx(hl.amount, 100 * (u.hpRatio < t1.hp_ratio ? t1.heal_scale_2 : t1.heal_scale_1), 1e-9);
 });
 
-test('卡涅利安 S2: faster AoE with 0.3 s sluggish; charged cast: ATK +10 %, bind, 80 % heal; 蓄势待发 +0.6 SP/s', () => {
-  const id = 'chess_char_4_24_a', bb = D(id).skill.bb, t0 = D(id).talents[0].bb, t1 = D(id).talents[1].bb;
-  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 300, hooks: ['statusApplied', 'heal'], captureNoisy: true });
+test('卡涅利安 S2 (a FORK 自选-ONLY operator through a 自选 slot): faster AoE with 0.3 s sluggish; charged cast: ATK +10 %, bind, 80 % heal; 蓄势待发 +0.6 SP/s', () => {
+  const id = BIL.a, d = DB(id, 1), bb = d.skill.bb, t0 = d.talents[0].bb, t1 = d.talents[1].bb;
+  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [UB(id, 10, 5, 1)], timeLimit: 300, hooks: ['statusApplied', 'heal'], captureNoisy: true });
   h.step();
   const u = h.unit(id);
   h.runUntil(() => u.skill.charges >= 1, 40);
@@ -874,9 +897,12 @@ test('卡涅利安 S2: faster AoE with 0.3 s sluggish; charged cast: ATK +10 %, 
 });
 
 test('卡涅利安 / 蜜蜡 elite trait: keep DEF +100 % / RES +10 during the skill', () => {
-  for (const [id, pre] of [['chess_char_4_24_b', 'billro_e_002'], ['chess_char_4_05_b', 'soil_e_002']]) {
-    const tb = D(id).traitBb;
-    const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 30, hooks: [] });
+  for (const [id, pre, def, entry] of [
+    [BIL.b, 'billro_e_002', DB(BIL.b, 1, BIL.x), UB(BIL.b, 10, 5, 1, BIL.x)],
+    ['chess_char_4_05_b', 'soil_e_002', D('chess_char_4_05_b'), { chessId: 'chess_char_4_05_b', row: 10, col: 5 }],
+  ]) {
+    const tb = def.traitBb;
+    const h = makeBattle({ units: [entry], timeLimit: 30, hooks: [] });
     h.step();
     const u = h.unit(id);
     u.skill.activate('test', { free: true });
@@ -983,15 +1009,18 @@ test('elite modules: 泥岩 −15 % from blocked enemies, 百炼嘉维尔 ×1.1 
     h.runUntil(() => dmgBy(h, u).length >= 1, 5);
     approx(dmgBy(h, u)[0].amount, u.s.atk * (1 + tb.damage_scale * Math.min(1, (4 - tb.min_dist) / (tb.max_dist - tb.min_dist))), 1e-6);
   }
-  // 缄默德克萨斯
+  // 缄默德克萨斯 (a FORK 自选-ONLY operator; a 自选 piece has no 特质): her EXE-Y module overrides the trait with the
+  // lonely "+10 % ATK with no ally on the 4 adjacent tiles" (data moduleDesc), which her kit applies as texas2:module
   {
-    const id = 'chess_char_4_16_b', tb = D(id).traitBb, t0 = D(id).talents[0].bb;
-    const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5 }, { chessId: 'chess_char_1_02_a', row: 12, col: 8 }], timeLimit: 30, hooks: [] });
+    const id = TEX.b, d = DT(id, 2, TEX.mod), t0 = d.talents[0].bb, tb = d.traitBb;
+    assert.equal(d.raw.trait.moduleDesc, '周围四格没有友方干员时攻击力+10%');
+    const h = makeBattle({ units: [UT(id, 10, 5, 2, TEX.mod), { chessId: 'chess_char_1_02_a', row: 12, col: 8 }], timeLimit: 30, hooks: [] });
     h.run(0.3);
     const u = h.unit(id);
     approx(u.s.atk, u.base.atk * (1 + t0.atk + tb.atk), 1e-9, 'alone');
-    const g = makeBattle({ units: [{ chessId: id, row: 10, col: 5 }, { chessId: 'chess_char_1_02_a', row: 10, col: 6 }], timeLimit: 30, hooks: [] });
+    const g = makeBattle({ units: [UT(id, 10, 5, 2, TEX.mod), { chessId: 'chess_char_1_02_a', row: 10, col: 6 }], timeLimit: 30, hooks: [] });
     g.run(0.3);
+    assert.equal(g.unit(id).findBuff('texas2:module'), null);
     approx(g.unit(id).s.atk, g.unit(id).base.atk * (1 + t0.atk), 1e-9, 'neighbour');
   }
 });
@@ -1000,8 +1029,8 @@ test('elite modules: 泥岩 −15 % from blocked enemies, 百炼嘉维尔 ×1.1 
 // fidelity-verification regressions
 
 test('缄默德克萨斯: a kill by the deploy burst itself (redeploy) ⇒ full heal + recast, no 剑术 buff', () => {
-  const id = 'chess_char_4_16_a';
-  const h = makeBattle({ defs: { enemies: { enemy_weak: dummy({ key: 'enemy_weak', hp: 50 }), enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5 }],
+  const id = TEX.a;
+  const h = makeBattle({ defs: { enemies: { enemy_weak: dummy({ key: 'enemy_weak', hp: 50 }), enemy_dummy: dummy() } }, units: [UT(id, 10, 5, 2)],
     timeLimit: 60, hooks: ['heal', 'damaged'], captureNoisy: true });
   h.step();
   const u = h.unit(id);
@@ -1100,8 +1129,8 @@ test('瑰盐 S2 only defers damage taken by operators (summons take it in full)'
 });
 
 test('卡涅利安 S2: every enemy hit by the group attack is slowed', () => {
-  const id = 'chess_char_4_24_a', bb = D(id).skill.bb;
-  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 60, hooks: ['statusApplied'] });
+  const id = BIL.a, bb = DB(id, 1).skill.bb;
+  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [UB(id, 10, 5, 1)], timeLimit: 60, hooks: ['statusApplied'] });
   h.step();
   const u = h.unit(id);
   const a = h.spawn('enemy_dummy', { pos: [10, 6] }), b = h.spawn('enemy_dummy', { pos: [11, 6] });
@@ -1167,15 +1196,18 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
     assert.equal(bb['attack@fixed_heal_value'], 120);
     approx(hl.amount, bb['attack@fixed_heal_value'] * ally.s.healingTakenMul * (ally.hpRatio < D('chess_char_4_15_b').traitBb.hp_ratio ? D('chess_char_4_15_b').traitBb.heal_scale : 1), 1e-6);
   }
-  // 缄默德克萨斯: 3 rain targets for 7 s
+  // 缄默德克萨斯 (a FORK 自选-ONLY operator through a 自选 slot): 3 rain targets for 7 s
   {
-    const [h, u, bb] = mk('chess_char_4_16_b', { units: [{ chessId: 'chess_char_4_16_b', row: 10, col: 5 }] });
+    const id = TEX.b, d = DT(id, 2), bb = d.skill.bb;
+    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [UT(id, 10, 5, 2)], timeLimit: 120, hooks: ['damaged'], captureNoisy: true, seed: 5 });
+    h.step();
+    const u = h.unit(id);
     for (const p of [[9, 4], [11, 6], [10, 4], [9, 6]]) h.spawn('enemy_dummy', { pos: p });
     h.b.retreat(u); h.b.redeploy(u);
-    h.run(D('chess_char_4_16_b').skill.duration + 1.5);
+    h.run(d.skill.duration + 1.5);
     const waves = new Map();
     for (const c of dmgBy(h, u, (c) => c.dmg?.tags?.includes('swordRain'))) waves.set(c.t, (waves.get(c.t) ?? 0) + 1);
-    assert.equal(waves.size, D('chess_char_4_16_b').skill.duration);
+    assert.equal(waves.size, d.skill.duration);
     assert.ok([...waves.values()].every((n) => n === bb.max_target));
   }
   // 歌蕾蒂娅 S3 tornado pulse on a weight-1 enemy √2 from the marked point (PRTS 推与拉): elite 中力 (1) = 受力等级 0 ⇒ all the

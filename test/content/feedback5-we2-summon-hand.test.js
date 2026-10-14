@@ -6,7 +6,8 @@
 // 棋子" — 7 at full potential (望's 潜能 3 「第一天赋效果增强」, the owner's decision of 2026-10-07) —, TRP-X +1), PRTS 幻影 备注 "最大可部署数量为3" (夜莺),
 // and the fork's collab pick 艾拉 (docs/design/fork.md §F6) "可以使用4（+1）个雷鸣地雷（最多拥有4个）".
 // #24: a summon no owner shows (displayTokenDict: the variants' `display` source) is its skill's own object, never a hand
-// card — 予愿安洁莉娜 S3's “一会儿见！” (PRTS 予愿安洁莉娜 S3 备注: the skill deploys it at her initial tile).
+// card — 予愿安洁莉娜 S3's “一会儿见！” (PRTS 予愿安洁莉娜 S3 备注: the skill deploys it at her initial tile); her piece
+// (chess_char_1015_aglna2_a / _b) makes it too.
 // Run: node --test test/content/feedback5-we2-summon-hand.test.js
 
 import { test } from 'node:test';
@@ -22,6 +23,8 @@ const CHESS = load('chess');
 const BACKUPS = load('backups');
 const DATA = { chess: CHESS, backups: BACKUPS };
 const SLOT = { 5: 'chess_char_5_diy1_a', 6: 'chess_char_6_diy1_a' };
+/** The promoted piece of 予愿安洁莉娜 (a tier-5 PRESET chess: shared/promoted.js, the owner's plan of 2026-10-12). */
+const PIECE = { a: 'chess_char_1015_aglna2_a', b: 'chess_char_1015_aglna2_b' };
 const STAGE = { 5: 1, 6: 3 };
 const statusOf = (tier, elite) => (elite ? `2/60/7/${STAGE[tier]}` : '2/1/4/0');
 
@@ -101,23 +104,20 @@ test('the data: deploy limit / holding = the attribute frame + the token talents
 
 test('#24 a summon no owner shows is never a hand card: 予愿安洁莉娜 S3\'s “一会儿见！” is not placeable, every placeable summon is displayed', () => {
   const MARKER = 'token_10071_aglna2_agairp';
-  const AGLNA2 = 'char_1015_aglna2';
-  assert.equal(BACKUPS.tokens[MARKER].placeable, false);
+  const TOKENS = load('tokens');
+  // her marker shows no owner (no `display` source): with the promotion it is data/tokens.json's (a chess summon), not a
+  // 自选 record's (data/backups.json tokens)
+  assert.equal((TOKENS[MARKER] ?? BACKUPS.tokens[MARKER]).placeable, false);
+  assert.ok(TOKENS[MARKER] && !BACKUPS.tokens[MARKER], 'the marker moved to the chess-side token table');
   const shows = (v) => (v.sources ?? []).includes('display') || Object.values(v.bySkill ?? {}).some((a) => (a.sources ?? []).includes('display'));
   for (const t of [...Object.values(load('tokens')), ...Object.values(BACKUPS.tokens)]) {
     if (t.kind !== 'summon') continue;
     if (t.placeable) assert.ok(Object.values(t.variants).some(shows), `${t.tokenId} ${t.name}: placeable and displayed`);
     else if (!Object.values(t.variants).some(shows)) assert.ok(t.displayType === 'HIDDEN' || t.tokenId === MARKER, `${t.tokenId} ${t.name}: undisplayed ⇒ HIDDEN (or the marker)`);
   }
-  for (const tier of [5, 6]) {
-    for (const elite of [false, true]) {
-      const slot = diySlot(SLOT[tier], DATA);
-      const id = elite ? slot.goldenId : slot.baseId;
-      for (const skillIndex of [0, 1, 2]) {
-        const rec = diyRecord(SLOT[tier], { charId: AGLNA2, skillIndex, uniEquipId: null }, { elite, data: DATA });
-        const view = diyGameData(gd, new Map([[id, rec]]));
-        assert.deepEqual(view.placeableTokens(id, { skillIndex, moduleId: null }), [], `T${tier} ${elite ? 'elite' : 'normal'} S${skillIndex + 1}: no hand piece`);
-      }
+  for (const id of [PIECE.a, PIECE.b]) {
+    for (const skillIndex of [0, 1, 2]) {
+      assert.deepEqual(gd.placeableTokens(id, { skillIndex, moduleId: null }), [], `${id} S${skillIndex + 1}: no hand piece`);
     }
   }
 });

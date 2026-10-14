@@ -1,7 +1,9 @@
-// server/sim/content/kits/ops/op-aglna2.js — 予愿安洁莉娜 (char_1015_aglna2) 自选 operator kit: 6★ 巡空者 (特种), an
-// owned-6★ pick of the tier-5 and tier-6 自选 slots (no module); every skill, both talents, the trait at every form, and
-// the kit of her S3 marker “一会儿见！” (token_10071_aglna2_agairp). Kit contract and the 自选 rules: ../README.md ("How
-// to add an operator (自选)").
+// server/sim/content/kits/ops/op-aglna2.js — 予愿安洁莉娜 (char_1015_aglna2) operator kit: 6★ 巡空者 (特种). Filed as a 自选
+// pick of the tier-5 and tier-6 slots until the fork promoted her into the 可用 roster on 2026-10-12 (shared/promoted.js,
+// docs/design/fork.md §F8); her piece `chess_char_1015_aglna2_a` / `_b` (等级 5, 费用 4, default skill S3) runs this kit
+// through kits/index.js PROMOTED_KITS. Every skill, both talents, the trait at every form (she has no module), and the kit
+// of her S3 marker “一会儿见！” (token_10071_aglna2_agairp). Kit contract and the 自选 rules: ../README.md ("How to add an
+// operator (自选)").
 //
 // Forms (data/backups.json units.char_1015_aglna2): normal = E2 Lv1, skills at rank 4; elite = E2 Lv60, rank 7 — the
 // owner's decision of 2026-10-05; she has no module. Full potential (the owner's decision of 2026-10-07). Sources: character_table /
@@ -58,6 +60,7 @@
 //   with S3 and this kit used it as the marker) and the skill summons it each time.
 
 import { num, talentBb, skillRec, batMod, up, installAura, toggleBuff } from '../shared/tier1.js';
+import { aglna2MarkerKit } from '../../tokens.js';
 import { absoluteRangeKeys, canTargetEnemy, sortEnemyTargets } from '../../../targeting.js';
 import { bodyInKeys } from '../../../body.js';
 import { hasHp } from '../../../damage.js';
@@ -96,17 +99,6 @@ function takeOff(battle, unit) {
   battle.fx('takeoff', { x: unit.x, y: unit.y, id: unit.id });
 }
 function land(battle, unit) { battle.releaseBlocked(unit); }   // the flyers she held
-
-/** “一会儿见！”'s kit: 无敌, 孤立, not selectable by enemies, blocks nothing, no attack, no skill. */
-function markerKit() {
-  return {
-    skill: null,
-    trait: { noAttack: true },
-    install(battle, t) {
-      battle.addBuff(t, { key: 'trait:aglna2:marker', flags: { invulnerable: true, untargetable: true, isolated: true, noBlock: true, noHeal: true }, persist: true, allowDead: true });
-    },
-  };
-}
 
 /** S2's sweep from (x0, y0) along `fwd`: each selectable enemy once — an air unit 缚地 `gb` s, any other 浮空 `lev` s. */
 function glide(battle, unit, lev, gb) {
@@ -175,7 +167,7 @@ export default {
     }
     function placeMarker(battle, unit) {
       if (!st || (st.marker && st.marker.alive)) return;
-      st.marker = battle.spawnToken(unit, MARKER, st.r0, st.c0, { kit: markerKit() });
+      st.marker = battle.spawnToken(unit, MARKER, st.r0, st.c0, { kit: aglna2MarkerKit() });
     }
     function dropMarker(battle) {
       const m = st && st.marker;

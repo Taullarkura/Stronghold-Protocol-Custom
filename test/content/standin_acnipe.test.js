@@ -1,7 +1,9 @@
 // test/content/standin_acnipe.test.js — the 补位 stand-in Stormeye (char_611_acnipe, kits/ops/standin-acnipe.js) on every
-// chess it replaces (空弦 T3 S3, 莫斯提马 T4 S2, 百炼嘉维尔 / 妮芙 T5 S3 + MAR-X, 蕾缪安 / 异客 T6 S3 + MAR-X), normal and elite:
+// chess it replaces (空弦 T3 S3, 百炼嘉维尔 / 妮芙 T5 S3 + MAR-X, 蕾缪安 / 异客 T6 S3 + MAR-X), normal and elite:
 // every skill (S1 破空, S2 心手合一, S3 旋臂 with its extra hit), both talents (风坠 on every damage instance, 风雨欲来), the
 // module (MAR-X ×1.1 on air units, stats, 风坠 190 % at level 3), the data triggers, anti-air and the 'fly' priority.
+// 莫斯提马 (chess_char_4_02, T4) was the only chess naming S2 心手合一; the fork demoted her on 2026-10-13
+// (shared/diyOnly.js), so no chess carries it any more and its behaviour runs through an explicit `standIn: { skillIndex }`.
 // Run: node --test test/content/standin_acnipe.test.js
 
 import { test } from 'node:test';
@@ -45,7 +47,7 @@ const done = (h) => { assert.deepEqual(h.b.errors.map((e) => `${e.label} ${e.mes
 const hits = (h, u, t0 = -1) => h.hooksOf('damaged').filter((c) => c.source === u && c.t >= t0);
 
 test('Stormeye on every chess it replaces: the stand-in body, its kit (never generic), the chess backup skill, the module on the T5 / T6 elites only; anti-air, fly first, ground-targetable', () => {
-  assert.equal(RECORDS.length, 12);
+  assert.equal(RECORDS.length, 10);
   for (const id of RECORDS) {
     const c = CHESS[id];
     const form = formOf(id), mod = moduleOf(id);
@@ -102,9 +104,10 @@ test('S1 破空: ATK +15 %, ASPD +30 / +50, 100 DEF ignored on her hits, for 20 
 });
 
 test('S2 心手合一 (自动触发): no enemy, no cast; with one it casts at her attack — ATK +5 %, one extra target per attack, endless and no SP meanwhile; a knock-out ends it', () => {
-  for (const id of ['chess_char_4_02_a', 'chess_char_4_02_b']) {
+  // 莫斯提马's two records were the only ones naming S2 (above); the harness's explicit `standIn: { skillIndex }` fields it
+  for (const [id, sel] of [['chess_char_3_21_a', { skillIndex: 1 }], ['chess_char_3_21_b', { skillIndex: 1, moduleId: 'none' }]]) {
     const sk = skillOf(id, S2);
-    const h = arena(id, { timeLimit: 400, enemies: [{ key: 'd', pos: [10, 6], time: 5 }, { key: 'd', pos: [9, 6], time: 5 }] });
+    const h = arena(id, { standIn: sel, timeLimit: 400, enemies: [{ key: 'd', pos: [10, 6], time: 5 }, { key: 'd', pos: [9, 6], time: 5 }] });
     const u = h.unit(1);
     h.run(4.9);
     assert.equal(u.skill.activations, 0, `${id}: full SP, nobody to attack — no cast`);

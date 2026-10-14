@@ -285,6 +285,7 @@ const BY_HAND = new Map([
   ['skchr_lionhd_2', 'instant: the burst hits the 3-3 skill range at its cast (kit onStart); no lasting range'],
   ['skchr_fartth_3', '前方无限长的直线 (CUSTOM_RANGE kit line)'],
   ['skchr_agoat2_3', '整个战场 (WHOLE_FIELD)'],
+  ['skchr_aglna2_3', 'the data 3-9 ∪ the 8 tiles around her (the kit\'s own grid), anchored on her deployment tile after her 【移动】'],
 ]);
 
 function rangeSkills() {

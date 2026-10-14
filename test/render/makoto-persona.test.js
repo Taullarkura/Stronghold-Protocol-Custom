@@ -126,7 +126,7 @@ test('sim → view: the real 结城理\'s cast puts UnitInfo `form` on the perso
     const h = makeBattle({
       autoFinish: false, timeLimit: 60, captureNoisy: true, flags: { dpPerSec: 0, dpMax: 999 },
       defs: { enemies: { enemy_dummy: enemyRec({ key: 'enemy_dummy', hp: 1e9, atk: 0, speed: 0, mass: 0 }) } },
-      units: [{ uid: 1, diy: { slot: 'chess_char_6_diy1_a', charId: MAKOTO, skillIndex: skill, uniEquipId: null }, elite: true, row: 10, col: 5, carryState: { sp: 999 } }],
+      units: [{ uid: 1, chessId: 'chess_char_4217_makoto_b', skillIndex: skill, moduleId: 'none', row: 10, col: 5, carryState: { sp: 999 } }],
       enemies: [{ key: 'enemy_dummy', pos: [10, 6] }],
     });
     h.step();

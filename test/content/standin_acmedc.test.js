@@ -1,8 +1,9 @@
 // test/content/standin_acmedc.test.js — the Touch (char_613_acmedc) 补位 stand-in kit (kits/ops/standin-acmedc.js) on every
-// chess she replaces: 5 塞雷娅, 6 塑心 / 纯烬艾雅法拉 (all S3, module PHY-X on the elite); S1 / S2 through the harness
-// `standIn: { skillIndex }`. S3 and the talents are content/tokens.js touchGospel / mapCharTalents, the implementation the
-// 外勤医疗 strategy's Touch runs (test/content/tokens_devices.test.js). Triggers: S1 DEFAULT, S2 / S3 ACTIVE_RANGE (the
-// owner's rule of 2026-10-05, a heal skill: an injured ally inside the running range).
+// chess she replaces: 5 塞雷娅, 6 纯烬艾雅法拉 (all S3, module PHY-X on the elite); S1 / S2 through the harness
+// `standIn: { skillIndex }`. (塑心 left her records: the fork fields her through a 自选 slot since 2026-10-12 —
+// shared/diyOnly.js — and a 自选 piece carries no 补位 stand-in.) S3 and the talents are content/tokens.js touchGospel /
+// mapCharTalents, the implementation the 外勤医疗 strategy's Touch runs (test/content/tokens_devices.test.js). Triggers:
+// S1 DEFAULT, S2 / S3 ACTIVE_RANGE (the owner's rule of 2026-10-05, a heal skill: an injured ally inside the running range).
 // Run: node --test test/content/standin_acmedc.test.js
 
 import { test } from 'node:test';
@@ -55,8 +56,8 @@ function battle(touch, allies, opts = {}) {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-test('Touch fields on all 6 records she replaces: her body (+ PHY-X attributes on the elites), S3 恳切福音 everywhere, her own kit, ACTIVE_RANGE on the 5-2', () => {
-  assert.equal(RECORDS.length, 6);
+test('Touch fields on all 4 records she replaces: her body (+ PHY-X attributes on the elites), S3 恳切福音 everywhere, her own kit, ACTIVE_RANGE on the 5-2', () => {
+  assert.equal(RECORDS.length, 4);
   for (const id of RECORDS) {
     const c = CHESS[id];
     const form = formOf(id);
@@ -80,7 +81,7 @@ test('Touch fields on all 6 records she replaces: her body (+ PHY-X attributes o
 });
 
 test('S3 恳切福音: cast with an injured ally inside the 5-2 only (no heal before); 40 s on the 5-2, 2 targets, ×1.35 / ×1.40 below half HP, +30 % extra heal', () => {
-  for (const [id, atk, boost] of [['chess_char_5_11_a', 0.2, 1.35], ['chess_char_6_20_a', 0.2, 1.35], ['chess_char_6_09_b', 0.3, 1.4]]) {
+  for (const [id, atk, boost] of [['chess_char_5_11_a', 0.2, 1.35], ['chess_char_6_20_a', 0.2, 1.35], ['chess_char_6_20_b', 0.3, 1.4]]) {
     const phy = moduleOf(id) ? 1.15 : 1;
     const sk = skillOf(id, S3);
     assert.deepEqual([sk.bb.atk, sk.bb.heal_scale, sk.bb['attack@addition_heal_scale'], sk.duration], [atk, boost, 0.3, 40]);
@@ -123,7 +124,7 @@ test('S3 恳切福音: cast with an injured ally inside the 5-2 only (no heal be
 });
 
 test('S3 extra heal (PRTS 备注): 30 % of the main heal\'s base, its own recipient\'s ×heal_scale (and PHY-X); the lowest HP ratio of the main target and its 4 neighbours; exactly half HP is not 「低于」', () => {
-  for (const id of ['chess_char_5_11_a', 'chess_char_6_09_b']) {
+  for (const id of ['chess_char_5_11_a', 'chess_char_6_20_b']) {
     const phy = moduleOf(id) ? 1.15 : 1;
     const boost = skillOf(id, S3).bb.heal_scale;
     // the main target on (10,8) (inside the 5-2, outside her 3-3); its neighbour (10,9) is beyond the 5-2 (never a main target)
@@ -190,7 +191,7 @@ test('S1 慨赠: cast on an injured ally in her range; 20 s of ATK +40 % / +50 %
 });
 
 test('S2 宛如天启: cast with an injured ally inside the 3-10 only; 30 s on the 3-10, 2 targets, every 医疗 operator of hers ATK +21 % / +30 % (herself too)', () => {
-  for (const [id, v] of [['chess_char_6_09_a', 0.21], ['chess_char_6_09_b', 0.3]]) {
+  for (const [id, v] of [['chess_char_5_11_a', 0.21], ['chess_char_6_20_b', 0.3]]) {
     const sk = skillOf(id, S2);
     assert.deepEqual([sk.bb['attack@atk'], sk.bb['attack@max_target'], sk.duration, sk.trigger.rule], [v, 2, 30, 'ACTIVE_RANGE']);
     const h = battle({ id, standIn: { skillIndex: 1 } }, [['test_tank_a', 10, 7, 0.6], ['test_medic_a', 12, 2, 1], ['test_tank2_a', 9, 4, 1]]);
@@ -218,7 +219,7 @@ test('S2 宛如天启: cast with an injured ally inside the 3-10 only; 30 s on t
     checkInvariants(h.b);
   }
   // an injured ally on (10,8) is beyond the 3-10: no cast
-  const h = battle({ id: 'chess_char_6_09_a', standIn: { skillIndex: 1 }, carry: { sp: 999 } }, [['test_tank_a', 10, 8, 0.3]]);
+  const h = battle({ id: 'chess_char_5_11_a', standIn: { skillIndex: 1 }, carry: { sp: 999 } }, [['test_tank_a', 10, 8, 0.3]]);
   h.run(5);
   assert.equal(h.unit(1).skill.activations, 0);
 });
@@ -270,7 +271,7 @@ test('超脱 on 史尔特尔\'s 余烬 exit (PRTS 备注 "如史尔特尔的天�
 });
 
 test('攫升 (PRTS 备注 "只需Touch输出治疗便能触发（无需实际产生治疗量）"): her heal on herself and a heal that restores nothing (S3\'s extra heal on a full unit) give SP too', () => {
-  for (const id of ['chess_char_5_11_a', 'chess_char_6_09_b']) {
+  for (const id of ['chess_char_5_11_a', 'chess_char_6_20_b']) {
     // herself: injured, she heals herself (her 3-3 holds her own tile)
     let h = battle({ id }, []);
     let u = h.unit(1);
@@ -298,7 +299,7 @@ test('攫升 (PRTS 备注 "只需Touch输出治疗便能触发（无需实际产
 });
 
 test('module PHY-X (elites): every heal of hers on an ally below 50 % HP ×1.15 — none at or above it, none on the normal chess', () => {
-  for (const id of ['chess_char_5_11_a', 'chess_char_5_11_b', 'chess_char_6_09_b']) {
+  for (const id of ['chess_char_5_11_a', 'chess_char_5_11_b', 'chess_char_6_20_b']) {
     const mod = moduleOf(id);
     if (mod) assert.deepEqual([mod.traitOverride.bb.heal_scale, mod.traitOverride.bb.hp_ratio], [1.15, 0.5]);
     for (const [ratio, mul] of [[0.3, mod ? 1.15 : 1], [0.5, 1], [0.8, 1]]) {

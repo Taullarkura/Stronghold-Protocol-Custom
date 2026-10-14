@@ -450,11 +450,12 @@ test('a deploy-time passive fires the skill animation window; a deploy-timed ski
   assert.deepEqual(h.eventsOf('skill').map((e) => e[2]), [1, 0], 'and closes 0.5 s later');
   assert.equal(u.skill.active, true, 'the passive itself never ends');
 
-  // a deploy-timed skill (缄默德克萨斯 S2 阵雨连绵, 8 s) is a real duration skill since PR #109: on at the deployment
+  // a deploy-timed skill (砾 S2 鼠群, a 10 s window) is a real duration skill since PR #109: on at the deployment
   // (its own skill event, no 0.5 s window), off when the duration runs out, not ready again in that deployment
-  const t = makeBattle({ units: [{ chessId: 'chess_char_4_16_a', row: 10, col: 6, skillIndex: 1 }], autoFinish: false, timeLimit: 30 });
+  // (carrier: 砾 — 缄默德克萨斯's chess left the roster on 2026-10-12, FORK 自选-ONLY, shared/diyOnly.js)
+  const t = makeBattle({ units: [{ chessId: 'chess_char_2_12_a', row: 10, col: 6, skillIndex: 1 }], autoFinish: false, timeLimit: 30 });
   t.run(0.6);
-  const tx = t.unit('chess_char_4_16_a');
+  const tx = t.unit('chess_char_2_12_a');
   assert.equal(tx.skill.kind, 'duration');
   assert.equal(tx.skill.active, true);
   assert.deepEqual(t.eventsOf('skill').map((e) => e[2]), [1], 'on at the deployment');

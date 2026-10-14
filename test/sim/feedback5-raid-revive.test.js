@@ -12,26 +12,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 
-const TEX = 'chess_char_4_16_a';
+const TEX = 'chess_char_1_18_a';   // 宴: a 突袭 member whose default skill is deploy-timed (缄默德克萨斯 left the roster
+                                   // on 2026-10-12 — FORK 自选-ONLY, shared/diyOnly.js; her old chess id would only resolve
+                                   // through Node's research fallback, and a 自选 piece carries no 盟约)
 const DUMMY = { enemy_rv: enemyRec({ key: 'enemy_rv', hp: 1e9, speed: 0, mass: 0, atk: 0 }) };
 const RAID = { raidShip: { count: 3, active: true, tier: 1, layers: 10 } };
 
 /**
- * 缄默德克萨斯 (S3, a 6 s deploy-timed skill) in 突袭 with `extra` (items / band): she jumps to a parked enemy, stays past her
+ * 宴 (S2, a 14 s deploy-timed skill) in 突袭 with `extra` (items / band): she jumps to a parked enemy, stays past her
  * window, the enemy is removed, she is knocked out with nothing in range, a new enemy parks away from her. Returns how long
  * after the knock-out her next jump comes (null: none within 15 s) and her skill state right after the revive.
  */
 function reviveAndJump({ items, bandId = null, bonds = {} }) {
   const h = makeBattle({
     seed: 3, autoFinish: false, timeLimit: 120, hooks: ['deploy', 'death'], defs: { enemies: DUMMY }, bandId,
-    bonds: { ...RAID, ...bonds }, enemies: [{ key: 'enemy_rv', pos: [9, 9] }], units: [{ chessId: TEX, row: 12, col: 3, skillIndex: 2, items }],
+    bonds: { ...RAID, ...bonds }, enemies: [{ key: 'enemy_rv', pos: [9, 9] }], units: [{ chessId: TEX, row: 12, col: 3, skillIndex: 1, items }],
   });
   h.step();
   const u = h.unit(TEX);
   const jumps = () => h.hooksOf('deploy').filter((c) => c.unit === u && !c.initial);
   assert.ok(h.runUntil(() => jumps().length >= 1, 10), 'her first jump');
-  h.run(8);
-  assert.equal(u.skill.active, false, 'her 6 s window is over');
+  h.run(u.skill.duration + 1);
+  assert.equal(u.skill.active, false, `her ${u.skill.duration} s window is over`);
   for (const e of h.b.enemies.filter((x) => x.alive)) h.b.kill(e, null);
   const t0 = h.b.time;
   h.b.dealDamage(null, u, { amount: 1e9, type: 'true' });
@@ -44,11 +46,11 @@ function reviveAndJump({ items, bandId = null, bonds = {} }) {
   return { after: jumped ? h.b.time - t0 : null, state, u, h };
 }
 
-test('M3茧甲 / 埃芒加德 revive 缄默德克萨斯 in place: her deploy-timed S3 runs again and she jumps at once (until 0.2.0 only after the 10 s idle)', () => {
+test('M3茧甲 / 埃芒加德 revive 宴 in place: her deploy-timed S2 runs again and she jumps at once (until 0.2.0 only after the 10 s idle)', () => {
   for (const [label, opts] of [['M3茧甲', { items: ['chess_item_4_12_e_a'] }], ['埃芒加德', { bandId: 'band_ermengard' }]]) {
     const { after, state } = reviveAndJump(opts);
     assert.ok(state.alive, `${label}: revived in place`);
-    assert.ok(state.active, `${label}: her deploy-timed S3 runs again`);
+    assert.ok(state.active, `${label}: her deploy-timed S2 runs again`);
     assert.ok(after != null && after < 1, `${label}: jumped ${after?.toFixed(2)} s after the knock-out`);
   }
 });
@@ -59,7 +61,7 @@ test('不屈\'s 立刻重新部署 (a real redeploy) already jumped at once — 
 });
 
 test('an in-place revive inside the window sets it back to its full length; 砾 revived by M3茧甲 gets a fresh barrier', () => {
-  const h = makeBattle({ seed: 3, autoFinish: false, timeLimit: 60, units: [{ chessId: TEX, row: 12, col: 3, skillIndex: 2, items: ['chess_item_4_12_e_a'] }] });
+  const h = makeBattle({ seed: 3, autoFinish: false, timeLimit: 120, units: [{ chessId: TEX, row: 12, col: 3, skillIndex: 1, items: ['chess_item_4_12_e_a'] }] });
   h.step();
   const u = h.unit(TEX);
   h.run(3);

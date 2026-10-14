@@ -1,5 +1,6 @@
 // test/content/standin_acsupo.test.js — the 补位 stand-in Raidian (char_614_acsupo, kits/ops/standin-acsupo.js) on every
-// chess it replaces (灵知 T4 S2, 夕 / 安洁莉娜 T5 S3 + DEC-X, 浊心斯卡蒂 / 仇白 T6 S3 + DEC-X), normal and elite: every skill
+// chess it replaces (灵知 T4 S2, 夕 T5 / 浊心斯卡蒂 / 仇白 T6 S3 + DEC-X, 安洁莉娜 S3 + DEC-X — her tier is 4 since the
+// owner's plan of 2026-10-12, shared/chessAdjust.js), normal and elite: every skill
 // (S1 双声, S2 三形, S3 信号跃动 with its range, auras and the data's ACTIVE_RANGE trigger), both talents (同调 on herself and
 // the operators next to her, 诱引's hit-rate cut on the attacks of the enemies in her range — PRTS 命中率), the module
 // (DEC-X SP, stats, 同调 at level 3), the 停顿 trait, anti-air; and the engine option behind S3's 虚弱 (applyStatus stackAs).
@@ -46,7 +47,7 @@ function arena(chessId, { standIn = true, enemies = [], units = [], sp = 999, se
 const done = (h) => { assert.deepEqual(h.b.errors.map((e) => `${e.label} ${e.message}`), []); checkInvariants(h.b); };
 const castOf = (h, u) => h.hooksOf('skillStart').find((c) => c.unit === u);
 
-test('Raidian on every chess it replaces: the stand-in body, its kit, the backup skill (S2 for 灵知, S3 else), DEC-X on the T5 / T6 elites; arts + 停顿 0.8 s, anti-air', () => {
+test('Raidian on every chess it replaces: the stand-in body, its kit, the backup skill (S2 for 灵知, S3 else), DEC-X on the elites that carry it; arts + 停顿 0.8 s, anti-air', () => {
   assert.equal(RECORDS.length, 10);
   for (const id of RECORDS) {
     const c = CHESS[id];
@@ -57,8 +58,8 @@ test('Raidian on every chess it replaces: the stand-in body, its kit, the backup
     const u = h.unit(1);
     const where = `${id} ${c.name}`;
     assert.deepEqual([u.def.charId, u.def.standInFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [RAID, c.charId, sk.skillId, false, 'skills'], where);
-    assert.equal(sk.skillId, c.tier === 4 ? S2 : S3, where);
-    assert.equal(!!u.def.raw.module?.active, !!mod, `${where}: module only on the T5 / T6 elite`);
+    assert.equal(sk.skillId, c.backup.skillIndex === 1 ? S2 : S3, where);   // the chess's own selection (灵知 S2, the rest S3)
+    assert.equal(!!u.def.raw.module?.active, !!mod, `${where}: module only on an elite that names one`);
     if (mod) assert.equal(u.def.raw.module.level, c.tier === 6 ? 3 : 1, where);
     assert.equal(u.base.atk, form.stats.atk + (mod ? mod.attr.atk : 0), `${where}: ATK`);
     assert.equal(u.base.maxHp, form.stats.maxHp + (mod ? mod.attr.maxHp : 0), `${where}: HP`);

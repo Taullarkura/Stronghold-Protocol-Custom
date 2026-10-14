@@ -571,6 +571,11 @@ export class SpineActor {
     this.attackUntil = this.clock + lead + (set.loop ? iv + 0.5 : Math.max(0, dur - hit) / Math.max(0.05, ts));
     this._engage(set, ts, plan.start, begin, Math.min(this._m(MIX.swingIn), lead), hit);
     this.swingAt = at;
+    // the deadline and the speed the swing returns to (upstream 0.2.3): a form switch while it is pending keeps both
+    // (syncFormPose), and update() settles it at the strike — attack() clears them, the attack happened
+    this.windTs = ts;
+    this.windUntil = this.clock + lead;
+    this.wound = true;
     return true;
   }
 
@@ -606,6 +611,8 @@ export class SpineActor {
     // a safety net: the loop ends at its cycle, a one-shot with its clip (update)
     this.attackUntil = this.clock + (whole ? dur / Math.max(0.05, ts)
       : set.loop ? Math.max(0.45, this.interval * 1.4) : Math.max(0, dur - hit) / Math.max(0.05, ts));
+    this.windUntil = null;   // the wind-up is consumed: the swing (if any) goes on at this attack's speed
+    this.wound = false;
     if (swinging) { if (now === set.clip) e.timeScale = ts; return; }
     // no swing under way (a batch that arrived late, or right after a skill clip): the sim already resolved the hit,
     // so the strike frame shows now — or, for a clip-per-attack enemy with room in its rhythm, the whole clip (#246)
@@ -885,6 +892,12 @@ export class SpineActor {
       this.endClip = null;
       if (this.endRoles) { this.formRoles = this.endRoles; this.roles = { ...this._baseRoles(), ...this.endRoles }; }
       if (!this.dead) this._change(clip);
+    }
+    if (this.windUntil != null && this.clock >= this.windUntil) {
+      // a wind-up reached its strike frame: back to the rhythm speed (attack() also does it, the attack happened)
+      this.windUntil = null;
+      const e = this.spine.state.tracks[0];
+      if (e && this.mode === 'attack') e.timeScale = this.windTs;
     }
     switch (this.mode) {
       case 'attack': {

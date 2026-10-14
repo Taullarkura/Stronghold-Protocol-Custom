@@ -1,6 +1,9 @@
 // test/content/standin_acspec.test.js — the 补位 stand-in Misery (char_615_acspec, 6★ 特种·处决者; kit
-// server/sim/content/kits/ops/standin-acspec.js) on every chess she replaces: 缄默德克萨斯 (tier 4, S2), 山 (tier 5, S3 +
-// EXE-X), 新约能天使 / 锏 (tier 6, S3 + EXE-X), normal (E2 Lv1, skill 4) and elite (E2 Lv60, skill 7). Her three skills
+// server/sim/content/kits/ops/standin-acspec.js) on every chess she replaces: 山 (tier 5, S3 + EXE-X),
+// 新约能天使 / 锏 (tier 6, S3 + EXE-X), normal (E2 Lv1, skill 4) and elite (E2 Lv60, skill 7); her S1 / S2 — no chess
+// names them (缄默德克萨斯, the chess whose backup said S2, left the roster on 2026-10-12: FORK 自选-ONLY, shared/diyOnly.js)
+// — are fielded through `standIn: { skillIndex }` on 山, the same 练度 as her former tier-4 pair (kits/README.md "another
+// skill of the stand-in"). Her three skills
 // are ON_DEPLOY passives: they start at every deployment — at the battle start no enemy is on the field yet, so S3 hits
 // nothing there and matters on a redeploy (再部署时间大幅度减少: 18 s). S1 / S2 last 10 s: since 0.2.0 they are duration skills
 // started by every deployment (activateOnDeploy — PR #109's deploy-timed contract, their own skillStart / skillEnd), no
@@ -32,6 +35,12 @@ function battle(units, o = {}) {
   });
 }
 const MISERY = (id, standIn = true) => ({ chessId: id, row: 10, col: 4, standIn });
+/**
+ * Hosts for Misery's skills no chess names (`standIn: { skillIndex }`, kits/README.md): 山 (tier 5, the same 练度 as her
+ * former tier-4 chess — 缄默德克萨斯, the one whose backup said S2, left the roster on 2026-10-12: FORK 自选-ONLY,
+ * shared/diyOnly.js).
+ */
+const MISERY_HOST = ['chess_char_5_17_a', 'chess_char_5_17_b'];
 const atkHits = (h, u) => h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack);
 const tagged = (h, u, tag) => h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes(tag));
 const talentBb = (u, i) => u.def.raw.talents.find((t) => t.index === i)?.bb ?? {};
@@ -40,9 +49,9 @@ function done(h) {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
 
-test('Misery on every chess she replaces (normal + elite): her body (再部署 18 s), the backup skill (S2 a deploy-timed duration skill, S3 a passive), this kit; EXE-X on the tier-5 / 6 elites only', () => {
+test('Misery on every chess she replaces (normal + elite): her body (再部署 18 s), the backup skill (S3, a deploy-timed passive), this kit; EXE-X on the tier-5 / 6 elites only', () => {
   const ids = UNIT.standsIn.flatMap((a) => [a, a.replace(/_a$/, '_b')]);
-  assert.equal(ids.length, 8);
+  assert.equal(ids.length, 6);   // 缄默德克萨斯 left the roster (FORK 自选-ONLY, shared/diyOnly.js, 2026-10-12)
   const withModule = [];
   for (const id of ids) {
     const c = CHESS[id], form = formOf(id);
@@ -64,7 +73,7 @@ test('Misery on every chess she replaces (normal + elite): her body (再部署 1
     done(h);
   }
   assert.deepEqual(withModule, ['chess_char_5_17_b L1', 'chess_char_6_13_b L3', 'chess_char_6_19_b L3']);
-  assert.deepEqual(ids.map((id) => CHESS[id].backup.skillIndex), [1, 1, 2, 2, 2, 2, 2, 2]);
+  assert.deepEqual(ids.map((id) => CHESS[id].backup.skillIndex), [2, 2, 2, 2, 2, 2]);
 });
 
 test('Misery 二象命末: each attack is a double hit with attack@prob (10 %; EXE-X level 3: 15 % and ATK +5 %)', () => {
@@ -134,10 +143,10 @@ test('Misery EXE-X (山 精锐): ATK +10 % while no ally stands on the four tile
   assert.equal(run(true, null, 'chess_char_5_17_a'), false, 'normal chess');
 });
 
-test('Misery S1 物理的服从 (no chess names it — a 自选 slot may): for 10 s from every deployment, physical dodge 45 % / 60 % and the talent-1 chance 25 %', () => {
-  for (const id of ['chess_char_4_16_a', 'chess_char_4_16_b']) {
+test('Misery S1 物理的服从 (no chess names it — the stand-in may be fielded with it): for 10 s from every deployment, physical dodge 45 % / 60 % and the talent-1 chance 25 %', () => {
+  for (const id of MISERY_HOST) {
     const sk = formOf(id).skills[0], bb = sk.bb;
-    const h = battle([MISERY(id, { skillIndex: 0 })]);
+    const h = battle([MISERY(id, { skillIndex: 0, moduleId: 'none' })]);
     h.step();
     const u = h.unit(1);
     assert.deepEqual([u.skill.id, u.skill.kind, u.skill.duration, sk.duration], ['skchr_acspec_1', 'duration', 10, 10]);
@@ -159,10 +168,11 @@ test('Misery S1 物理的服从 (no chess names it — a 自选 slot may): for 1
   }
 });
 
-test('Misery S2 战争的恭顺 (缄默德克萨斯): for 10 s from every deployment ATK +30 % / +45 % and ASPD +15', () => {
-  for (const id of ['chess_char_4_16_a', 'chess_char_4_16_b']) {
+test('Misery S2 战争的恭顺 (缄默德克萨斯, the skill her former chess named): for 10 s from every deployment ATK +30 % / +45 % and ASPD +15', () => {
+  for (const id of MISERY_HOST) {
     const sk = formOf(id).skills[1], bb = sk.bb;
-    const h = battle([MISERY(id)]);
+    // module none: the skill's own numbers (her former tier-4 chess named no module either)
+    const h = battle([MISERY(id, { skillIndex: 1, moduleId: 'none' })]);
     h.step();
     const u = h.unit(1);
     assert.deepEqual([u.skill.id, u.skill.kind, u.skill.duration, sk.duration], ['skchr_acspec_2', 'duration', 10, 10]);

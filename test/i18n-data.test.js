@@ -98,9 +98,20 @@ test('data/i18n/en.json: shape, the 盟约 season of the EN build, coverage and 
   // the 自选 data (0.2.0) brings 71 owned 6★, some of them (and some newer modules) not in the EN client yet: their
   // names, skills, talents and modules stay Chinese — measured 97.6 % in all, skills 95.9 / talents 95.1 % (2026-10-05).
   // Fork (docs/design/fork.md §F6): the 7 collab picks come back, and 焰狐龙梓兰 / 结城理 are in no EN client — 97.3 % in
-  // all, skills 95.5 / talents 94.6 % (2026-10-08): talents have a 94 % floor in this fork.
-  assert.ok(OVERLAY.meta.totals.pct >= 97, `coverage ${OVERLAY.meta.totals.pct} %`);
-  const floor = { talents: 94, operators: 95, skills: 95, modules: 95 };
+  // all, skills 95.5 / talents 94.6 % (2026-10-08). 克莱门莎 (2026-10-11) joins the visible pool as a chess piece; the CN
+  // client shipped her (and her 特质) after the EN one, so her skills / talents stay Chinese. 结城理 was promoted the same
+  // way on 2026-10-12, so his piece and its two 特质 are Chinese too (an authored 特质 is never in the official tables);
+  // 予愿安洁莉娜's promotion (§F8) puts her three skills into the chess data with it, 拉特兰's effect texts are reworded
+  // and 安洁莉娜's 特质 re-authored — all fork text the EN tables do not carry — while the demoted 缄默德克萨斯 takes her
+  // own out; the plan of 2026-10-13 (§F9) adds 真言's piece (three skills, a module, her authored skill-cast 特质) and
+  // withdraws 卡涅利安's records, and its second batch (§F10) does the same for 维伊 (three skills, a module, her authored
+  // ammo 特质) against 莫斯提马's records leaving — measured 96.2 % in all, skills 94.2 / talents 93 / operators 96.9 /
+  // modules 97.6 / garrisons 96.1 / bonds 97.1 % (2026-10-13, EN client 51.10.0). The freeze batch (§F11) authors six
+  // 特质 records (灵知's, 银灰's, 凛御银灰's granted pair: text the official tables never carry) and the plan of 2026-10-14
+  // (§F12) rewrites 休露丝's strategy effect — measured 96.2 % in all, skills 94.2 / talents 93 / operators 96.9 /
+  // modules 97.6 / garrisons 94.6 / bonds 97.1 / bands 98.9 % (2026-10-14, EN client 51.10.0).
+  assert.ok(OVERLAY.meta.totals.pct >= 96.2, `coverage ${OVERLAY.meta.totals.pct} %`);
+  const floor = { talents: 93, operators: 95, skills: 94.2, modules: 95, garrisons: 94.6, bonds: 97.1, bands: 98.9 };
   for (const kind of ['operators', 'skills', 'talents', 'modules', 'traits', 'enemies', 'bonds', 'items', 'effects', 'bands', 'garrisons', 'stages', 'tokens', 'choices', 'config']) {
     const c = OVERLAY.meta.coverage[kind];
     assert.ok(c && c.texts > 0, `coverage of ${kind}`);

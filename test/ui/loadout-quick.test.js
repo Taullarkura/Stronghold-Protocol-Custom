@@ -22,7 +22,7 @@ test('quick skill previews show the generated normal/elite SP and duration', () 
 });
 
 test('deployment skills have no SP cycle, while permanent passives remain passive (in either language)', () => {
-  for (const name of ['缄默德克萨斯', '砾', '斯卡蒂', '野鬃']) {
+  for (const name of ['予愿安洁莉娜', '砾', '斯卡蒂', '野鬃']) {
     const c = operator(name);
     for (const form of [c, chess[c.goldenId]]) {
       for (const s of form.skills.filter((s) => s.spType === 'ON_DEPLOY')) {
@@ -63,7 +63,7 @@ test('loadout attributes use the in-match block and keep obtain/rest triggers fo
     yield v;
     yield* walk(v.props?.children);
   }
-  for (const [name, trigger] of [['空弦', '<进入休整期时>'], ['星熊', '<获得时>'], ['缄默德克萨斯', '<进入休整期时>']]) {
+  for (const [name, trigger] of [['空弦', '<进入休整期时>'], ['星熊', '<获得时>'], ['予愿安洁莉娜', '<休整期结束时>']]) {
     const base = operator(name);
     for (const rec of [base, chess[base.goldenId]]) {
       const nodes = [...walk(LoadoutGarrisons({ chess: rec, m: null }))].filter((n) => n.type === GarrisonBlock);

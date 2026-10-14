@@ -125,6 +125,7 @@ export const TOKEN_IDS = Object.freeze({
   eagle2: 'token_10057_svash2_eagle2',
   eagle3: 'token_10057_svash2_eagle3',
   iceTarget: 'token_10058_sbell2_icetgt',
+  aglna2Marker: 'token_10071_aglna2_agairp',
   yanyou: 'enemy_9012_acloon',
   reserveMedic: 'char_605_cmedic',
   touch: 'char_613_acmedc',
@@ -488,6 +489,21 @@ const inert = ({ hideFromEnemies = false, block = null } = {}) => () => ({
     if (block != null) battle.addBuff(unit, { key: 'token:block', persist: true, allowDead: true, mods: { blockCnt: block } });
   },
 });
+
+/**
+ * 予愿安洁莉娜 S3's “一会儿见！” (token_aglna2_passive): 无敌, 孤立, 不可选中 by enemies, blocks nothing, no attack — the
+ * marker of her deployment tile while the skill has moved her off it (kits/ops/op-aglna2.js spawns it with this kit;
+ * tokens.json lists it as her piece's summon, so the data path builds the same kit).
+ */
+export function aglna2MarkerKit() {
+  return {
+    skill: null,
+    trait: { noAttack: true },
+    install(battle, t) {
+      battle.addBuff(t, { key: 'trait:aglna2:marker', flags: { invulnerable: true, untargetable: true, isolated: true, noBlock: true, noHeal: true }, persist: true, allowDead: true });
+    },
+  };
+}
 
 /** 医疗探机 (赫默 S2): heals nearby allies (data heal profile), self-destructs after the withdraw skill time. */
 function healDrone() {
@@ -1612,6 +1628,7 @@ const RAW_KITS = {
   [TOKEN_IDS.eagle2]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.eagle3]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.iceTarget]: inert(),
+  [TOKEN_IDS.aglna2Marker]: aglna2MarkerKit,
   [TOKEN_IDS.yanyou]: yanyouKit,
   [TOKEN_IDS.reserveMedic]: reserveMedicKit,
   [TOKEN_IDS.touch]: touchKit,

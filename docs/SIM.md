@@ -1336,7 +1336,7 @@ header of professions.js).
 | sub | behaviour |
 |---|---|
 | fastshot | FLY first; module `atk_scale` vs FLY |
-| closerange, underminer, primcaster, corecaster, ritualist, summoner, counsellor, pioneer, fearless, fighter, protector, guardian, primprotector, executor, duelist | plain profile (numbers from data; skills/talents via kits). underminer module: weaken 10 % ATK 2 s on hit |
+| closerange, underminer, primcaster, corecaster, ritualist, summoner, counsellor, pioneer, fearless, fighter, primguard, protector, guardian, primprotector, executor, duelist | plain profile (numbers from data; skills/talents via kits). underminer module: weaken 10 % ATK 2 s on hit. The 本源 branch (primcaster / primguard / primprotector) is the same plain profile: its 元素伤害 comes from kits/skills, its block count from data |
 | longrange | lowest DEF first |
 | aoesniper / splashcaster | splash 1.1 tiles around the struck target at full damage (PRTS 溅射半径一览: 扩散术师 1.1; Arknights Terra Wiki, Splash Caster); 格雷伊 1.0 (the same table's 特殊 row; TUNE.splashcaster, 1.1 until 0.1.1). The table's 炮手 1.0 has no chess in the pool; the 自选 炮手 kits (W `op-cqbw.js`, 菲亚梅塔 `op-phenxi.js`) set it in their kit trait |
 | blastcaster | `rangeAoe`: every selectable enemy on its line at once, the same damage near and far, instant (`'beam'`) — "超远距离的群体法术伤害" is the whole line, not a splash (primary: PRTS 作战机制 §AOE伤害判定 names 伊芙利特's 炎爆 a 锁定攻击范围 AoE, and 炎爆 is her next-attack skill "下次攻击造成…" (PRTS 伊芙利特 S2), so a 轰击术师 normal attack; secondary: Terra Wiki, Blast Caster; supporting: PRTS 溅射半径一览 documents no splash radius for it; community report E3). A stealthed enemy is not struck unless it is revealed or blocked (a 锁定范围 AoE cannot hit a 隐匿 unit, PRTS 作战机制) |
@@ -1389,7 +1389,7 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `killed` counts every `counted` knock-out (§1.3) and `total` only the enemies this field scheduled (`inTotal`), so it may
   exceed it; `resolved = min(total, killedInTotal + leakedInTotal)` is the HUD capsule's numerator (DESIGN §14 顶栏胶囊).
   `sp/spMax` show remaining duration/ammo as a draining bar while a timed skill is active (ammo: `ammoLeft / ammoMax`, the
-  activation's real total — 拉特兰's and 逃犯引渡手续's extra bullets included, community report #35). Units in DIE state stay 0.8 s.
+  activation's real total — 拉特兰's extra bullets (its 在场6名 effect, §F8) and 逃犯引渡手续's included, community report #35). Units in DIE state stay 0.8 s.
   Active finite zero-SP duration skills display `timeLeft/duration` using `duration` as `spMax`; after end they show
   `0/0`. This display capacity leaves runtime SP/cost unchanged; active skills carry `UF.SKILL`.
   `down: [[id, respawnAt, respawnTime, state, row, col]]` (only when non-empty) = operators lying down waiting to redeploy

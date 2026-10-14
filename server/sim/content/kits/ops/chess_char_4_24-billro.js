@@ -31,10 +31,26 @@ export default withDefaults({
     const S1 = isSel(def, 'skchr_billro_1'), S2 = isSel(def, 'skchr_billro_2'), S3 = isSel(def, 'skchr_billro_3');
     const g = grid(def.skill?.rangeGrid);
     const isCharged = (skill) => skill.maxCharges > 1 && skill.charges + 1 >= skill.maxCharges; // cast with every charge stored
+    /** S2 沙缚镣锁 (the chess's default skill): 攻击间隔缩短, ATK +10 % while charged. */
+    const s2Spec = () => ({
+      kind: 'duration',
+      mods: { batPct: batFlat(def, bb.base_attack_time) },
+      onStart({ battle, unit, skill }) {
+        const charged = isCharged(skill);
+        unit.mem.billroCharged = charged;
+        if (charged) battle.addBuff(unit, { key: 'billro:charged', mods: { atkPct: num(bb.atk, 0.1) } });
+        battle.fx(charged ? 'sandChainsCharged' : 'sandChains', { x: unit.x, y: unit.y, id: unit.id });
+      },
+      onEnd({ battle, unit }) { unit.mem.billroCharged = false; battle.removeBuff(unit, 'billro:charged'); },
+    });
     return {
       // charged S1: the skill-off trait's 不攻击 stays in force while the skill lasts (PRTS S1 备注) — no attack at all
       trait: S1 ? { canAttack: (battle, u) => !(skillActive(u) && u.mem.billroCharged) } : null,
+      // S2 沙缚镣锁 is the chess's default skill (the `skill` block below); a 自选 piece has no default — its kit's
+      // fallback never applies (content/index.js skillIsDefault: an other-body def) — so every skill is listed here as
+      // well: a 自选 pick may name any of the three (FORK 自选-ONLY, shared/diyOnly.js)
       skills: alt(def, {
+        skchr_billro_2: () => s2Spec(),
         skchr_billro_1: () => ({
           kind: 'duration',
           // [ASSUMED] a charged cast makes no attack at all: 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
@@ -77,17 +93,7 @@ export default withDefaults({
           },
         }),
       }),
-      skill: {
-        kind: 'duration',
-        mods: { batPct: batFlat(def, bb.base_attack_time) },
-        onStart({ battle, unit, skill }) {
-          const charged = isCharged(skill);
-          unit.mem.billroCharged = charged;
-          if (charged) battle.addBuff(unit, { key: 'billro:charged', mods: { atkPct: num(bb.atk, 0.1) } });
-          battle.fx(charged ? 'sandChainsCharged' : 'sandChains', { x: unit.x, y: unit.y, id: unit.id });
-        },
-        onEnd({ battle, unit }) { unit.mem.billroCharged = false; battle.removeBuff(unit, 'billro:charged'); },
-      },
+      skill: s2Spec(),
       talents: [
         { install(battle, unit) { // 生命之餐: every skill start heals 40 % max HP (×2 when charged)
           battle.on('skillStart', (c) => {

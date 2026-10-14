@@ -940,12 +940,19 @@ test('余 (elite): 阻挡 ⇒ element ×1.15 (module, elementHit); S3 gives the 
   checkInvariants(h.b);
 });
 
-test('塑心: 精神逆构 multiplies every apoptosis fill in her range once (two 塑心 do not stack); elite ×1.18 vs elite enemies', () => {
+// FORK 自选-ONLY OPERATORS (shared/diyOnly.js, 2026-10-12): 塑心's shop chess left the roster, so her kit is exercised
+// through 自选 slots — the production path (simdata getChess(slotId, { diy })): the pick names its skill and its module
+// (her chess's defaults were S1 and uniequip_002_cello). Two 塑心 can only meet in the sim — a match roster allows an
+// owned operator one slot (shared/diy.js validateDiyPicks).
+const CELLO = { charId: 'char_245_cello', a: 'chess_char_6_diy1_a', b: 'chess_char_6_diy1_b', slot2: 'chess_char_6_diy2_a', mod: 'uniequip_002_cello' };
+
+test('塑心 (a FORK 自选-ONLY operator, fielded through a 自选 slot): 精神逆构 multiplies every apoptosis fill in her range once (two 塑心 do not stack); elite ×1.18 vs elite enemies', () => {
   const h = battle({
-    units: [{ chessId: 'chess_char_6_09_a', row: 10, col: 4 }, { chessId: 'chess_char_6_09_a', row: 11, col: 4, uid: 5 }],
+    units: [{ diy: { slot: CELLO.a, charId: CELLO.charId, skillIndex: 0 }, row: 10, col: 4 },
+      { diy: { slot: CELLO.slot2, charId: CELLO.charId, skillIndex: 0 }, row: 11, col: 4, uid: 5 }],
     enemies: [{ key: 'enemy_dummy', pos: [10, 5] }],
   });
-  const u = h.unit('chess_char_6_09_a');
+  const u = h.unit(CELLO.a);
   h.step();
   const e = enemyAt(h, 'enemy_dummy');
   const got = h.b.dealDamage(null, e, { type: 'element', element: 'apoptosis', amount: 100 });
@@ -953,8 +960,8 @@ test('塑心: 精神逆构 multiplies every apoptosis fill in her range once (tw
   const other = h.b.dealDamage(null, e, { type: 'element', element: 'burn', amount: 100 });
   assert.ok(near(other, 100, 1e-9), 'other elements untouched');
   // elite vs an elite enemy: 95 % ATK × 1.33 (精神逆构 module) × 1.18 (强弱法)
-  const h2 = battle({ units: [{ chessId: 'chess_char_6_09_b', row: 10, col: 4 }], enemies: [{ key: 'enemy_elite', pos: [10, 5] }] });
-  const v = h2.unit('chess_char_6_09_b');
+  const h2 = battle({ units: [{ diy: { slot: CELLO.a, charId: CELLO.charId, skillIndex: 0, uniEquipId: CELLO.mod }, elite: true, row: 10, col: 4 }], enemies: [{ key: 'enemy_elite', pos: [10, 5] }] });
+  const v = h2.unit(CELLO.b);
   assert.ok(h2.runUntil(() => h2.dmg.some((d) => d.src === v.id && d.element === 'apoptosis' && d.tags.includes('skill')), 10));
   const sk = h2.dmg.find((d) => d.src === v.id && d.element === 'apoptosis' && d.tags.includes('skill'));
   const want = v.s.atk * v.def.skill.bb.ep_damage_ratio * v.def.talents[1].bb.ep_damage_scale * v.def.traitBb.ep_damage_scale;

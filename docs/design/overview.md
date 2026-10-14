@@ -11,7 +11,7 @@ In scope:
 - Difficulties: 标准 FUNNY, 险境 NORMAL, 绝境 HARD, 终极 ABYSS (solo and multi variants from `modeDataDict`). Training/tutorial mode is out of scope.
 - Pre-game: INFO_CHECK briefing (disabled bonds, banned operators, enemy factions, stage) → BAND_CHECK strategy draft (40 bands, random order, 1 skip in co-op) → BATTLE_CHECK.
 - Rounds 1–14 (+ hidden 15): prep (shop, hand, board, items, freeze, refresh, level-up, sell, merge + reward pick, ready), 机变 draft rounds, simultaneous auto-combat on each player's own field, 联防 unite phase, LP loss/elimination, Final Assault boss round with merged LP and shared boss HP pool, Hidden Core, settlement with titles.
-- Full content: 112 visible chess (+ elites), their default skills and talents, 23 bonds with layers, all 43 特质 (garrison) effect keys, 56 equipment + Arts, 40 bands, 机变 cards, enemy factions/special enemies, 10 bosses, stage devices/terrain (crates, blowers, mire, smog, deep sea, infection).
+- Full content: 114 visible chess (+ elites; 协律 restored to the roster by the fork, docs/design/fork.md §F7), their default skills and talents, 23 bonds with layers, all 45 特质 (garrison) effect keys (43 official + the fork's two), 56 equipment + Arts, 40 bands, 机变 cards, enemy factions/special enemies, 10 bosses, stage devices/terrain (crates, blowers, mire, smog, deep sea, infection).
 - Rendering with the real Spine battle chibis (PixiJS 7 + pixi-spine 4), procedural tiles, VFX, damage numbers, real BGM/SFX, emotes, broadcast ticker.
 - Reconnect, AI take-over of disconnected players, robust validation of every client intent.
 

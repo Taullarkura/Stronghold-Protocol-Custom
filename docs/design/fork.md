@@ -390,6 +390,11 @@ MH / RS / AM / PS / DD → `data/backups.json diy.excluded`). This fork's mainta
 of their three skills, any elite module, both tiers, at full potential — with their art, sound, voice, summons, bonds,
 names and a full kit each.
 
+**2026-10-12 update.** 结城理 was promoted out of 自选编队 into a 可用干员 of the global roster (`shared/promoted.js
+PROMOTED_PIECES`, the same mechanism 克莱门莎 uses since 2026-10-11): his own PRESET piece `chess_char_4217_makoto_a` /
+`_b` at tier 5 (S3 default, PUM-Y its module, 盟约 拉特兰 + 坚守) with two 特质 the promotion authors, and no pick any more —
+six collab picks remain in `diy.ownedPool`.
+
 ### F6.1 The switch and the data — `tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS`
 
 - **One switch**, `FORK_INCLUDE_COLLAB_PICKS = true`, right under upstream's two constants (kept verbatim, still evaluated
@@ -457,3 +462,273 @@ Spine, sound, 中文 / 日文 voice, 艾拉's mine; `test/backups.test.js`, `tes
 family grows from 138 to 150 battles: 12 new ones field the 7 kits (diy-135 … diy-146, all forms × modules × skills), and
 the four prototype battles that followed re-pack 6 slots later (old diy-135 … 138 → diy-146 … 150); with the 7 kits
 taken out of `OPERATOR_KIT_FILES` the whole corpus of HEAD matches.
+
+---
+
+## F7. 协律 restored to the roster — the maintainer's decision of 2026-10-12
+
+**Decision.** 协律 (`char_4051_akkord`, 4★ 扩散术师 blastcaster) is an official chess of this season that the shop never
+offers: `chess_char_2_15_a` / `_b` is present in `activity_table` act2autochess with `charShopChessDatas.isHidden` true —
+one of the 17 rows the 下半 shop hides, because the two halves of the season share the `chess_char_<tier>_<n>` ids (the
+same slot is 斑点 `char_271_spikes` in 上半 and 协律 in 下半; 8 of the 17 hidden rows name an operator the 下半 roster
+carries on another slot, 9 — 协律 among them — are these operators' only row). The fork's maintainer put 协律 back on sale
+on 2026-10-12, with everything else official.
+
+**How.** One switch, `tools/build-data.mjs FORK_VISIBLE_CHESS` (a set of base ids, right under `FORK_INCLUDE_COLLAB_PICKS`):
+buildChess clears `isHidden` and sets `visible` for the listed rows and the integrity check counts them
+(`expectedVisible`). Nothing else is fork code — the chess keeps its official tier 2 / price 3, its default skill S2
+(震爆调谐), its module BLA-X (移动八音盒), its 特质 `garrison_130_a` / `_b` ("<获得时>自身所属盟约层数+4（无需激活盟约）",
+精锐 +8, the official `SERVER_ADD_BOND_CHESS_ALL` handler in `sim/content/garrisons/meta.js`) and its 盟约 奥术 + 助力; both
+member lists of those bonds follow `visible`. Its art, sound and voice were already planned (`tools/assets/plan.mjs`
+covers hidden chess too) and its kit file `kits/ops/chess_char_2_15-akkord.js` existed — with the un-hiding it also had to
+gain its S1 spec (反拍重音, 可充能2次), because the tier-2 kit coverage test only saw visible chess before.
+
+**What it costs.** Every count that follows the visible roster: `data/chess.json` 113 → 114 visible (tier 2 17 → 18, hidden
+17 → 16), the shop pool's tier shares move with the data (the tier-2 pair 0.447 / 0.553 → 192 / 444 = 0.432 / 0.568, and
+`test/match/pool.test.js` reads it off the copies now instead of the research table), and the golden corpus is recomputed
+(the new chess enters the draft pools and the bond scenarios' fill). Emptying the set restores upstream's data — an
+upstream merge that touches `isHidden` must keep this switch.
+
+## F8. The 2026-10-12 roster and bond edit — 安洁莉娜's tier, 缄默德克萨斯 out, 予愿安洁莉娜 in, 拉特兰 re-tiered
+
+**Decision.** Four items the maintainer asked for on 2026-10-12 (`todoList/10.12计划更改.md`), top to bottom:
+
+1. **安洁莉娜** (`char_291_aglina`) drops 等级 5 → 4 — with it her shop row 4 → 3 资金 — and her 特质 changes from the
+   official "<休整期结束时>本回合每刷新过1次，使已激活的【叙拉古】层数+4（每回合至多12层）" (精锐 +8 / 至多 24) to
+   "<休整期结束时>本回合每刷新过1次，使已激活的【叙拉古】层数+2、【奇迹】层数+1（每回合至多8层/4层）", 精锐 +4 / +2 (至多 16 / 8).
+2. **缄默德克萨斯** (`char_1028_texas2`) leaves the 可用 roster for the 自选 pool — the second operator the fork demotes
+   (`shared/diyOnly.js`, after 塑心 in 0.2.2). Her shop chess `chess_char_4_16_a` / `_b` and its 特质 `garrison_114_a` / `_b`
+   ("<进入休整期时>获得1次免费刷新", 精锐 2次) leave the data with it.
+3. **予愿安洁莉娜** (`char_1015_aglna2`) is promoted into the 可用 roster — the fork's third promoted piece
+   (`shared/promoted.js`, after 克莱门莎 and 结城理): 等级 5, 费用 4, 盟约 叙拉古 (one bond, unlike 安洁莉娜's 叙拉古 + 奇迹),
+   default skill S3 (酸橙的心事), no module, and the 特质 安洁莉娜 just gave up —
+   "<休整期结束时>本回合每刷新过1次，使已激活的【叙拉古】层数+4（每回合至多12层）", 精锐 +8 / 至多 24. Her summon
+   `token_10071_aglna2_agairp` ("一会儿见！", the 替身 she swaps to) enters `data/tokens.json`.
+4. **拉特兰** (`lateranoShip`) — its two effects swap tiers and the 在场6名 one gains a fallback (below).
+
+**How.** Four single sources of truth, all read by `tools/build-data.mjs`:
+
+- `shared/chessAdjust.js` — `CHESS_ADJUSTMENTS`: an *official* 可用干员 the fork renumbers. `tier` replaces the chess's 等级
+  (the price follows the tier row, so 安洁莉娜 takes her new tier's 3 资金) and `trait.overrides` names the official 特质
+  records to re-author. `adjustedTierOf()` feeds buildChess, `traitOverrides()` feeds the garrison overrides.
+- `shared/forkTraits.js` — `refreshLayerTrait()`, the builder for the "<休整期结束时>本回合每刷新过1次…" record shape, and
+  `REFRESH_LAYER_EFFECT` = the official `SERVER_ADD_REFRESH_CNT_MULTIPLIER_BOND_LAYER`. Both the swapped 安洁莉娜 特质 and the
+  予愿 one are written through it, so `data/garrisons.json` and the sim see official-shaped records. The handler
+  (`sim/content/garrisons/meta.js`) now also reads a comma list out of `bb.multiplier` / `bb.max_layer` and pairs each value
+  with `bbStr.bond`'s list — the SERVER_ADD_MULTIPLE_BOND convention (garrison_156's `bbStr.count` "6,3"), one bond per
+  entry; a single-bond record keeps the official scalar blackboard.
+- `shared/diyOnly.js` — `DIY_ONLY_OPERATORS` gains 缄默德克萨斯 (chess ids + `kitChessId`): buildChess drops those records,
+  the operator enters `diy.ownedPool` on its own, and `sim/content/kits/index.js` aliases her kit under her charId, because a
+  自选 piece resolves its kit by `def.charId`. Her derived 盟约 follow the DIY rule (`charTable` factions), 炎 + 叙拉古 —
+  叙拉古 like her shop chess, 炎 instead of its 突袭.
+- `shared/promoted.js` — the 予愿安洁莉娜 record: the PRESET chess `chess_char_1015_aglna2_a` / `_b` (tier 5, price 4),
+  its `bonds`, `skillIndex: 2`, `moduleId: null`, its `refresh` 特质 and its summon. build-data's `registerTokenOwners()`
+  (extracted from `buildChess` for this) registers that summon's owner, which is what puts it in `data/tokens.json` and
+  `data/backups.json`'s `tokens`.
+- **拉特兰** is a data edit — `FORK_BOND_OVERRIDES` in `tools/build-data.mjs` — plus a rewritten `installLaterano`
+  (`sim/content/bonds/core.js`). Upstream: the base effect is the ammo gain `(5 + 1.5×层数)%` and
+  `<在场6名不同【拉特兰】干员>` gates the ATK-per-ammo `+4%` up to `+200%`. Fork: `atk_per_consume 0.03` /
+  `max_atk_for_consume 1.5` (+3%, 至多 +150%) unconditionally, and the 在场6名 effect is the ammo gain (same numbers, now
+  gated) plus, for a 拉特兰 operator whose skill carries no ammo, 攻速 `+floor(10 + 0.7×层数)` (`no_ammo_aspeed_base` /
+  `no_ammo_aspeed_per_stack`). A bond's `layerGain` fires *before* the layer is committed
+  (`sim/battle/economy.js addLayers`), so the fallback re-reads its own layer through `battle.after(0, …)`.
+  `effectDescParams` is emptied with it: the official `{0:0%}` slot cannot spell "5 + 1.5×层数 会取整".
+
+**What it costs.** The visible roster keeps its size — 114 - 1 (缄默德克萨斯) + 1 (予愿安洁莉娜) = 114, with 安洁莉娜 moving a
+tier-5 row into tier 4 (per tier 16/18/19/22/20/19; the chess ids `chess_char_5_20_a` / `_b` keep their official names) and
+`test/match/pool.test.js`'s tier shares moving again. `data/garrisons.json` stays 253 records / 45 effect keys (one record
+re-authored, one pair swapped in for the demoted pair); `data/tokens.json` 22 → 23; `data/backups.json` 97 → 98 units (the
+demoted 缄默德克萨斯; 予愿 was already a unit) and 281 → 283 forms; `diy.ownedPool` stays 78 (one in, one out).
+`test/content/bonds_core.test.js` rewrites the 拉特兰 behaviour tests, and the golden corpus is recomputed (both the draft
+pools and the 3-member/6-member 拉特兰 scenarios move). Emptying `CHESS_ADJUSTMENTS` / `DIY_ONLY_OPERATORS` and dropping the
+`FORK_BOND_OVERRIDES` entry restores upstream's data.
+
+**What the tests pin.** Every count the fork's data tests read moved with the edit: 77 PRESET / 53 NORMAL / 4 DIY base chess
+and 106 NORMAL records (`test/backups.test.js`), the shop's 51 NORMAL chess by tier 6 / 13 / 16 / 16
+(`test/ui/standin-ui.test.js`, `test/match/standin-ownership.test.js`), the 81 obtainable 6★ outside the chess pool, 98
+units / 283 forms (`test/potential.test.js`, `test/full-potential.test.js`), 38 自选 summons, 42 ACTIVE_RANGE skills over 84
+records (`test/data.test.js`) and the `data/i18n/en.json` coverage floors (96.4 % in all, garrisons / bonds 97.1 %: the 特质
+and 拉特兰 texts the fork authors are in no EN client, `test/i18n-data.test.js`).
+
+Three defects the edit exposed, all fixed with it: `shared/loadoutRecord.js attackRangeGrid` ignored a **deployment** skill's
+own grid, so 予愿安洁莉娜's S1 (3-6 over her own 2-2) disagreed with the unit's opening range in the prep card, the board
+overlay and the deploy wheel; `kits/ops/chess_char_4_16-texas2.js` listed only two of 缄默德克萨斯's three skills, while a
+自选 pick resolves every skill of the slot's form by `skills` (kits/README.md, "How to add an operator (自选)") — she needs
+all three now that she *is* a pick; and the golden corpus, which follows the roster: the 补位 match's curated not-owned list
+is the chess its seat fields with seed 14 (瑕光 → 郁金香, 琳琅诗怀雅 → 预备干员-医疗, 夕 → Raidian, 迷迭香 → Pith), and the
+standins family fights four rounds below its band with the round's wave four times, because the reserve stand-ins carry
+channeled 攻击力强化 skills (37 s at 1 SP/s) that a band-strength wave kills them before (tools/golden.mjs).
+
+## F9. The 2026-10-13 plan — 卡涅利安 out, 佩佩 to tier 5, 真言 in
+
+**Decision.** Three items the maintainer asked for on 2026-10-13 (`todoList/10.13计划更改.md`):
+
+1. **卡涅利安** (`char_426_billro`, `chess_char_4_24_a` / `_b`) leaves the 可用 roster for the 自选 pool — the third operator
+   the fork demotes (`shared/diyOnly.js`, after 塑心 and 缄默德克萨斯). Her chess records and her 特质 `garrison_49_a` / `_b`
+   ("<获得时>获得1件“迅捷作战粮”") stop being hers: the record stays, because 蜜蜡 carries it too, but as a 自选 piece she
+   carries no 特质 at all, so the item goes; her derived 盟约 is 萨尔贡 (her factions 莱塔尼亚 + 萨尔贡 meet one core bond).
+2. **佩佩** (`char_4058_pepe`, `chess_char_6_06_a` / `_b`) drops 等级 6 → 5 (4 资金 at either tier). She is a NORMAL row, so
+   her 补位 (Sharp, `char_609_acguad`) moves with it: the tier-5 prototype entry now carries Sharp's module
+   (`uniequip_002_acguad`, DRE-X) and the tier-6 one has no 补位 row any more, so its `locked['6']` module is null
+   (`shared/diy.js`'s [ASSUMED] rule, DATA.md §18).
+3. **真言** (`char_4204_mantra`) is promoted into the 可用 roster — the fork's fourth promoted piece (`shared/promoted.js`):
+   等级 5, 费用 4, 盟约 萨尔贡 + 迅捷, default skill S3 (无言为真), 默认携带模组 PRI-X 中枢神经探测模块 (`uniequip_002_mantra`)
+   and a 特质 of her own: "场上所有【萨尔贡】【迅捷】干员开启技能时，使已激活的【萨尔贡】【迅捷】层数+1（至多+24层）", 精锐
+   +2 (至多 48). The owner answered the trailing clause on 2026-10-13: the CASTER must carry one of the two bonds — either
+   one suffices, and the normal record reads it the same way as the elite (so neither a teammate's 协防干员 nor an operator
+   with neither bond feeds it; the holder itself counts, as she carries both).
+
+**How.** The same sources of truth as §F8, one per operation:
+
+- `shared/diyOnly.js` gains 卡涅利安 (her chess ids + `kitChessId`), which withdraws her records, puts her in `diy.ownedPool`
+  and aliases her kit under her charId (`kits/index.js DEMOTED_KITS`) — where it now needs an S2 spec: as a 自选 piece the
+  kit's `skill` fallback never applies (`content/index.js skillIsDefault` is false for an other-body def), so her S2
+  沙缚镣锁 — the default a chess had — is authored in `skills` beside S1 / S3 (the same defect §F8 fixed for 缄默德克萨斯).
+- `shared/chessAdjust.js` gains 佩佩's `tier: 5`; `adjustedTierOf()` carries it into buildChess (the price follows the tier
+  row, which is 4 资金 at both) and the band its NORMAL row fights in.
+- `shared/promoted.js` gains 真言, with a **new `cast` descriptor** next to `garrison` / `swap` / `refresh`: the layers every
+  skill activation of a bond-carrying operator adds (`addA` / `addB`, `capA` / `capB`). `promotedGarrisonIdsOf` returns its
+  pair — the unsuffixed `garrison_fork_mantra_a` / `_b`, because it is her only 特质 — and `addPromotedChess` lists it.
+- `tools/build-data.mjs forkGarrisonRecords` authors that record (`castRecord`): the official IN_BATTLE shape with the fork
+  key `fork_gar_event_bondskill`, `bb { bond_add_count, max_add_count_per_battle }` and `bbStr { bond_id: 'sargonShip,swiftShip' }`.
+- `server/sim/content/garrisons/battle.js` implements that key: the official `act1autochess_gar_event_useskill` family fires
+  for the HOLDER's own casts alone (`byUnit(list)`), while 真言's text covers the board, so this one listens to every
+  operator of the holder's own player (like `fork_gar_event_bonddead` does for knock-outs) and tests the caster's bonds with
+  `S.isMember` before `fireGain`.
+- Her kit `kits/ops/op-mantra.js` is what her piece runs (`kits/index.js PROMOTED_KITS` aliases it under
+  `chess_char_4204_mantra_a`, the base id `content/index.js kitOf` resolves).
+
+**What it costs.** The visible roster keeps its size — 114 − 卡涅利安 + 真言 — with 佩佩 moving a tier-6 row into tier 5:
+per tier 16/18/19/21/22/18 (was 16/18/19/22/20/19); the shop's NORMAL roster 51 → 50 (6 / 12 / 17 / 15); base chess
+77/53/4 → 78/52/4. `data/garrisons.json` 253 → 255 records (+真言's pair) and 45 → 46 distinct effect keys;
+`data/backups.json` 98 → 99 units (卡涅利安 as a pick) and 283 → 285 forms (真言's unit keeps the two slot forms a promoted
+pick has); module choices 182 → 181 (卡涅利安's PLX pair out, PRI-X in); `diy.ownedPool` stays 78 (one in, one out) and
+`data/tokens.json` is untouched.
+
+**What the tests pin.** Base chess 78/52/4 and 104 NORMAL records (`test/backups.test.js`), 82 legal 6★ outside the pool,
+the shop roster 50 by tier 6 / 12 / 17 / 15 (`test/ui/standin-ui.test.js`, `test/match/standin-ownership.test.js`), the
+tier-4 / tier-6 kit coverage counts 21 / 18 (`test/content/kits_alt_t4|t6.test.js`), the pool's copy-weighted tier shares
+(`test/match/pool.test.js`: 13.8 / 18.2 / 24.7 / 24.2 / 12.7 / 6.4 % at level 6), plus the suites the roster move
+reaches: 卡涅利安's kit tests run her through a tier-5 自选 slot (`test/content/kits_t4.test.js`,
+`kits_alt_t4.test.js`, `test/sim/feedback1e-aoe.test.js`), 真言's kit test runs her piece in both forms
+(`test/content/op_mantra.test.js` — her tier-6 module stage is gone with the promotion), her 特质 has its own behavioural
+test (`test/content/garrisons_battle.test.js`, `fork_gar_event_bondskill`), and the golden corpus is recomputed: the
+stand-in family fields every NORMAL record (106 → 104) and the 自选 family loses 真言's two configs — a piece is covered by
+the roster family instead of a pick — so its 148 → 146, while 佩佩's band move reshuffles the shop-derived rosters every
+tier-5 / 6 scenario drafts. All 292 digests were recomputed (roster 50 · bonds 46 · fields 22 · matches 18 · standins 10 ·
+diy 146) and reproduce with `npm run golden`. Emptying `CHESS_ADJUSTMENTS` / `DIY_ONLY_OPERATORS` and the `cast` entry of
+`PROMOTED_PIECES` restores upstream's data.
+
+## F10. The 2026-10-13 plan, second batch — 莫斯提马 out, 维伊 in
+
+**Decision.** Two further items of the same plan (`todoList/10.13计划更改.md`), both taken on 2026-10-13:
+
+1. **莫斯提马** (`char_213_mostma`, `chess_char_4_02_a` / `_b`, a tier-4 NORMAL row at 3 资金) leaves the 可用 roster for
+   the 自选 pool — the fork's fourth demotion (`shared/diyOnly.js`, after 塑心, 缄默德克萨斯 and 卡涅利安). Her chess
+   records and her 特质 `garrison_22_a` / `_b` ("<战斗中>自身周围4格的干员每消耗6发弹药，使已激活的【拉特兰】层数+1", 精锐
+   +2) stop being hers: `garrison_22` has no other owner, so the record leaves `data/garrisons.json` — and with it the
+   season's only 特质 that pooled ANOTHER operator's bullets (every ammo 特质 left is self-only, §F10 item 2 included).
+   As a 自选 piece she derives her 盟约 from her operator: 炎 + 拉特兰 (mainPower laterano meets 拉特兰, its lungmen
+   subPower adds 炎), not her former chess's 拉特兰 + 奥术.
+2. **维伊** (`char_4226_veen`, 6★ CASTER 秘术师) is promoted into the 可用 roster — the fork's fifth promoted piece
+   (`shared/promoted.js`): 等级 4, 费用 3 (the tier-4 shop row 莫斯提马 leaves), 盟约 拉特兰 + 奥术, default skill S3
+   (用赤铁铭记), 默认携带模组 MSC-Y 军械库 (`uniequip_002_veen`), and a 特质 of her own: "自身每消耗6发弹药，使已激活的
+   【拉特兰】层数+3（每场战斗至多触发6次）", 精锐 +6 (6 triggers again, so the cap doubles with the amount).
+
+**How.** The same sources of truth as §F8 / §F9, plus one new descriptor and one new build-data rule:
+
+- `shared/diyOnly.js` gains 莫斯提马 (her chess ids + `kitChessId`), which withdraws her records, puts her in
+  `diy.ownedPool` and aliases her kit under her charId (`kits/index.js DEMOTED_KITS`) — where it now needs an S3 spec:
+  as a 自选 piece the kit's `skill` fallback never applies (`content/index.js skillIsDefault` is false for an other-body
+  def), so her S3 序时之匙 — the skill the chess carried as its default — is authored in `skills` beside S1 / S2 (the
+  same defect §F8 fixed for 缄默德克萨斯 and §F9 for 卡涅利安's S2).
+- `shared/promoted.js` gains 维伊 with a **new `ammo` descriptor** next to `garrison` / `swap` / `cast` / `refresh`: the
+  bonds it lifts, the bullets the PIECE ITSELF spends per trigger (`consume`), the layers per trigger (`addA` / `addB`)
+  and the per-battle cap (`capA` / `capB` — the official records read that cap as a trigger count, `cap = add × triggers`:
+  圣约送葬人's garrison_23 states "至多触发7次" and carries 7 × 7 = 49).
+- `tools/build-data.mjs forkGarrisonRecords` authors the pair (`ammoRecord`): the OFFICIAL shape of
+  `act1autochess_gar_event_consume_ammo` — `bb { at_root, consume_count, bond_add_count, max_add_count_per_battle }` and
+  `bbStr { range_id: '0-1', bond_by_id, … }` — so no sim code is needed: the family's handler already dispatches by
+  `effectKey`, and `0-1` is its self-only scope (莫斯提马's record used `x-5`, her 4 tiles; 圣约送葬人's the same `0-1`).
+  The trait-pair loop now authors any combination of `swap` / `cast` / `ammo` a promotion states, and a promotion whose
+  only 特质 is one of them takes the unsuffixed `garrison_fork_<name>_a` / `_b` pair (真言's `cast`, 维伊's `ammo`).
+- `addPromotedChess` (and `buildBackups`) take the 练度 of a promotion from `promotedTierRow()`: a 自选 slot states it
+  at tiers 5 / 6, and a promotion BELOW them — 维伊's 等级 4 — from the tier's own NORMAL row, whose two records carry the
+  same status pair (E2 Lv1 rank 4 without a module, E2 Lv60 rank 7 with it). Without that the tier-4 promotion had no
+  record at all (no 自选 slot exists at that tier) and its unit forms were never built.
+- Her kit `kits/ops/op-veen.js` is what her piece runs (`kits/index.js PROMOTED_KITS` aliases it under
+  `chess_char_4226_veen_a`, the base id `content/index.js kitOf` resolves).
+
+**What it costs.** The visible roster keeps its size — 114 − 莫斯提马 + 维伊, the tier-4 row trading an official operator
+for a promoted piece: per tier 16/18/19/21/22/18 unchanged, `chess 268` unchanged. Base chess 78/52/4 → 79/51/4, NORMAL
+records 104 → 102 and the shop's NORMAL roster 50 → 49 (6 / 11 / 17 / 15) — 莫斯提马's tier-4 row is not replaced
+(维伊 is a PRESET piece, always fieldable, not a shop row). `data/garrisons.json` stays at 255 records / 46 distinct
+effect keys (莫斯提马's pair out, 维伊's in — both use official keys). `data/backups.json` 99 → 100 units and 285 → 287
+forms (莫斯提马 as a pick brings three, 维伊's piece keeps two against the three her pick had); module choices
+181 → 180; `diy.ownedPool` stays 78 (one in, one out); `data/tokens.json` is untouched (23).
+
+**What the tests pin.** Base chess 79/51/4 and 102 NORMAL records (`test/backups.test.js`), the shop roster 49 by tier
+6 / 11 / 17 / 15 (`test/ui/standin-ui.test.js`, `test/match/standin-ownership.test.js`), 83 legal 6★ outside the pool,
+287 forms (`test/potential.test.js`, `test/full-potential.test.js`), the 41 / 82 ACTIVE_RANGE skills (`test/data.test.js`
+— 莫斯提马's S3 was the one that left), the tier-4 kit coverage 21 (now 维伊's piece, `test/content/kits_alt_t4.test.js`,
+which runs 莫斯提马 through a tier-5 自选 slot), 维伊's kit as her piece
+(`test/content/op_veen.test.js` — her tier-6 module stage is gone with the promotion) and her ammo 特质 behaviourally
+(`test/content/garrisons_battle.test.js`, the official family's test asserts the self-only scope and the 6-trigger cap
+through the two authored ids), plus the D1 源石溶剂 tests (`test/content/feedback1d-solvent.test.js`: the drain still
+casts the 重装's S3 and spends target-less counters, but the bullet→拉特兰 layering the report found went with 莫斯提马;
+the mixer's board now carries 蕾缪安 instead, and the tests pin that no layer is banked). The golden corpus is recomputed
+for the new tier-4 row. Emptying `DIY_ONLY_OPERATORS` and the `ammo` entry of `PROMOTED_PIECES` restores upstream's data.
+
+## F11. The 2026-10-13 plan, third batch — 冻结触发特质
+
+**Decision.** The remaining three items in `todoList/10.13计划更改.md`, taken on 2026-10-13:
+
+1. **灵知** (`char_206_gnosis`) replaces its shared `<获得时>` layer trait with a battle trait: every in-range enemy's
+   new freeze entry has a 50% chance to add 1 active 灵巧 layer, or 2 on the elite form.
+2. **银灰** keeps the freeze trigger and 谢拉格 layer gains, but its chance becomes 60% (from 50%).
+3. **凛御银灰** continues to grant the freeze trait to the front 谢拉格 operator; the granted trait now has a 50% chance
+   to add 1 active 谢拉格 and 迅捷 layer, or 2 of each on the elite form.
+
+**How.** `shared/forkTraits.js FREEZE_TRAIT_ADJUSTMENTS` authors six records using the official
+`act1autochess_gar_event_enemy_abflag_inrange` handler and rewires only 灵知's and 银灰's own chess records to their
+respective pairs. This isolates both changes from the shared official records still used by 雪猎 and 初雪.
+`garrison_126_a` / `_b` keep 凛御银灰's front-tile and 谢拉格 eligibility checks, but point to the new 50% dual-bond
+records; no new battle handler is needed. Existing "freeze entry" semantics remain: refreshing an active freeze is not a
+new trigger.
+
+**What the tests pin.** `test/data.test.js` verifies the fork records, both isolated remaps, retained shared traits and
+grant references. `test/content/garrisons_battle.test.js` exercises normal and elite gains, bond targeting, probability
+data, in-range filtering, freeze refresh behavior and the granted trait. The full test suite was not run.
+
+## F12. The 2026-10-14 plan — 休露丝's 雪域礼赠 becomes a spend-based grant
+
+**Decision.** The single item of `todoList/10.14计划更改.md` ("策略调整", 2026-10-14; the plan spells the strategy
+「修露丝」), which replaces the effect of the tier-12 strategy **休露丝** (`band_sciurus`, 雪域礼赠): the official
+「【雪域礼赠】每回合购买的首名<谢拉格>干员消耗资金为1」 (the buff key `first_buy_in_round_char_price_change`) becomes
+「【雪域礼赠】每累计花费23资金，获得一名随机的<谢拉格>干员（等级不超过当前调度中心等级）」, with the official note line
+"在<谢拉格>部分干员缺席时体验可能不完整" kept under it (the new effect needs that bond's operators in the pool).
+
+**How.** A new fork table, the counterpart of `shared/chessAdjust.js` for strategies:
+
+- `shared/bandAdjust.js BAND_ADJUSTMENTS` states the strategy, its 盟约 and the numbers (23 资金, one operator);
+  `bandAdjustmentEffect()` composes the record's text and its buffs from them, so text and blackboard cannot drift.
+  `tools/build-data.mjs buildBands` applies it before `main()` adds `bondIds` (which read the new text and blackboards,
+  so the band stays tied to 谢拉格); the 效果 name (【雪域礼赠】), the icon, the LP (24), the sort order and the unlock
+  condition stay the official record's own.
+- The new effect uses the OFFICIAL buff key `band_coin_cost_gain_random_char_by_shop_level` (绮良 通关奖励), so no new
+  effect code: `content/bands/meta.js`'s handler now reads an optional `bbStr.bond` and limits its pool draw to that
+  盟约 (`ctx.rollChess({ bond, maxTier: shopLevel })`; 绮良's record carries no `bond` and its draw is unchanged — the
+  same eligible list, the same one rng draw). Its accumulator counter is now band-scoped (`band:<bandId>:acc`).
+- 休露丝 was the only user of `first_buy_in_round_char_price_change`, so that handler and its `onPrice` / `onBuy` pair
+  are gone with the effect (the price hooks of 至简 / 红豆's `SERVER_PRICE` 特质 and 远见's discount are untouched). The
+  strategy price step the order docs described ("购买价格为N sets the price … the strategies' caps act on") no longer
+  exists: docs/META.md, docs/design/match.md and the 远见 note in content/bonds/addon/meta.js say so now.
+
+**What the tests pin.** `test/data.test.js` compares the built band with `bandAdjustmentEffect()` (text, blackboards and
+params alike) and pins the plan's numbers, the 效果 name and `bondIds`; `test/content/bands.test.js` runs the effect
+through the real dispatcher (22 资金 grants nothing, the 23rd grants one <谢拉格> of tier ≤ shop level, a purchase's price
+counts, and with every <谢拉格> copy of the tier out of the pool nothing is granted while other operators remain — 绮良's
+unfiltered roll would have drawn one) and still covers 绮良's own unchanged behaviour. The F2 report's 休露丝 cases
+(`test/match/feedback1f-sciurus.test.js`) went with the effect; its 玛恩纳 case pins the rule that a free acquisition is
+no purchase. The golden corpus is recomputed wherever a match drafted the strategy. Emptying `BAND_ADJUSTMENTS` restores
+upstream's data (the price handler comes back with the plan's revert).

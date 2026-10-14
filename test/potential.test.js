@@ -94,7 +94,9 @@ test('every chess and 自选 form at every potential: the raw keyframes plus the
     if (c.isDiy || !c.charId) continue;
     for (let rank = 0; rank <= FULL_RANK; rank++) { const r = atRank(c, rank); check(c.chessId, c.charId, c.status, r.statsBase ?? r.stats, rank); n++; }
   }
-  assert.equal(n, 258 * 6);
+  // 258 upstream chess; the fork's promoted 克莱门莎 (shared/promoted.js, 2026-10-11) and 结城理 (2026-10-12) add a normal
+  // and an elite record each, and the demoted 塑心 (shared/diyOnly.js, 2026-10-12) leaves hers (both forms)
+  assert.equal(n, 260 * 6);
   let forms = 0;
   for (const [charId, u] of Object.entries(backups.units)) {
     for (const f of Object.values(u.forms)) {
@@ -102,7 +104,7 @@ test('every chess and 自选 form at every potential: the raw keyframes plus the
       forms++;
     }
   }
-  assert.equal(forms, 280);   // upstream 259 + this fork's 7 collab 6★ × 3 自选 slots (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS)
+  assert.equal(forms, 287);   // upstream 259 + this fork's 7 collab 6★ and its 4 demoted operators as picks (3 forms each) − the fork's 5 promoted pieces, each carrying its tier's 2 forms instead of a pick's 3 (tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS, shared/promoted.js, shared/diyOnly.js — 维伊's 等级 4 leaves the last of them, 莫斯提马's 3 forms replace it: 285 → 287)
 });
 
 test('talent candidates at every potential: each talent is the last one unlocked with requiredPotentialRank ≤ the rank', { skip: !HAS_CACHE && 'no .cache/gamedata' }, () => {

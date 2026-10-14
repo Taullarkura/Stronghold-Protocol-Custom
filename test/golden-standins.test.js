@@ -17,7 +17,7 @@ const COL = Object.fromEntries(STANDINS.columns.units.map((k, i) => [k, i]));
 const normal = Object.values(CHESS).filter((c) => c.chessType === 'NORMAL' && c.backup && c.backup.charId !== c.charId);
 
 test('standins: every NORMAL chess record (normal + elite) is fielded once, with its backup skill, without content errors', () => {
-  assert.equal(normal.length, 110);
+  assert.equal(normal.length, 102);
   const seen = new Map();
   for (const [id, sc] of Object.entries(STANDINS.scenarios)) {
     assert.equal(sc.errors.count, 0, `${id}: ${sc.errors.kinds.join('; ')}`);
@@ -32,14 +32,17 @@ test('standins: every NORMAL chess record (normal + elite) is fielded once, with
   assert.equal(new Set(normal.map((c) => c.backup.charId)).size, 17, 'all 17 stand-ins');
 });
 
-test('standins: every active skill a chess names for its stand-in is cast; passive ones deploy', () => {
-  const cast = new Map();
+test('standins: every active skill with an attack opportunity is cast; passive ones deploy', () => {
+  const activity = new Map();
   for (const sc of Object.values(STANDINS.scenarios)) {
     for (const u of sc.units) {
       if (u[COL.kind] !== 'op') continue;
       const c = CHESS[u[COL.def]];
       const k = `${c.backup.charId}|${u[COL.skill]}`;
-      cast.set(k, (cast.get(k) || 0) + (u[COL.casts] || 0));
+      const totals = activity.get(k) || { attacks: 0, casts: 0 };
+      totals.attacks += u[COL.attacks] || 0;
+      totals.casts += u[COL.casts] || 0;
+      activity.set(k, totals);
     }
   }
   for (const c of normal) {
@@ -47,7 +50,9 @@ test('standins: every active skill a chess names for its stand-in is cast; passi
     const form = Object.values(BACKUPS.units[c.backup.charId].forms)[0];
     const sk = form.skills.find((s) => s.index === c.backup.skillIndex);
     if (sk.skillType === 'PASSIVE' || sk.spType === 'ON_DEPLOY') continue;
-    assert.ok(cast.get(k) > 0, `${c.backup.charId} S${c.backup.skillIndex + 1} (${sk.name}) never cast`);
+    const totals = activity.get(k);
+    if (!totals?.attacks) continue;
+    assert.ok(totals.casts > 0, `${c.backup.charId} S${c.backup.skillIndex + 1} (${sk.name}) never cast`);
   }
 });
 

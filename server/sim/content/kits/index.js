@@ -22,6 +22,12 @@
 // stand-in kit, a 4★ reserve the generic kit (GENERIC_KIT_CHARS). OPERATOR_KITS is merged after the stand-ins.
 // KITTED_CHARS = every character a 自选 pick may field with a faithful kit; an operator outside it is not offered
 // (shared/diy.js diyPool / validateDiyPicks `kitted`).
+//
+// FORK PROMOTED PIECES (shared/promoted.js, the owner's decision of 2026-10-11): a 自选干员 promoted into the global roster
+// keeps this operator's kit under the new base chess id of its piece (PROMOTED_KITS below).
+
+import { promotedKitAliases } from '../../../../shared/promoted.js';
+import { diyOnlyKitAliases } from '../../../../shared/diyOnly.js';
 
 export const KIT_FILES = Object.freeze([
   // tier 1
@@ -192,14 +198,35 @@ export const STANDIN_KITS = Object.freeze(Object.assign({}, ...STANDIN_MODULES.m
 export const OPERATOR_KITS = Object.freeze(Object.assign({}, ...OPERATOR_MODULES.map(registryOf)));
 
 /**
- * The merged kit registry: baseChessId → (bb, chess, def) => Kit, tier 1 … tier 6, then the stand-ins' charIds, then
- * the 自选 operators' charIds.
+ * FORK PROMOTED PIECES (shared/promoted.js): a promoted 自选干员's piece is a PRESET chess with a base id of its own, so
+ * its operator's kit is aliased under it — content/index.js kitOf resolves a normal chess by `def.baseId`; without the
+ * alias the piece falls back to the generic kit.
  */
-export const KITS = Object.freeze(Object.assign({}, ...TIER_KITS, STANDIN_KITS, OPERATOR_KITS));
+export const PROMOTED_KITS = Object.freeze(Object.fromEntries(promotedKitAliases()
+  .filter(({ charId }) => !!OPERATOR_KITS[charId])
+  .map(({ charId, a }) => [a, OPERATOR_KITS[charId]])));
+
+/** Every tier kit by base chess id (what the merged registry starts from). */
+const TIER_BY_ID = Object.freeze(Object.assign({}, ...TIER_KITS));
+
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js): a demoted operator's kit file is keyed by the shop chess id it used to
+ * have, and a 自选 piece is an "other body" def that resolves its kit by `def.charId` (content/index.js kitOf) — so the
+ * kit is aliased under the operator's charId. Without the alias the pick would fall back to the generic kit.
+ */
+export const DEMOTED_KITS = Object.freeze(Object.fromEntries(diyOnlyKitAliases()
+  .filter(({ kitChessId }) => !!TIER_BY_ID[kitChessId])
+  .map(({ charId, kitChessId }) => [charId, TIER_BY_ID[kitChessId]])));
+
+/**
+ * The merged kit registry: baseChessId → (bb, chess, def) => Kit, tier 1 … tier 6, then the stand-ins' charIds, then
+ * the 自选 operators' charIds, then the promoted pieces' chess ids and the demoted operators' charIds.
+ */
+export const KITS = Object.freeze(Object.assign({}, TIER_BY_ID, STANDIN_KITS, OPERATOR_KITS, PROMOTED_KITS, DEMOTED_KITS));
 
 /**
  * Every character a 自选 pick may field with a faithful kit: the 预备干员 (GENERIC_KIT_CHARS), the stand-ins with a kit
- * file and the operators of OPERATOR_KIT_FILES whose file loaded. The `kitted` option of shared/diy.js diyPool /
- * validateDiyPicks.
+ * file, the operators of OPERATOR_KIT_FILES whose file loaded and the operators demoted into the 自选 pool (their kit is
+ * their former chess's, DEMOTED_KITS). The `kitted` option of shared/diy.js diyPool / validateDiyPicks.
  */
-export const KITTED_CHARS = Object.freeze([...new Set([...GENERIC_KIT_CHARS, ...Object.keys(STANDIN_KITS), ...Object.keys(OPERATOR_KITS)])]);
+export const KITTED_CHARS = Object.freeze([...new Set([...GENERIC_KIT_CHARS, ...Object.keys(STANDIN_KITS), ...Object.keys(OPERATOR_KITS), ...Object.keys(DEMOTED_KITS)])]);

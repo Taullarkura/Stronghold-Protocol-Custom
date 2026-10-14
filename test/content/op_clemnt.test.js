@@ -6,34 +6,47 @@ import { KITTED_CHARS } from '../../server/sim/content/kits/index.js';
 import { diyPool } from '../../shared/diy.js';
 import { performAttack, effectiveProfile } from '../../server/sim/ai.js';
 const C = 'char_4231_clemnt';
+// the owner promoted her from 自选干员 to 可用干员 (2026-10-11, shared/promoted.js): this test fields her own PRESET piece
+const PIECE = { a: 'chess_char_4231_clemnt_a', b: 'chess_char_4231_clemnt_b' };
 const data = Object.fromEntries(['chess', 'backups'].map((f) => [f, JSON.parse(readFileSync(new URL(`../../data/${f}.json`, import.meta.url)))]));
 const approx = (a, b, label = '') => assert.ok(Math.abs(a - b) < 1e-5 * Math.max(1, Math.abs(b)), `${label}: ${a} != ${b}`);
 const enemy = (key, opts = {}) => enemyRec({ key, hp: 1e8, atk: 0, speed: 0, ...opts });
 const defs = { enemies: { dummy: enemy('dummy'), light: enemy('light', { mass: 3 }), mid: enemy('mid', { mass: 4 }), heavy: enemy('heavy', { mass: 9 }),
   fly: enemy('fly', { motion: 'FLY' }), zero: enemy('zero', { mass: 0 }), armored: enemy('armored', { def: 100 }) } };
-function field({ tier = 6, elite = true, skill = 0, potential = 6, dir = 'RIGHT', row = 10, col = 3 } = {}) {
+function field({ elite = true, skill = 0, potential = 6, dir = 'RIGHT', row = 10, col = 3 } = {}) {
   const h = makeBattle({ seed: 23, autoFinish: false, timeLimit: 180, defs,
     hooks: ['damaged', 'attack', 'elementBurst', 'ammoUsed'], captureNoisy: true,
-    units: [{ uid: 1, diy: { slot: tier, charId: C, skillIndex: skill }, elite, potential, row, col, dir }] });
+    units: [{ uid: 1, chessId: elite ? PIECE.b : PIECE.a, skillIndex: skill, potential, row, col, dir }] });
   h.step(); return { h, u: h.unit(1) };
 }
 function done(h) { checkInvariants(h.b); assert.deepEqual(h.b.errors, []); }
 function start(u) { u.skill.gainSp(999, 'init'); assert.equal(u.skill.activate('test'), true); }
 const hits = (h, tag) => h.hooksOf('damaged').filter((c) => c.dmg?.tags?.includes(tag));
 
-test('克莱门莎 is selectable with authored skills in both slots, every form and potential', () => {
+test('克莱门莎 was promoted to 可用干员 (2026-10-11): its own PRESET piece in both forms, and no longer a 自选 pick', () => {
   assert.ok(KITTED_CHARS.includes(C));
-  for (const tier of [5, 6]) {
-    assert.ok(diyPool(tier, { data, kitted: KITTED_CHARS }).includes(C));
-    for (const elite of [false, true]) for (const skill of [0, 1, 2]) for (const potential of [1, 6]) {
-      const { h, u } = field({ tier, elite, skill, potential });
-      assert.equal(u.def.charId, C); assert.equal(u.kit.skillSource, 'skills'); assert.ok(!u.kit.generic);
-      assert.equal(u.skill.id, `skchr_clemnt_${skill + 1}`);
-      assert.deepEqual([u.profile.dmgType, u.profile.canHitFly, u.s.blockCnt, u.base.bat], ['phys', false, 2, 1.2]);
-      assert.ok(u.def.bonds.includes('egirShip'));
-      assert.equal(u.skill.rule, skill ? 'ACTIVE_RANGE' : 'DEFAULT');
-      done(h);
-    }
+  // the promotion itself: never offered as a pick again (shared/promoted.js), a piece of the global roster instead
+  for (const tier of [5, 6]) assert.ok(!diyPool(tier, { data, kitted: KITTED_CHARS }).includes(C), 'a promoted operator is no longer offered');
+  assert.ok(!data.backups.diy.ownedPool.includes(C), 'left the 自选 pool');
+  for (const [elite, chessId] of [[false, PIECE.a], [true, PIECE.b]]) {
+    const rec = data.chess[chessId];
+    assert.ok(rec, `${chessId} exists`);
+    assert.deepEqual([rec.chessType, rec.isDiy, rec.isGolden, rec.tier, rec.price, rec.sellPrice, rec.charId],
+      ['PRESET', false, elite, 6, 4, 1, C]);
+    // 盟约 阿戈尔 / 不屈 / 突袭 and the 特质 the promotion authored (garrison_fork_clemnt_a / _b)
+    assert.deepEqual(rec.bonds, ['egirShip', 'indomShip', 'raidShip']);
+    assert.deepEqual(rec.garrisonIds, [elite ? 'garrison_fork_clemnt_b' : 'garrison_fork_clemnt_a']);
+  }
+  assert.deepEqual(data.backups.units[C].forms && Object.keys(data.backups.units[C].forms).sort(), ['2/1/4/0', '2/60/7/3']);
+  for (const elite of [false, true]) for (const skill of [0, 1, 2]) for (const potential of [1, 6]) {
+    const { h, u } = field({ elite, skill, potential });
+    assert.equal(u.def.charId, C); assert.equal(u.kit.skillSource, 'skills'); assert.ok(!u.kit.generic);
+    assert.equal(u.skill.id, `skchr_clemnt_${skill + 1}`);
+    assert.deepEqual([u.profile.dmgType, u.profile.canHitFly, u.base.bat], ['phys', false, 1.2]);
+    assert.equal(u.def.tier, 6, 'the piece is a tier-6 可用干员');
+    assert.ok(u.def.bonds.includes('egirShip'));
+    assert.equal(u.skill.rule, skill ? 'ACTIVE_RANGE' : 'DEFAULT');
+    done(h);
   }
 });
 

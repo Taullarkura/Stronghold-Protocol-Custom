@@ -37,7 +37,14 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { Grid, DEPLOY_REFUSED_TILES } from '../server/sim/grid.js';
 import { bandBondIds } from '../shared/bandBonds.js';
+import { BAND_ADJUSTMENTS, bandAdjustmentEffect } from '../shared/bandAdjust.js';
 import { statusKey, composeUnitRecord, standInRecord, unitForm } from '../shared/standIn.js';
+import { PROMOTED_PIECES, promotedChessIds, promotedGarrisonIdsOf, promotedGarrisonStats } from '../shared/promoted.js';
+import { adjustedTierOf, traitOverrides } from '../shared/chessAdjust.js';
+import {
+  FREEZE_TRAIT_ADJUSTMENTS, applyFreezeTraitReplacements, freezeBondTrait, refreshLayerTrait,
+} from '../shared/forkTraits.js';
+import { DIY_ONLY_OPERATORS, diyOnlyChessIds } from '../shared/diyOnly.js';
 import { extendedGrid } from '../shared/loadoutRecord.js';
 import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
 
@@ -901,6 +908,76 @@ function hasE2Art(ctx, charId, kind) {
 }
 
 /**
+ * Register a chess's summons in `tokenOwners` (buildTokens' input): `token id → owners[]`, one entry per owner chess with
+ * its 练度 and, per selectable non-default skill / module, the variant data (data/tokens.json `variants[chessId].bySkill` /
+ * `byModule`). A talent `tokenKey` that is missing from character_table is a CONTAINER id (凛御银灰's
+ * token_10057_svash2_eagle): the real token is the one the default skill overrides it with. buildChess calls it for every
+ * official record; addPromotedChess calls it for a promotion's own piece, so a 可用干员 this fork creates summons like
+ * any other (予愿安洁莉娜's 飞行 unit).
+ * @param {object} p `rec` the chess record being built (its `tokens` is filled in here), `moduleAlts` the selectable
+ *   modules other than the default
+ */
+function registerTokenOwners(ctx, tokenOwners, { rec, char, chessId, charId, sIdx, skillLevel, potRank, phase, level, isGolden, modulePhase, moduleTokenParts, moduleAlts }) {
+  const { charTable } = ctx;
+  const skillToken = rec.skill?.overrideTokenKey || char.skills?.[sIdx]?.overrideTokenKey || null;
+  for (const t of [...rec.talents, ...(rec.talentsBase || [])]) {
+    if (t.tokenKey && !charTable[t.tokenKey] && skillToken && charTable[skillToken]) {
+      t.containerTokenKey = t.tokenKey;
+      t.tokenKey = skillToken;
+    }
+  }
+  /** token id → { sources: Set('display'|'skill'|'talent'), count } for a selected skill record. */
+  const tokenUse = (skillRec) => {
+    const skTok = skillRec?.overrideTokenKey || null;
+    const use = new Map();
+    const add = (id, src) => { if (!use.has(id)) use.set(id, new Set()); use.get(id).add(src); };
+    for (const id of Object.keys(char.displayTokenDict || {})) add(id, 'display');
+    if (skTok) add(skTok, 'skill');
+    for (const t of rec.talents) {
+      const key = t.containerTokenKey ? (skTok && charTable[skTok] ? skTok : t.tokenKey) : t.tokenKey;
+      if (key) add(key, 'talent');
+    }
+    const count = (id) => {
+      const tal = rec.talents.find((t) => (t.containerTokenKey ? (skTok && charTable[skTok] ? skTok : t.tokenKey) : t.tokenKey) === id && typeof t.bb.cnt === 'number');
+      const skillCnt = skTok === id ? skillRec?.bb?.cnt : undefined;
+      return tal ? tal.bb.cnt : typeof skillCnt === 'number' ? skillCnt : null;
+    };
+    return { use, count };
+  };
+  const defUse = tokenUse(rec.skill);
+  const sources = defUse.use;
+  const resolvable = [...sources.keys()].filter((id) => {
+    if (charTable[id]) return true;
+    // A container id already remapped onto the skill token (see above) is expected; others are anomalies.
+    if (!rec.talents.some((t) => t.containerTokenKey === id)) warn(`chess ${chessId}: token ${id} not in character_table (skipped)`);
+    return false;
+  }).sort(naturalCmp);
+  rec.tokens = resolvable;
+  const altSkills = (rec.skills || []).filter((s) => s.index !== sIdx);
+  for (const s of altSkills) {
+    for (const id of tokenUse(s).use.keys()) {
+      if (charTable[id] && !resolvable.includes(id)) warn(`chess ${chessId}: token ${id} of skill ${s.skillId} is not listed by the character (loadouts cannot summon it)`);
+    }
+  }
+  for (const tokenId of resolvable) {
+    const src = sources.get(tokenId);
+    // Per selectable non-default skill: the token skill slot, count and sources change with it.
+    const skillAlts = altSkills.map((s) => {
+      const u = tokenUse(s);
+      return { index: s.index, count: u.count(tokenId), sources: ['talent', 'skill', 'display'].filter((x) => u.use.get(tokenId)?.has(x)) };
+    });
+    if (!tokenOwners.has(tokenId)) tokenOwners.set(tokenId, []);
+    tokenOwners.get(tokenId).push({
+      chessId, charId, phase, level, skillIndex: sIdx, skillLevel, potRank,
+      count: defUse.count(tokenId), golden: isGolden, modulePhase, moduleTokenParts,
+      // 'display' only = listed by the character but not produced by this chess's default skill or talents.
+      sources: ['talent', 'skill', 'display'].filter((s) => src.has(s)),
+      skillAlts, moduleAlts,
+    });
+  }
+}
+
+/**
  * Build data/chess.json: every chess (normal + golden) of the season, keyed by chessId, with its loadout
  * choices (DESIGN §16: `skills[]`; golden `modules[]` + `statsBase`/`traitBase`/`talentsBase`).
  * `tokenOwners` entries carry `skillAlts` ({index, count, sources} per non-default skill) and `moduleAlts`
@@ -913,23 +990,32 @@ function buildChess(ctx) {
   const tokenOwners = new Map();
   const diyIds = new Set(Object.keys(act.diyChessDict || {}));
   const priceTable = act.shopCharChessInfoData;
+  // FORK 自选-ONLY OPERATORS (shared/diyOnly.js): the chess ids a demotion withdraws from the roster (module-wide set)
+  const DIY_ONLY_CHESS = DIY_ONLY_CHESS_IDS;
 
   for (const chessId of Object.keys(act.charChessDataDict).sort(naturalCmp)) {
+    // FORK 自选-ONLY OPERATORS (shared/diyOnly.js): a demoted operator's shop chess leaves the roster — no chess record,
+    // so the shop / draft / band rosters / bond member lists lose it and the 自选 pool gains it (buildBackups below)
+    if (DIY_ONLY_CHESS.has(chessId)) continue;
     const cd = act.charChessDataDict[chessId];
     const baseId = act.chessNormalIdLookupDict[chessId] || chessId;
     const shop = act.charShopChessDatas[baseId];
     if (!shop) { warn(`chess ${chessId}: no charShopChessDatas entry for ${baseId}`); continue; }
     const isGolden = !!cd.isGolden;
-    const tier = shop.chessLevel;
+    // FORK CHESS ADJUSTMENTS (shared/chessAdjust.js): an official 可用干员's 等级 may be re-stated (the tier's price row,
+    // the shop pool and 自选 slot tier follow from it)
+    const tier = adjustedTierOf(baseId) ?? shop.chessLevel;
     const status = cd.status || {};
     const phase = phaseIdx(status.evolvePhase);
     const level = status.charLevel || 1;
     const priceRow = (priceTable[String(tier)] || []).find((p) => !!p.isGolden === isGolden) || {};
     const isDiy = shop.chessType === 'DIY' || diyIds.has(baseId);
+    // FORK VISIBLE CHESS: an official record the shop hides, restored to the roster (above); everything else official
+    const hidden = !!shop.isHidden && !FORK_VISIBLE_CHESS.has(baseId);
     const rec = {
       chessId, baseId, goldenId: shop.goldenChessId, isGolden, tier,
       identifier: cd.identifier,
-      isHidden: !!shop.isHidden, isDiy, visible: !shop.isHidden && !isDiy,
+      isHidden: hidden, isDiy, visible: !hidden && !isDiy,
       chessType: shop.chessType,
       // the official stand-in fields of the shop row, verbatim (both forms; data/backups.json, shared/standIn.js)
       backup: {
@@ -1075,64 +1161,10 @@ function buildChess(ctx) {
     }
 
     // Tokens / summons: displayTokenDict + default-skill overrideTokenKey + talent tokenKey.
-    // A talent tokenKey missing from character_table is a container id (凛御银灰's
-    // token_10057_svash2_eagle): the real token is the one the default skill overrides it with.
-    const skillToken = sEntry?.overrideTokenKey || null;
-    for (const t of [...rec.talents, ...(rec.talentsBase || [])]) {
-      if (t.tokenKey && !charTable[t.tokenKey] && skillToken && charTable[skillToken]) {
-        t.containerTokenKey = t.tokenKey;
-        t.tokenKey = skillToken;
-      }
-    }
-    /** token id → { sources: Set('display'|'skill'|'talent'), count } for a selected skill record. */
-    const tokenUse = (skillRec) => {
-      const skTok = skillRec?.overrideTokenKey || null;
-      const use = new Map();
-      const add = (id, src) => { if (!use.has(id)) use.set(id, new Set()); use.get(id).add(src); };
-      for (const id of Object.keys(char.displayTokenDict || {})) add(id, 'display');
-      if (skTok) add(skTok, 'skill');
-      for (const t of rec.talents) {
-        const key = t.containerTokenKey ? (skTok && charTable[skTok] ? skTok : t.tokenKey) : t.tokenKey;
-        if (key) add(key, 'talent');
-      }
-      const count = (id) => {
-        const tal = rec.talents.find((t) => (t.containerTokenKey ? (skTok && charTable[skTok] ? skTok : t.tokenKey) : t.tokenKey) === id && typeof t.bb.cnt === 'number');
-        const skillCnt = skTok === id ? skillRec?.bb?.cnt : undefined;
-        return tal ? tal.bb.cnt : typeof skillCnt === 'number' ? skillCnt : null;
-      };
-      return { use, count };
-    };
-    const defUse = tokenUse(rec.skill);
-    const sources = defUse.use;
-    const resolvable = [...sources.keys()].filter((id) => {
-      if (charTable[id]) return true;
-      // A container id already remapped onto the skill token (see above) is expected; others are anomalies.
-      if (!rec.talents.some((t) => t.containerTokenKey === id)) warn(`chess ${chessId}: token ${id} not in character_table (skipped)`);
-      return false;
-    }).sort(naturalCmp);
-    rec.tokens = resolvable;
-    const altSkills = rec.skills.filter((s) => s.index !== sIdx);
-    for (const s of altSkills) {
-      for (const id of tokenUse(s).use.keys()) {
-        if (charTable[id] && !resolvable.includes(id)) warn(`chess ${chessId}: token ${id} of skill ${s.skillId} is not listed by the character (loadouts cannot summon it)`);
-      }
-    }
-    for (const tokenId of resolvable) {
-      const src = sources.get(tokenId);
-      // Per selectable non-default skill: the token skill slot, count and sources change with it.
-      const skillAlts = altSkills.map((s) => {
-        const u = tokenUse(s);
-        return { index: s.index, count: u.count(tokenId), sources: ['talent', 'skill', 'display'].filter((x) => u.use.get(tokenId)?.has(x)) };
-      });
-      if (!tokenOwners.has(tokenId)) tokenOwners.set(tokenId, []);
-      tokenOwners.get(tokenId).push({
-        chessId, charId: shop.charId, phase, level, skillIndex: sIdx, skillLevel, potRank: ctx.potRank,
-        count: defUse.count(tokenId), golden: isGolden, modulePhase, moduleTokenParts: moduleParts.token,
-        // 'display' only = listed by the character but not produced by this chess's default skill or talents.
-        sources: ['talent', 'skill', 'display'].filter((s) => src.has(s)),
-        skillAlts, moduleAlts,
-      });
-    }
+    registerTokenOwners(ctx, tokenOwners, {
+      rec, char, chessId, charId: shop.charId, sIdx, skillLevel, potRank: ctx.potRank, phase, level,
+      isGolden, modulePhase, moduleTokenParts: moduleParts.token, moduleAlts,
+    });
 
     // Asset ids (URLs are resolved by fetch-assets / data/assets.json).
     const e2Avatar = isGolden && hasE2Art(ctx, shop.charId, 'avatar');
@@ -1153,6 +1185,84 @@ function buildChess(ctx) {
     if (rec.goldenId && !out[rec.goldenId]) warn(`chess ${rec.chessId}: goldenId ${rec.goldenId} missing`);
   }
   return { chess: out, tokenOwners };
+}
+
+/**
+ * FORK PROMOTED PIECES (shared/promoted.js, the owner's decision of 2026-10-11): the 自选干员 promoted into the global
+ * roster, as PRESET chesses — one normal (`_a`) and one elite (`_b`) record per promotion, composed exactly the way
+ * checkUnitFormParity recomposes a preset chess (buildUnitForm at the tier's 自选 slot status + composeUnitRecord), so
+ * the two agree by construction.
+ *
+ * The identity comes from the promotion, because a 自选 slot cannot give it: `tier` / `price` / `sellPrice` follow the
+ * tier's official rows, `bonds` and `garrisonIds` are the promotion's own (a 自选 piece derives its bonds from its
+ * operator and carries no 特质 at all), `backup` is the operator itself (a PRESET chess is its own 补位 — the player
+ * owns it), and `upgradeChessId` links the two forms like every other chess. `status` is the tier's 自选 slot status,
+ * which is the tier's official chess status too (tier 5: normal E2 Lv1 skill rank 4 without a module, elite E2 Lv60 skill
+ * rank 7 at module stage 1; tier 6: elite at stage 3) — the owner's decision that a promotion keeps the 练度 of the
+ * same-tier pick. `moduleId` is the promotion's own default module; null for an operator without one (克莱门莎), where
+ * the elite's module slot stays inert.
+ * @param {object} ctx @param {object} chess data/chess.json being built (mutated: the new records are added)
+ * @param {Map<string, object[]>} tokenOwners the summon registry buildChess fills (a promotion's summons join it here)
+ */
+/**
+ * The tier row a promoted piece takes its record fields from. A 自选 slot at `tier` states the 练度 (tiers 5 / 6, the only
+ * tiers that have slots); below them — 维伊's 等级 4 — the tier's own NORMAL row does, its two records carrying the same
+ * pair of statuses (E2 Lv1 / skill rank 4 without a module, E2 Lv60 / rank 7 with it). `mate` is the tier's first shop
+ * chess, which always names the identifier / shop sort id (and, where the tier has no 自选 slot, the 练度 as well).
+ */
+function promotedTierRow(chess, tier) {
+  const first = (list) => list.sort((x, y) => naturalCmp(x.chessId, y.chessId))[0];
+  const slot = first(Object.values(chess).filter((c) => c.isDiy && !c.isGolden && c.tier === tier));
+  const mate = first(Object.values(chess).filter((c) => !c.isDiy && !c.isGolden && c.tier === tier && c.chessType !== 'DIY'));
+  return { mate, normal: slot ?? mate, golden: slot ? chess[slot.goldenId] : (mate ? chess[mate.upgradeChessId] : null) };
+}
+
+function addPromotedChess(ctx, chess, tokenOwners) {
+  const { charTable, act } = ctx;
+  const priceTable = act.shopCharChessInfoData;
+  for (const p of PROMOTED_PIECES) {
+    if (!charTable[p.charId]) { warn(`promoted piece ${p.charId}: missing from character_table`); continue; }
+    const { mate, normal, golden } = promotedTierRow(chess, p.tier);
+    if (!normal || !golden) { warn(`promoted piece ${p.charId}: no tier-${p.tier} row to take a 练度 from`); continue; }
+    const ids = promotedChessIds(p.charId);
+    const garrison = promotedGarrisonIdsOf(p);   // the 作战能力 record first, then every 持续叠加 one the promotion states
+    const garrisonIds = [garrison.bond, ...(garrison.swap ? [garrison.swap] : []),
+      ...(p.garrison && garrison.cast ? [garrison.cast] : []), ...(p.garrison && garrison.ammo ? [garrison.ammo] : [])];
+    const moduleId = p.moduleId ?? null;
+    const unit = buildUnitHead(ctx, p.charId);
+    for (const [id, st, isGolden, baseId, upgradeNum, upgradeChessId] of [
+      [ids.a, normal.status, false, ids.a, mate?.upgradeNum ?? 3, ids.b],
+      [ids.b, golden.status, true, ids.a, 0, null],
+    ]) {
+      if (chess[id]) { warn(`promoted piece ${p.charId}: chess ${id} already exists`); continue; }
+      const form = buildUnitForm(ctx, p.charId, st, { chessId: baseId, skillIndex: p.skillIndex });
+      const rec = composeUnitRecord({
+        chessId: id, baseId, goldenId: ids.b, isGolden, tier: p.tier,
+        identifier: mate?.identifier ?? null,
+        isHidden: false, isDiy: false, visible: true,
+        // PRESET: like 特许 chess, a promoted piece is always fielded as its own operator (`backup` is itself) — it has no
+        // 补位干员, so the NORMAL (droppable) shape does not apply. checkUnitFormParity covers PRESET chesses, which is
+        // exactly what proves this record equals buildUnitForm + composeUnitRecord.
+        chessType: 'PRESET',
+        backup: { charId: p.charId, tmplId: null, skillIndex: p.skillIndex, uniEquipId: moduleId, potRank: 0 },
+        shopSortId: mate?.shopSortId ?? null,
+        bonds: [...p.bonds], garrisonIds: garrisonIds.map((g) => (isGolden ? g.b : g.a)),
+        price: (priceTable[String(p.tier)] || []).find((row) => !!row.isGolden === isGolden)?.purchasePrice ?? null,
+        sellPrice: (priceTable[String(p.tier)] || []).find((row) => !!row.isGolden === isGolden)?.chessSoldPrice ?? null,
+        upgradeNum, upgradeChessId,
+        status: { ...st },
+      }, unit, form, { skillIndex: p.skillIndex, moduleId });
+      if (!rec) { warn(`promoted piece ${p.charId}: cannot compose ${id}`); continue; }
+      // the piece's summons join buildTokens' registry like an official chess's (`rec.tokens` is filled in here; the
+      // variants' bySkill / byModule data falls out of the piece's own skills and modules)
+      registerTokenOwners(ctx, tokenOwners, {
+        rec, char: charTable[p.charId], chessId: id, charId: p.charId, sIdx: p.skillIndex,
+        skillLevel: st.skillLevel, potRank: ctx.potRank, phase: st.phase, level: st.level,
+        isGolden, modulePhase: null, moduleTokenParts: [], moduleAlts: [],
+      });
+      chess[id] = rec;
+    }
+  }
 }
 
 // ===== backups (补位 stand-ins, 自选 DIY slots) ===================================================
@@ -1187,6 +1297,26 @@ const DIY_EXCLUDED_NUMBER_PREFIXES = Object.freeze(['MH', 'RS', 'AM', 'PS', 'DD'
  * An upstream merge that touches the exclusion must keep this switch (docs/design/fork.md §F6).
  */
 const FORK_INCLUDE_COLLAB_PICKS = true;
+
+/**
+ * FORK 自选-ONLY OPERATORS (shared/diyOnly.js): the chess ids a demotion withdraws from the roster, module-wide (buildChess
+ * skips them, buildBonds must not call a deliberately absent member a data gap, and the integrity check counts them).
+ */
+const DIY_ONLY_CHESS_IDS = diyOnlyChessIds();
+
+/**
+ * FORK VISIBLE CHESS (the fork owner's decision of 2026-10-12): official chess the season's shop keeps but hides
+ * (`charShopChessDatas[...].isHidden`). The `chess_char_<tier>_<n>` ids are shared by the two halves of the season —
+ * the same slot is one operator in 上半 (act1autochess) and another in 下半 (act2autochess) — and 17 of the 下半 rows are
+ * hidden ones the shop never offers (docs/DATA.md §2). Listing a base id here restores it to the roster: `visible` true,
+ * `isHidden` false, with everything else official — tier and price (the tier's shop rows), the default skill and module,
+ * its 特质 records and its bonds (both member lists of a bond follow `visible`). Its 特质 code needs no work: the restored
+ * chess carries the official keys like any other visible one.
+ * The first entry is 协律 `chess_char_2_15_a` / `_b` (char_4051_akkord, 4★ 扩散术师 blastcaster, tier 2, 3 费, default S2,
+ * module BLA-X, 特质 `garrison_130_a` / `_b` "<获得时>自身所属盟约层数+4（无需激活盟约）" — 精锐 +8, 盟约 奥术 + 助力). An
+ * empty set restores upstream's data; docs/design/fork.md §F7 has the decision and what it costs.
+ */
+const FORK_VISIBLE_CHESS = Object.freeze(new Set(['chess_char_2_15_a']));
 
 /**
  * The skill a prototype carries in a 自选 slot when no 补位 row of the slot's tier names it (only 预备干员-医疗 at tier 5:
@@ -1370,6 +1500,9 @@ function buildBackups(ctx, chess) {
   }
 
   const roster = new Set(Object.values(act.charShopChessDatas).map((r) => r.charId).filter(Boolean));
+  // FORK 自选-ONLY OPERATORS (shared/diyOnly.js): a demoted operator is no shop chess any more, so the official rule
+  // "不可甄选加入已在名单中的固定干员" (legal6 below excludes every roster character) must not keep it out of the 自选 pool
+  for (const p of DIY_ONLY_OPERATORS) roster.delete(p.charId);
   const teamsOf = (ch) => [ch.mainPower?.teamId ?? ch.teamId, ...(ch.subPower || []).map((p) => p?.teamId)].filter(Boolean);
   const excludedTeams = new Set(DIY_EXCLUDED_TEAMS);
   const legal6 = Object.keys(charTable).filter((id) => {
@@ -1381,11 +1514,21 @@ function buildBackups(ctx, chess) {
   const collab = legal6.filter((id) => teamsOf(charTable[id]).some((t) => excludedTeams.has(t)) || collabNumber(charTable[id]));
   for (const t of DIY_EXCLUDED_TEAMS) if (!collab.some((id) => teamsOf(charTable[id]).includes(t))) warn(`DIY_EXCLUDED_TEAMS: no owned-6★ pick of team ${t}`);
   const excluded = FORK_INCLUDE_COLLAB_PICKS ? [] : collab; // the fork switch above: the collab picks stay in the pool
-  const ownedPool = legal6.filter((id) => !excluded.includes(id));
+  // FORK PROMOTED PIECES (shared/promoted.js): a promoted 自选干员 left the 自选 pool — it is a PRESET chess now, so it can
+  // no longer be picked (shared/diy.js checkDiyPick / validateDiyPicks reject it on their own). Its unit forms are still
+  // built, at the statuses of its tier's 自选 slot below.
+  const promotedIds = new Set(PROMOTED_PIECES.map((p) => p.charId));
+  const ownedPool = legal6.filter((id) => !excluded.includes(id) && !promotedIds.has(id));
   for (const id of ownedPool) for (const st of diyStatuses.values()) addNeed(id, st);
+  for (const p of PROMOTED_PIECES) {
+    const { normal, golden } = promotedTierRow(chess, p.tier);
+    if (!normal || !golden) { warn(`promoted piece ${p.charId}: no tier-${p.tier} row to take the 练度 from`); continue; }
+    addNeed(p.charId, normal.status);
+    addNeed(p.charId, golden.status);
+  }
 
   const units = {};
-  for (const id of [...standInIds, ...ownedPool]) {
+  for (const id of [...standInIds, ...ownedPool, ...promotedIds]) {
     const unit = buildUnitHead(ctx, id);
     unit.standsIn = (standsIn.get(id) || []).sort(naturalCmp);
     unit.forms = {};
@@ -1858,8 +2001,41 @@ function buildEffects(ctx) {
 const BOND_COUNT_KEYS = ['power_bond_char_cnt', 'ex_bond_char_cnt', 'power_char_cnt', 'ex_char_cnt'];
 
 /**
+ * FORK BOND OVERRIDES (the owner's plan of 2026-10-12): bonds whose numbers and texts this fork re-states. Keyed by bond
+ * id; the fields named replace the official ones (members, thresholds, weight … stay). `shared/bandBonds.js` and the
+ * client read the same record, so `desc` / `effectDesc` are updated with the numbers.
+ *
+ * `lateranoShip` 拉特兰 — the two effects swap tiers. Official: the ammo gain ("开启技能获得的弹药量提升（受层数影响）",
+ * `×(1 + base_ammo_percent + ammo_percent_per_stack × L)`, floored) is the BASE effect, and "每消耗1发弹药 → 全体 +4 % 攻击力,
+ * 至多 +200 %" needs 6 distinct members. The fork makes the ATK gain the base effect at +3 % / +150 %, and moves the ammo
+ * gain to <在场6名不同【拉特兰】干员> where a member whose skill carries no ammo (未携带弹药类技能) instead gains ASPD
+ * +(10 + 0.7 × 层数), floored — the two new blackboard keys `no_ammo_aspeed_base` / `no_ammo_aspeed_per_stack`
+ * (server/sim/content/bonds/core.js installLaterano).
+ */
+const LATERANO_BB = Object.freeze({
+  base_ammo_percent: 0.05, ammo_percent_per_stack: 0.015, power_bond_char_cnt: 6,
+  atk_per_consume: 0.03, max_atk_for_consume: 1.5,
+  no_ammo_aspeed_base: 10, no_ammo_aspeed_per_stack: 0.7,
+});
+const FORK_BOND_OVERRIDES = Object.freeze({
+  lateranoShip: Object.freeze({
+    bb: LATERANO_BB,
+    buffs: Object.freeze([Object.freeze({ key: 'env_gbuff_new', bb: LATERANO_BB, bbStr: Object.freeze({ key: 'act1autochess_bond_eff_laterano' }) })]),
+    desc: '【拉特兰】干员每消耗1发弹药，所有【拉特兰】干员攻击力提升（有上限）\n<在场6名不同【拉特兰】干员>【拉特兰】干员开启技能获得的弹药量提升（受层数影响）；未携带弹药类技能的【拉特兰】干员改为攻击速度提升（受层数影响）',
+    descRaw: '【拉特兰】干员每消耗1发弹药，所有【拉特兰】干员<@ba.vup>攻击力</>提升（有上限）\n<在场<@autochess.dgreen>6</>名不同【拉特兰】干员>【拉特兰】干员开启技能获得的<@ba.vup>弹药量</>提升<@autochess.gray>（受层数影响）</>；未携带弹药类技能的【拉特兰】干员改为<@ba.vup>攻击速度</>提升<@autochess.gray>（受层数影响）</>',
+    effectDesc: '任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力+3%，至多+150%\n<在场6名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量+(5+1.5×层数)%（会取整），对未携带弹药类技能的【拉特兰】干员，改为攻击速度+(10+0.7×层数)（向下取整）',
+    effectDescRaw: '任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力<@ba.vup>+3%</>，至多<@ba.vup>+150%</>\n<在场<@ba.vup>6</>名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量<@ba.vup>+(5+1.5×层数)%</>（会取整），对未携带弹药类技能的【拉特兰】干员，改为攻击速度<@ba.vup>+(10+0.7×层数)</>（向下取整）',
+    effectDescParams: Object.freeze([]),
+    spec: Object.freeze({ tiers: Object.freeze([
+      Object.freeze({ need: '3 distinct', effect: 'Any member\'s consumed ammo grants every member +3 % ATK, up to +150 % (FORK: the official record needs 6 distinct members for this).' }),
+      Object.freeze({ need: '6 distinct', effect: 'A member\'s ammo skill gains ×(1 + 0.05 + 0.015 × L), floored (FORK: the official base effect); a member whose skill carries no ammo instead gains ASPD +floor(10 + 0.7 × L).' }),
+    ]) }),
+  }),
+});
+
+/**
  * Build data/bonds.json: the 23 bonds with thresholds, counting mode, effect blackboards and the
- * research implementer spec.
+ * research implementer spec (FORK_BOND_OVERRIDES above re-states a fork-adjusted one).
  */
 function buildBonds(ctx, chess, effects) {
   const { act, ac } = ctx;
@@ -1911,8 +2087,17 @@ function buildBonds(ctx, chess, effects) {
       if (x.key === 'bond_layer_char_garrison_bonus' && lb.layer > 0) layerMilestones.push({ layer: lb.layer, mode: 'reach', effect: x.key });
     }
 
-    const members = (b.chessIdList || []).filter((id) => chess[id] && !chess[id].isGolden).sort(naturalCmp);
-    for (const id of b.chessIdList || []) if (!chess[id]) warn(`bond ${bondId}: member ${id} missing from chess`);
+    // FORK PROMOTED PIECES (shared/promoted.js): a promotion's chess carries its own 盟约, which the official member list
+    // cannot know — append it, so the bond panel and the roster list it (the layers the battle counts come from the
+    // piece's own `bonds`, this is the roster side of the same statement). The elite (`_b`) follows the official rule that
+    // `members` holds the normal records only.
+    const promotedMembers = PROMOTED_PIECES.map((p) => promotedChessIds(p.charId).a)
+      .filter((id) => chess[id] && !chess[id].isGolden && chess[id].bonds.includes(bondId) && !(b.chessIdList || []).includes(id));
+    const members = [...(b.chessIdList || []), ...promotedMembers].filter((id) => chess[id] && !chess[id].isGolden).sort(naturalCmp);
+    for (const id of [...(b.chessIdList || []), ...promotedMembers]) {
+      // FORK 自选-ONLY OPERATORS: a demoted operator's chess is deliberately gone from the roster (not a data gap)
+      if (!chess[id] && !DIY_ONLY_CHESS_IDS.has(id)) warn(`bond ${bondId}: member ${id} missing from chess`);
+    }
     const rb = researchBonds.get(bondId);
     const dp = textPair(b.desc);
     out[bondId] = {
@@ -1937,6 +2122,7 @@ function buildBonds(ctx, chess, effects) {
       members, visibleMembers: members.filter((id) => chess[id].visible),
       spec: rb?.spec || null,
     };
+    for (const [k, v] of Object.entries(FORK_BOND_OVERRIDES[bondId] || {})) out[bondId][k] = v;
   }
   return out;
 }
@@ -1947,8 +2133,201 @@ function buildBonds(ctx, chess, effects) {
  * Build data/garrisons.json: every garrison referenced by season chess (plus garrisons referenced
  * from other garrisons' blackboards, transitively).
  */
+/**
+ * FORK PROMOTED PIECES (shared/promoted.js): the 特质 records of the promoted pieces. An official 特质 comes from
+ * `garrisonDataDict`; a promotion's is authored here, shaped exactly like the official record it mirrors —
+ * `garrison_100_a` / `_b` (【萨尔贡】【迅捷】【精准】每叠加3层, 攻击力 +2% / +4%) with the promotion's own 盟约, and
+ * `garrison_14_a` / `_b` (【拉特兰】【坚守】每叠加3层, 防御力 +1 % / +2 %) for the stats a promotion scales. The sim applies a
+ * 特质 by `effectKey` (sim/content/garrisons/battle.js), so reusing `act1autochess_gar_eff_attrByBond` needs no new
+ * effect code, and every promotion states its numbers in shared/promoted.js.
+ *
+ * A promotion whose 特质 has a SECOND effect gets a second record pair, like the official operators that carry two
+ * 特质 records: 结城理's `<…>_swap_a` / `_b` is a 持续叠加 one ("<战斗中>每次切换替身时…" — 归溟幽灵鲨's garrison_40
+ * family), handled by the fork key `fork_gar_event_dollswap`, with the official `max_add_count_per_battle` cap. The desc
+ * and the elite record are generated from the promotion's numbers, so a 特质's text and its blackboard cannot drift.
+ *
+ * FORK CHESS ADJUSTMENTS (shared/chessAdjust.js) re-author OFFICIAL records the same way: 安洁莉娜's `garrison_147_a` / `_b`
+ * become the two-bond refresh trait below (through shared/forkTraits.js).
+ * @param {object} ctx (for the bond names of `act.bondInfoDict`)
+ * @returns {Record<string, object>}
+ */
+function forkGarrisonRecords(ctx) {
+  const out = {};
+  const pct = (v) => `${Number((v * 100).toFixed(2))}%`;
+  /** "攻击力和生命值" — the stats a 作战能力 特质 states, in PROMOTED_STATS order. */
+  const statText = (rows) => (rows.length > 1 ? `${rows.slice(0, -1).map((r) => r.label).join('、')}和${rows.at(-1).label}` : rows[0]?.label ?? '');
+  const bondName = (b) => ctx.act.bondInfoDict[b]?.name ?? b;
+  /** The refresh-shaped 特质 record (shared/forkTraits.js) of `owner`, `refresh.perA/capA` normal, `perB/capB` elite. */
+  const refreshRecord = (garrisonId, owner, refresh, elite) => refreshLayerTrait({
+    garrisonId, owner,
+    bonds: [...refresh.bonds], bondNames: refresh.bonds.map(bondName),
+    per: [...(elite ? refresh.perB : refresh.perA)], cap: [...(elite ? refresh.capB : refresh.capA)],
+  });
+  /** "【萨尔贡】【迅捷】" — the bond names a 持续叠加 特质's texts list. */
+  const bondTags = (p) => p.bonds.map((b) => (ctx.act.bondInfoDict[b]?.name ? `【${ctx.act.bondInfoDict[b].name}】` : b)).join('');
+  /** The skill-cast 特质 record (真言's): every cast of an operator carrying one of the bonds adds `add` to the active
+   *  listed bonds, capped `cap` per bond per battle — the fork key `fork_gar_event_bondskill` (no official 特质 listens to
+   *  another operator's casts). */
+  const castRecord = (garrisonId, owner, p, add, cap) => {
+    const bonds = bondTags(p);
+    const text = `<战斗中>场上所有${bonds}干员开启技能时，使已激活的${bonds}层数+${add}（每场作战分别至多${cap}层）`;
+    return {
+      garrisonId,
+      desc: text,
+      descRaw: text.replace(/\+\d+/, '<@ba.vup>$&</>'),
+      eventType: 'IN_BATTLE', eventTypeDesc: '持续叠加', eventTypeIcon: 'icon_bond',
+      effectType: 'ADD_BOND', effectKey: 'fork_gar_event_bondskill',
+      battleRuneKey: 'env_gbuff_new_with_verify', charLevel: 0,
+      bb: { bond_add_count: add, max_add_count_per_battle: cap },
+      bbStr: { key: 'fork_gar_event_bondskill', bond_type: 'bond_by_id', bond_id: p.bonds.join(','), bond_add_type: 'by_count' },
+      owners: [owner],
+    };
+  };
+  /** The ammo-consume 特质 record (维伊's): every `consume` bullets the HOLDER spends adds `add` to the active bonds of
+   *  `ammo.bonds`, capped `cap` per bond per battle. No new effect code — the official family
+   *  (`act1autochess_gar_event_consume_ammo`) already does this: `range_id: '0-1'` is its self-only scope (莫斯提马's
+   *  garrison_22 names `x-5`, her 4 tiles; 圣约送葬人's garrison_23 the same `0-1`), and its cap reads as a trigger
+   *  count (`cap = add × triggers`, garrison_23's 7 × 7 = 49). */
+  const ammoRecord = (garrisonId, owner, p, add, cap) => {
+    const a = p.ammo;
+    const bonds = a.bonds.map((b) => `【${bondName(b)}】`).join('、');
+    const times = Math.max(1, Math.round(cap / Math.max(1, add)));
+    const text = `<战斗中>自身每消耗${a.consume}发弹药，使已激活的${bonds}层数+${add}（每场战斗至多触发${times}次）`;
+    return {
+      garrisonId,
+      desc: text,
+      descRaw: text.replace(/\+\d+/, '<@ba.vup>$&</>'),
+      eventType: 'IN_BATTLE', eventTypeDesc: '持续叠加', eventTypeIcon: 'icon_bond',
+      effectType: 'ADD_BOND', effectKey: 'act1autochess_gar_event_consume_ammo',
+      battleRuneKey: 'char_dynamic_ability_new', charLevel: 0,
+      bb: { at_root: 1, consume_count: a.consume, bond_add_count: add, max_add_count_per_battle: cap },
+      bbStr: {
+        key: 'act1autochess_gar_event_consume_ammo', range_id: '0-1',
+        bond_type: 'bond_by_id', bond_id: a.bonds.join(','), bond_add_type: 'by_count',
+      },
+      owners: [owner],
+    };
+  };
+  for (const trait of FREEZE_TRAIT_ADJUSTMENTS) {
+    for (const [garrisonId, owner, add] of [
+      [trait.normalId, trait.ownerNormal, trait.addNormal],
+      [trait.eliteId, trait.ownerElite, trait.addElite],
+    ]) {
+      out[garrisonId] = freezeBondTrait({
+        garrisonId,
+        owner,
+        bonds: [...trait.bonds],
+        bondNames: trait.bonds.map(bondName),
+        add,
+        prob: trait.prob,
+      });
+    }
+  }
+  for (const p of PROMOTED_PIECES) {
+    const cid = promotedChessIds(p.charId);
+    const garrison = promotedGarrisonIdsOf(p);
+    /** Author one 持续叠加 pair — `[{a,b}]` ids, `{addA,addB,capA,capB}` numbers — through `record(id, chessId, add, cap)`. */
+    const authorPair = (ids, d, record) => {
+      for (const [id, chessId, add, cap] of [[ids.a, cid.a, d.addA, d.capA], [ids.b, cid.b, d.addB, d.capB]]) {
+        out[id] = record(id, chessId, add, cap);
+      }
+    };
+    if (p.refresh) {
+      // a promotion whose 特质 is a refresh one (the same `garrison_fork_<name>_a` / `_b` pair, its other shape)
+      for (const [id, chessId, elite] of [[garrison.bond.a, cid.a, false], [garrison.bond.b, cid.b, true]]) {
+        out[id] = refreshRecord(id, chessId, p.refresh, elite);
+      }
+      continue;
+    }
+    if (!p.garrison) {
+      // a promotion whose ONLY 特质 is a 持续叠加 one: its pair carries no suffix (the naming rule) and is the same pair
+      // `garrison.bond` names — 真言's skill-cast trait, 维伊's ammo one
+      if (p.cast) authorPair(garrison.cast, p.cast, (id, chessId, add, cap) => castRecord(id, chessId, p, add, cap));
+      if (p.ammo) authorPair(garrison.ammo, p.ammo, (id, chessId, add, cap) => ammoRecord(id, chessId, p, add, cap));
+      continue;
+    }
+    for (const [id, chessId, isGolden] of [[garrison.bond.a, cid.a, false], [garrison.bond.b, cid.b, true]]) {
+      const rows = promotedGarrisonStats(p, isGolden);
+      const text = `${p.garrisonLabel}${p.garrison.perText ?? '每叠加'}${p.garrison.divide}层，本干员${statText(rows)}+${pct(rows[0]?.v ?? 0)}`;
+      out[id] = {
+        garrisonId: id,
+        desc: text,
+        descRaw: text.replace(/\+([\d.]+%)/, '<@ba.vup>+$1</>'),
+        eventType: 'IN_BATTLE', eventTypeDesc: '作战能力', eventTypeIcon: 'icon_battle',
+        effectType: 'GAIN_BUFF', effectKey: 'act1autochess_gar_eff_attrByBond',
+        battleRuneKey: 'env_gbuff_new_with_verify', charLevel: 0,
+        bb: Object.fromEntries([['divide_num', p.garrison.divide], ...rows.map((r) => [r.bb, r.v])]),
+        bbStr: { key: 'act1autochess_gar_eff_attrByBond', bond_id: p.bonds.join(',') },
+        owners: [chessId],
+      };
+    }
+    if (p.swap) {
+      const bonds = bondTags(p);
+      authorPair(garrison.swap, p.swap, (id, chessId, add, cap) => {
+        const text = `<战斗中>每次切换替身时，使已激活的${bonds}层数+${add}（每场作战分别至多${cap}层）`;
+        return {
+          garrisonId: id,
+          desc: text,
+          descRaw: text.replace(/\+\d+/, '<@ba.vup>$&</>'),
+          eventType: 'IN_BATTLE', eventTypeDesc: '持续叠加', eventTypeIcon: 'icon_bond',
+          effectType: 'ADD_BOND', effectKey: 'fork_gar_event_dollswap',
+          battleRuneKey: 'env_gbuff_new_with_verify', charLevel: 0,
+          bb: { bond_add_count: add, max_add_count_per_battle: cap },
+          bbStr: { key: 'fork_gar_event_dollswap', bond_type: 'bond_by_id', bond_id: p.bonds.join(','), bond_add_type: 'by_count' },
+          owners: [chessId],
+        };
+      });
+    }
+    if (p.cast) authorPair(garrison.cast, p.cast, (id, chessId, add, cap) => castRecord(id, chessId, p, add, cap));
+    if (p.ammo) authorPair(garrison.ammo, p.ammo, (id, chessId, add, cap) => ammoRecord(id, chessId, p, add, cap));
+  }
+  return out;
+}
+
+/**
+ * FORK 特质 OVERRIDES (owner's decisions): official 特质 records this fork re-authors. Keyed by the official garrison
+ * id; the fields named replace the official ones (the rest — owners, charLevel … — stays). Sim-side support:
+ * `sim/content/garrisons/battle.js` dispatches by `effectKey`, so a fork rule needs its own key there.
+ *
+ * `garrison_12_a` / `_b` — 乌尔比安 (chess_char_5_05, 6★ 近卫·重剑手). The official record is 作战能力
+ * (GAIN_BUFF/`act1autochess_gar_eff_attrByBond`): "【阿戈尔】每叠加2层，本干员攻击力+1%" (elite +2 %). The owner's decision of
+ * 2026-10-12 replaces it with a 持续叠加 trait: every knock-out of one of the player's own 【阿戈尔】 operators (乌尔比安
+ * included) adds 2 (elite 4) to the active 【阿戈尔】 layers. No official 特质 shares that trigger, so the record carries the
+ * fork-named key `fork_gar_event_bonddead` (implemented in garrisons/battle.js). No per-battle cap, like the official
+ * `_selfdead` family it mirrors (幽灵鲨 garrison_46 +3 / +6).
+ */
+const FORK_GARRISON_OVERRIDES = Object.freeze({
+  garrison_12_a: {
+    desc: '<战斗中>所有【阿戈尔】干员被击倒时，使已激活的【阿戈尔】层数+2',
+    descRaw: '<战斗中>所有【阿戈尔】干员被击倒时，使已激活的【阿戈尔】层数<@ba.vup>+2</>',
+    eventType: 'IN_BATTLE', eventTypeDesc: '持续叠加', eventTypeIcon: 'icon_bond',
+    effectType: 'ADD_BOND', effectKey: 'fork_gar_event_bonddead', battleRuneKey: 'env_gbuff_new_with_verify',
+    bb: { bond_add_count: 2 },
+    bbStr: { key: 'fork_gar_event_bonddead', bond_type: 'bond_by_id', bond_id: 'egirShip', bond_add_type: 'by_count' },
+  },
+  garrison_12_b: {
+    desc: '<战斗中>所有【阿戈尔】干员被击倒时，使已激活的【阿戈尔】层数+4',
+    descRaw: '<战斗中>所有【阿戈尔】干员被击倒时，使已激活的【阿戈尔】层数<@ba.vup>+4</>',
+    eventType: 'IN_BATTLE', eventTypeDesc: '持续叠加', eventTypeIcon: 'icon_bond',
+    effectType: 'ADD_BOND', effectKey: 'fork_gar_event_bonddead', battleRuneKey: 'env_gbuff_new_with_verify',
+    bb: { bond_add_count: 4 },
+    bbStr: { key: 'fork_gar_event_bonddead', bond_type: 'bond_by_id', bond_id: 'egirShip', bond_add_type: 'by_count' },
+  },
+  garrison_126_a: {
+    desc: '<战斗开始时>使身前一格【谢拉格】干员获得特质“范围内1名敌人进入冻结时，有50%概率使已激活的【谢拉格】【迅捷】层数+1”',
+    descRaw: '<战斗开始时>使身前一格【谢拉格】干员获得特质“范围内1名敌人进入冻结时，有50%概率使已激活的【谢拉格】【迅捷】层数<@ba.vup>+1</>”',
+    bbStr: { check_bond_id: 'kjeragShip', give_garrison_id: 'garrison_fork_silverash2_freeze_a' },
+  },
+  garrison_126_b: {
+    desc: '<战斗开始时>使身前一格【谢拉格】干员获得特质“范围内1名敌人进入冻结时，有50%概率使已激活的【谢拉格】【迅捷】层数+2”',
+    descRaw: '<战斗开始时>使身前一格【谢拉格】干员获得特质“范围内1名敌人进入冻结时，有50%概率使已激活的【谢拉格】【迅捷】层数<@ba.vup>+2</>”',
+    bbStr: { check_bond_id: 'kjeragShip', give_garrison_id: 'garrison_fork_silverash2_freeze_b' },
+  },
+});
+
 function buildGarrisons(ctx, chess) {
   const dict = ctx.act.garrisonDataDict;
+  const fork = forkGarrisonRecords(ctx);   // FORK PROMOTED PIECES: 特质 a promotion authors itself (above)
   const wanted = new Set();
   for (const c of Object.values(chess)) for (const g of c.garrisonIds) wanted.add(g);
   const queue = [...wanted];
@@ -1966,7 +2345,7 @@ function buildGarrisons(ctx, chess) {
   const out = {};
   for (const id of [...wanted].sort(naturalCmp)) {
     const g = dict[id];
-    if (!g) { warn(`garrison ${id} referenced but missing from garrisonDataDict`); continue; }
+    if (!g) { if (!fork[id]) warn(`garrison ${id} referenced but missing from garrisonDataDict`); continue; }
     const { bb, bbStr } = flattenBB(g.blackboard, `garrison ${id}`);
     const raw = g.garrisonDesc || g.description;
     const dp = textPair(raw);
@@ -1977,6 +2356,21 @@ function buildGarrisons(ctx, chess) {
       charLevel: g.charLevel || 0, bb, bbStr,
       owners: Object.values(chess).filter((c) => c.garrisonIds.includes(id)).map((c) => c.chessId).sort(naturalCmp),
     };
+  }
+  Object.assign(out, fork);
+  for (const [id, rec] of Object.entries(FORK_GARRISON_OVERRIDES)) if (out[id]) Object.assign(out[id], rec);
+  // FORK CHESS ADJUSTMENTS (shared/chessAdjust.js): the 特质 of an adjusted official 可用干员, authored from the adjustment
+  // (its own numbers are the description's, so text and blackboard cannot drift — shared/forkTraits.js)
+  for (const t of traitOverrides()) {
+    if (!out[t.garrisonId]) { warn(`chess adjustment ${t.charId}: garrison ${t.garrisonId} is not in the build`); continue; }
+    const owner = (out[t.garrisonId].owners || [])[0];
+    const rec = refreshLayerTrait({
+      garrisonId: t.garrisonId, owner,
+      bonds: [...t.refresh.bonds], bondNames: t.refresh.bonds.map((b) => ctx.act.bondInfoDict[b]?.name ?? b),
+      per: [...(t.elite ? t.refresh.perB : t.refresh.perA)], cap: [...(t.elite ? t.refresh.capB : t.refresh.capA)],
+    });
+    const { garrisonId, owners, ...rest } = rec;
+    Object.assign(out[t.garrisonId], rest);
   }
   return out;
 }
@@ -2084,6 +2478,11 @@ function buildItems(ctx, effects) {
 /**
  * Build data/bands.json: the 40 season strategies. `bondIds` (the bonds a strategy is built around: shared/bandBonds.js
  * over its text and blackboards, needing bonds.json and choices.json pools) is added in main() once those are built.
+ *
+ * FORK STRATEGY ADJUSTMENTS (shared/bandAdjust.js) replace the effect of the strategies the owner re-authored: the
+ * record's `desc` / `descRaw` / `buffs` / `params` are re-authored from the adjustment's numbers (below, before main()
+ * adds `bondIds`, which read the new text and blackboards); the effect name, icon, LP and unlock condition stay the
+ * official record's own.
  */
 function buildBands(ctx, effects) {
   const { act, ac } = ctx;
@@ -2105,6 +2504,11 @@ function buildBands(ctx, effects) {
       victorCount: b.victorCount, rewardModulus: b.bandRewardModulus ?? 1,
       unlockDesc: meta.unlockDesc || null,
     };
+  }
+  for (const a of BAND_ADJUSTMENTS) {
+    const rec = out[a.bandId];
+    if (!rec) { warn(`band adjustment ${a.label}: ${a.bandId} is not in the build`); continue; }
+    Object.assign(rec, bandAdjustmentEffect(a, rec.effectName || rec.name));
   }
   return out;
 }
@@ -3882,7 +4286,12 @@ function validateAll(f) {
   const visible = Object.values(chess).filter((c) => !c.isGolden && c.visible);
   if (Object.keys(bonds).length !== 23) err(`expected 23 bonds, got ${Object.keys(bonds).length}`);
   if (Object.keys(bands).length !== 40) err(`expected 40 bands, got ${Object.keys(bands).length}`);
-  if (visible.length !== 112) err(`expected 112 visible non-DIY chess, got ${visible.length}`);
+  // the floor is the official season's 112; a FORK PROMOTED PIECE (shared/promoted.js) adds one visible NORMAL-shaped
+  // record each (its `_b` elite is golden and not counted here), a FORK 自选-ONLY OPERATOR (shared/diyOnly.js) removes
+  // one (its `_a`; its `_b` elite is golden too, so it never counted here) and a FORK VISIBLE CHESS restores one of the
+  // season shop's hidden rows
+  const expectedVisible = 112 + PROMOTED_PIECES.length - DIY_ONLY_OPERATORS.length + FORK_VISIBLE_CHESS.size;
+  if (visible.length !== expectedVisible) err(`expected ${expectedVisible} visible non-DIY chess, got ${visible.length}`);
   for (const c of Object.values(chess)) {
     if (!chess[c.baseId]) err(`chess ${c.chessId}: baseId missing`);
     if (c.goldenId && !chess[c.goldenId]) err(`chess ${c.chessId}: goldenId missing`);
@@ -4073,6 +4482,9 @@ async function main() {
   for (let r = 0; r <= FULL_RANK; r++) {
     const pctx = { ...ctx, potRank: r };
     const built = buildChess(pctx);
+    applyFreezeTraitReplacements(built.chess);
+    // FORK: the promoted 自选干员 (shared/promoted.js) become chesses of this rank before everything downstream reads them
+    addPromotedChess(pctx, built.chess, built.tokenOwners);
     passes.push({ ctx: pctx, chess: built.chess, tokenOwners: built.tokenOwners, backups: buildBackups(pctx, built.chess) });
   }
   const { chess, backups } = passes[FULL_RANK];
