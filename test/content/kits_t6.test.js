@@ -118,6 +118,28 @@ test('蕾缪安: S3 locks 5 (+1 talent) targets every 0.5 s, then the shells lan
   checkInvariants(h.b);
 });
 
+test('蕾缪安: S3 ammo bonuses and reloads cannot exceed 100', () => {
+  const id = 'chess_char_6_01_a';
+  const h = battle({
+    units: [{ chessId: id, row: 10, col: 3 }],
+    setup(b) {
+      b.on('skillStart', ({ unit, skill }) => {
+        if (unit.defId === id) skill.ammoLeft += 200;
+      }, { priority: 1000 });
+    },
+  });
+  const u = h.unit(id);
+  h.step();
+  u.skill.gainSp(999, 'init');
+  assert.ok(u.skill.activate('test'));
+  assert.equal(u.skill.ammoLeft, 100, 'skillStart ammo bonuses are clamped');
+  assert.equal(u.skill.ammoMax, 100, 'the magazine full mark respects the cap');
+  u.skill.addAmmo(25);
+  assert.equal(u.skill.ammoLeft, 100, 'later reloads are clamped too');
+  assert.equal(u.skill.ammoMax, 100);
+  checkInvariants(h.b);
+});
+
 test('蕾缪安: S3 lock marks follow a walking target and stay where it died; the outer ring deals 240 %', () => {
   const h = battle({
     units: [{ chessId: 'chess_char_6_01_a', row: 10, col: 3, carryState: { sp: 99 } }],

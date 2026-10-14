@@ -90,6 +90,7 @@ export class SkillRuntime {
     this.kind = s.kind ?? 'instant';
     this.duration = Number.isFinite(+s.duration) ? +s.duration : (d.duration > 0 ? d.duration : 0);
     this.ammo = Math.max(0, Math.floor(+s.ammo || 0));
+    this.ammoCap = s.ammoCap == null || !Number.isFinite(+s.ammoCap) ? Infinity : Math.max(1, Math.floor(+s.ammoCap));
     this.baseSpCost = Math.max(0, Number.isFinite(+s.spCost) ? +s.spCost : (d.spCost ?? 0));
     this.initSp = Math.max(0, Number.isFinite(+s.initSp) ? +s.initSp : (d.initSp ?? 0));
     this.maxCharges = Math.max(1, Math.floor(s.charges ?? d.maxCharges ?? 1));
@@ -544,7 +545,7 @@ export class SkillRuntime {
     if (this.isTimed) {
       this.active = true;
       this.timeLeft = this.kind === 'duration' ? Math.max(0.01, this.duration) : (this.kind === 'ammo' && this.duration > 0 ? this.duration : Infinity);
-      this.ammoLeft = this.kind === 'ammo' ? Math.max(1, this.ammo) : 0;
+      this.ammoLeft = this.kind === 'ammo' ? Math.min(this.ammoCap, Math.max(1, this.ammo)) : 0;
       this.ammoMax = this.ammoLeft;
       this._applyMods();
     } else {
@@ -558,9 +559,11 @@ export class SkillRuntime {
     u.skillAnimUntil = b.time + SKILL_ANIM_WINDOW;
     this._call('onStart', { reason });
     if (b._hooks.skillStart) b.emit('skillStart', { unit: u, skill: this, reason });
-    // bullets added in skillStart (拉特兰's ×(1.05 + 0.015 × layers), 逃犯引渡手续, talents): the bar's full mark
-    // (community report #35: the extra bullets sat above a full bar until fewer than the base count were left)
-    if (this.active && this.ammoLeft > this.ammoMax) this.ammoMax = this.ammoLeft;
+    // skillStart ammo bonuses raise the full mark, but never past this skill's optional magazine cap.
+    if (this.active && this.kind === 'ammo') {
+      this.ammoLeft = Math.min(this.ammoCap, this.ammoLeft);
+      if (this.ammoLeft > this.ammoMax) this.ammoMax = this.ammoLeft;
+    }
     if (!this.isTimed && !this.pending) {
       this.end('instant');
       // an instant / charge skill with no attack of its own (no spec.attack: a throw, a heal, a buff, DP …) waits one
@@ -646,7 +649,7 @@ export class SkillRuntime {
   // (bullets added above the activation's most so far raise the bar's full mark: the bar drains one bullet at a time)
   addAmmo(n) {
     if (!this.active || this.kind !== 'ammo' || !Number.isFinite(n)) return;
-    this.ammoLeft += n;
+    this.ammoLeft = Math.min(this.ammoCap, this.ammoLeft + n);
     if (this.ammoLeft > this.ammoMax) this.ammoMax = this.ammoLeft;
   }
   extend(seconds) { if (this.active && Number.isFinite(this.timeLeft) && Number.isFinite(seconds)) this.timeLeft += seconds; }

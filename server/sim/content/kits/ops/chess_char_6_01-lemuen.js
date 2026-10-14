@@ -190,6 +190,7 @@ function lemuen(bb, chess, def) {
     skill: {
       kind: 'ammo',
       ammo: Math.max(1, Math.floor(num(bb['attack@trigger_time'], 5))),
+      ammoCap: 100,
       attack: { noAttack: true },
       allyTargets: true,   // its locks take 白铁's 铁钳号 too (pickLock) — skills.js allyTargetsOk
       onStart({ unit }) { unit.mem.lemLocks = []; unit.mem.lemAcc = aim; },

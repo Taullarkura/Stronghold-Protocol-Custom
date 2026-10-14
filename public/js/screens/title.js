@@ -37,8 +37,50 @@ import { SettingsModal } from '../ui/settings.js';
 import { presenceLabel, presenceHint, usePresencePoll } from '../ui/presence.js';
 
 export const UPDATE_NOTICE_ID = 'merge-upstream-0.2.6';
-export const UPDATE_NOTICE_TITLE = N_('更新公告');
-export const UPDATE_NOTICE_CONTENT = N_('合并上游0.2.6版本');
+export const UPDATE_NOTICE_TITLE = '更新公告'; // i18n-ignore (simplified-Chinese notice)
+const UPDATE_NOTICE_HEADING = '调整'; // i18n-ignore (simplified-Chinese notice)
+export const UPDATE_NOTICE_CONTENT = [
+  {
+    title: '阿戈尔', // i18n-ignore (simplified-Chinese notice)
+    items: [
+      '新干员「克莱门莎」加入(VI阶,阿戈尔/坚守/不屈)', // i18n-ignore (simplified-Chinese notice)
+      '干员「乌尔比安」特质变更', // i18n-ignore (simplified-Chinese notice)
+    ],
+  },
+  {
+    title: '叙拉古', // i18n-ignore (simplified-Chinese notice)
+    items: [
+      '移除干员「缄默德克萨斯」,变为自选干员', // i18n-ignore (simplified-Chinese notice)
+      '干员「安洁莉娜」等阶V => IV,特质变更', // i18n-ignore (simplified-Chinese notice)
+      '新干员「予愿安洁莉娜」加入(V阶,叙拉古)', // i18n-ignore (simplified-Chinese notice)
+    ],
+  },
+  {
+    title: '谢拉格', // i18n-ignore (simplified-Chinese notice)
+    items: [
+      '干员「银灰」「灵知」「凛御银灰」特质变更', // i18n-ignore (simplified-Chinese notice)
+      '策略「休露丝」效果变更', // i18n-ignore (simplified-Chinese notice)
+    ],
+  },
+  {
+    title: '拉特兰', // i18n-ignore (simplified-Chinese notice)
+    items: [
+      '移除干员「莫斯提玛」「塑心」,变为自选干员', // i18n-ignore (simplified-Chinese notice)
+      '新干员「结成理」(V阶,拉特兰/坚守)「维伊」(IV阶,拉特兰/奥术)加入', // i18n-ignore (simplified-Chinese notice)
+      '干员「蕾缪安」三技能「礼炮·强制追思」弹药上限改为100', // i18n-ignore (simplified-Chinese notice)
+      '「拉特兰」盟约效果变更：任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力+3%，至多+150%', // i18n-ignore (simplified-Chinese notice)
+    ],
+    detail: '<在场6名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量+(5+1.5×层数)%（会取整），对未携带弹药类技能的拉特兰干员，改为攻速+(10+0.7x层数)(向下取整)', // i18n-ignore (simplified-Chinese notice)
+  },
+  {
+    title: '萨尔贡', // i18n-ignore (simplified-Chinese notice)
+    items: [
+      '移除干员「卡涅利安」,变为自选干员', // i18n-ignore (simplified-Chinese notice)
+      '新干员「真言」(V阶,萨尔贡/迅捷)加入', // i18n-ignore (simplified-Chinese notice)
+      '干员「佩佩」等阶VI => V', // i18n-ignore (simplified-Chinese notice)
+    ],
+  },
+];
 
 export function hasSeenUpdateNotice(seen) {
   return Array.isArray(seen) && seen.includes(UPDATE_NOTICE_ID);
@@ -300,7 +342,18 @@ export function TitleScreen() {
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
     <${Modal} open=${announcementOpen} onClose=${closeAnnouncement} title=${t(UPDATE_NOTICE_TITLE)}
       width="6.4rem" actions=${html`<${Button} variant="primary" icon="check" onClick=${closeAnnouncement}>${t('知道了')}<//>`}>
-      <p class="modal__text">${t(UPDATE_NOTICE_CONTENT)}</p>
+      <div class="update-notice modal__text">
+        <h3 class="update-notice__heading">${t(UPDATE_NOTICE_HEADING)}</h3>
+        ${UPDATE_NOTICE_CONTENT.map(({ title, items, detail }) => html`
+          <section class="update-notice__group">
+            <h4 class="update-notice__group-title">${t(title)}</h4>
+            <ul class="update-notice__items">
+              ${items.map((item) => html`<li>${t(item)}</li>`)}
+            </ul>
+            ${detail ? html`<p class="update-notice__detail">${t(detail)}</p>` : null}
+          </section>
+        `)}
+      </div>
     <//>
 
     <footer class="title-foot">

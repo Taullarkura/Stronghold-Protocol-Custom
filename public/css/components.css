@@ -475,6 +475,13 @@
 .modal__title { font-size: calc(.26 * var(--t)); font-weight: 700; letter-spacing: .04em; }
 .modal__body { padding: .14rem .3rem .26rem; color: var(--text-md); overflow: auto; }
 .modal__text { font-size: calc(.18 * var(--t)); line-height: 1.7; }
+.update-notice__heading { margin: 0 0 .08rem; color: var(--text-hi); font-size: calc(.2 * var(--t)); }
+.update-notice__group + .update-notice__group { margin-top: .12rem; }
+.update-notice__group-title { margin: 0; color: var(--mint-500); font-size: calc(.18 * var(--t)); }
+.update-notice__items { margin: .04rem 0 0; padding-left: .28rem; }
+.update-notice__items li + li { margin-top: .03rem; }
+.update-notice__items li::marker { color: var(--mint-500); }
+.update-notice__detail { margin: .05rem 0 0 .1rem; }
 .modal__actions {
   flex: none;
   display: flex;

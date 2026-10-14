@@ -1039,8 +1039,9 @@ flag alters movement or 失衡.
 - Runtime helpers on `unit.skill`: `activate(reason, {free})`, `end(reason)`, `stop()`, `addAmmo(n)`, `extend(s)`,
   `addCharge(n)`, `gainSp(n, reason)`, `addTriggerRange(fn, { attackOnly?: boolean })`, `setTrigger(rule, grid)` (a kit's own rule change mid-battle —
   薇薇安娜 S3's ACTIVE_RANGE on 3-2 after its first cast; 0.2.0); fields `sp, spCost (= floor(base×spCostMul + spCostFlat)), spCostMul, charges,
-  maxCharges, active, timeLeft, ammoLeft, ammoMax, activations, kind, rule, bb` (`ammoMax`: the most bullets the running ammo skill
-  has held — set at activation, raised by skillStart additions and `addAmmo` above it; 0 when inactive).
+  maxCharges, active, timeLeft, ammoLeft, ammoMax, ammoCap, activations, kind, rule, bb` (`ammoMax`: the most bullets the running ammo skill
+  has held — set at activation, raised by skillStart additions and `addAmmo` above it; 0 when inactive. Optional `ammoCap`
+  limits the starting magazine and skillStart / `addAmmo` increases; uncapped skills use `Infinity`).
 
 ### 7.2 Kits
 
@@ -1128,6 +1129,7 @@ Element conventions of the kits (user playtest #5 #3; official term dictionary: 
   activateOnDeploy: bool, // optional: reset activates synchronously and consumes a deployment charge
   duration,              // s (duration kind; optional cap for ammo)
   ammo,                  // attacks (ammo kind)
+  ammoCap,               // optional maximum magazine size, including skillStart bonuses and addAmmo reloads
   spCost, initSp, charges, spType: 'time'|'attack'|'hurt'|'none',   // optional overrides of the data values
   trigger: 'DEFAULT' | { rule, grid, allies?, hpAtMost?, enemies? },     // optional override (allies / hpAtMost: an injured ally condition, §7.1)
   heal: bool,            // heal-type skill for the DEFAULT trigger (default: unit is a healer); trigger.enemies also permits enemies
