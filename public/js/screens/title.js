@@ -15,7 +15,7 @@
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useMemo, useState } from '../../vendor/hooks.module.js';
 import { NAME_MAX_LEN, APP_VERSION, DEV_BUILD } from '../../../shared/constants.js';
-import { html, Button, Icon, MicroLabel, TextField, PingPill, AvatarFrame, PlayerName } from '../ui/components.js';
+import { html, Button, Icon, MicroLabel, Modal, TextField, PingPill, AvatarFrame, PlayerName } from '../ui/components.js';
 import { LogoutButton } from '../ui/accountMenu.js';
 import { AccountCard } from '../ui/accountForms.js';
 import { GuideButton } from '../ui/guide.js';
@@ -25,7 +25,7 @@ import { openStats } from './stats.js';
 import { toast } from '../ui/toasts.js';
 import { net, identity } from '../net.js';
 import { account } from '../account.js';
-import { store, useStore, shallowEqual } from '../store.js';
+import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, useData } from '../data.js';
 import { FullscreenButton, PwaInstallButton, detectFeatures } from '../ui/device.js';
 import { sanitizeName, isValidName } from '../names.js';
@@ -35,6 +35,19 @@ import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
 import { SettingsModal } from '../ui/settings.js';
 import { presenceLabel, presenceHint, usePresencePoll } from '../ui/presence.js';
+
+export const UPDATE_NOTICE_ID = 'merge-upstream-0.2.6';
+export const UPDATE_NOTICE_TITLE = N_('更新公告');
+export const UPDATE_NOTICE_CONTENT = N_('合并上游0.2.6版本');
+
+export function hasSeenUpdateNotice(seen) {
+  return Array.isArray(seen) && seen.includes(UPDATE_NOTICE_ID);
+}
+
+export function rememberUpdateNotice(seen) {
+  const ids = Array.isArray(seen) ? seen.filter((id) => typeof id === 'string') : [];
+  return [...new Set([...ids, UPDATE_NOTICE_ID])].slice(-20);
+}
 
 /**
  * Enter the game shell with a nickname (title → lobby).
@@ -166,6 +179,7 @@ export function TitleScreen() {
   useLang(); // re-render on a language switch
   const [name, setName] = useState(() => store.get().me.name || identity.loadName() || '');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [announcementOpen, setAnnouncementOpen] = useState(() => !hasSeenUpdateNotice(loadPref('updateNoticeSeen', [])));
   const assetsSettled = useData('assets');
   const assets = data.get('assets');
   const backdrop = findUiAsset(assets, BACKDROP_KEYS);
@@ -188,6 +202,10 @@ export function TitleScreen() {
   const enterAccount = () => {
     identity.setEntered(true);
     store.patch('session', {entered: true});
+  };
+  const closeAnnouncement = () => {
+    savePref('updateNoticeSeen', rememberUpdateNotice(loadPref('updateNoticeSeen', [])));
+    setAnnouncementOpen(false);
   };
 
   const online = conn.status === 'online' || conn.status === 'connected' || conn.status === 'menu';
@@ -280,6 +298,10 @@ export function TitleScreen() {
     </main>
 
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
+    <${Modal} open=${announcementOpen} onClose=${closeAnnouncement} title=${t(UPDATE_NOTICE_TITLE)}
+      width="6.4rem" actions=${html`<${Button} variant="primary" icon="check" onClick=${closeAnnouncement}>${t('知道了')}<//>`}>
+      <p class="modal__text">${t(UPDATE_NOTICE_CONTENT)}</p>
+    <//>
 
     <footer class="title-foot">
       <${ResumeMatchButton} />
@@ -287,6 +309,7 @@ export function TitleScreen() {
       <span class="title-foot__note">${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span>
       <span class="title-foot__right title-foot__meta">
         <span class="presence num" data-testid="title-presence" title=${presenceHint()}>${presenceLabel(presence)}</span>
+        <button type="button" class="title-announcement" onClick=${() => setAnnouncementOpen(true)}>${t(UPDATE_NOTICE_TITLE)}</button>
         <a class="title-repo" href="https://github.com/sganggs/Stronghold-Protocol" target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a>
         <${MicroLabel}>v${APP_VERSION} · WEB SIMULATION<//>
         ${DEV_BUILD ? html`<span class="title-dev" role="note">${t('开发版 · 不稳定，请勿用于公开服务器')}</span>` : null}

@@ -23,7 +23,6 @@ function done(h) { checkInvariants(h.b); assert.deepEqual(h.b.errors, []); }
 function start(u) { u.skill.gainSp(999, 'init'); assert.equal(u.skill.activate('test'), true); }
 const hits = (h, tag) => h.hooksOf('damaged').filter((c) => c.dmg?.tags?.includes(tag));
 
-test('克莱门莎 was promoted to 可用干员 (2026-10-11): its own PRESET piece in both forms, and no longer a 自选 pick', () => {
 for (const tier of [5, 6]) for (const elite of [false, true]) test(`风暴潮 air-only automation retains ground-only normal attacks (${tier}/${elite})`, () => {
   const { h, u } = field({ tier, elite, skill: 1, flags: { startOpCooldown: 3 } });
   const e = h.spawn('fly', { pos: [10, 6] }); u.skill.gainSp(999, 'init');

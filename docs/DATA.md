@@ -128,7 +128,7 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `dp` | `{"init":10,"perSec":1,"max":99}` | |
 | `unite` | `{"maxHelpers":2,"helperOrder":"unitsOnField>activeBond>undownedUnits; pair: unitsOnField>activeBond>activeLayers>undownedUnits, first = right field (PRTS 帮助)","layerGainsEnabled":false,"templates":{"1":"act1autochess_escaped_single","2":"act1autochess_escaped_multi"},…}` | 联防; `helperOrder` documents the rule `server/match/unite.js helperOrder` implements (research 08 §5; ties → seat). `maxHelpers` 2 is the official rule (1–4 players); above 4 alive the code takes 2 × ⌈alive / 4⌉ helpers on several fields `'u'`, `'u2'` … (a remake extension, DESIGN §F1) |
 | `finalAssault` | `{"pairing":"seatOrderPairs","oddPlayerAlone":true,"movableBossPerAlivePlayerSide":true,"layerGainsEnabled":false}` | seat pairs: 1–2 fields for 1–4 players, 3–4 (`b1` … `b4`) for 5–8 |
-| `timers` | `{"infoCheck":25,"infoCheckHint":5,"bandDraft":50,"bandDraftHint":15,"bandTurn":30,"battleCheck":3,"spFirst":30,"spTurn":16,"soloPrepTimeData":300,"soloSpTimeData":150,"chatCd":1,"chatBubble":3,"broadcastDelay":1,"enterSteps":[…]}` | seconds; a match of more than 4 seats takes 20 s strategy turns and, with more than 4 alive, 12 s later 机变 picks instead of `bandTurn` / `spTurn` (`largeRoom` below) |
+| `timers` | `{"infoCheck":25,"infoCheckHint":5,"bandDraft":50,"bandDraftHint":15,"bandTurn":50,"battleCheck":3,"spFirst":30,"spTurn":16,"soloPrepTimeData":300,"soloSpTimeData":150,"chatCd":1,"chatBubble":3,"broadcastDelay":1,"enterSteps":[…]}` | seconds; a match of more than 4 seats takes 20 s strategy turns and, with more than 4 alive, 12 s later 机变 picks instead of `bandTurn` / `spTurn` (`largeRoom` below) |
 | `largeRoom` | not generated (absent); `gamedata.js DEFAULTS.largeRoom` = `{"players":4,"spCardsPlus":2,"bandTurn":20,"spTurn":12}`, a hand-added `largeRoom` object overrides any key | co-op rooms of 5–8 players, a remake extension (DESIGN §F1): with n > `players` the pool copies (n = seats at the start), the leader pool (on top of `bossHpScale`'s per-player share, so bloodPoint × n), the overtime drain (n = alive at the boss phase's start) and the Hidden Core threshold (n = players summed) scale × n / `players`; 机变 cards = max(cards, alive + `spCardsPlus`); `bandTurn` / `spTurn` the draft timers above; result titles get a second pass. 1–4 players: nothing changes |
 | `bans[difficulty]` | `{"core":3,"addon":4}` (FUNNY `{0,1}`) + `rule` | per-match disabled-bond draw (research 01 A2) |
 | `bandDraft` | `{"skipsPerPlayer":1,"order":"random","duplicatesAllowed":true,"timeoutBandId":"band_bldsk"}` | |
@@ -293,7 +293,7 @@ full-rank build from the others; the build fails unless `atRank` rebuilds every 
 | `layerMilestones[]` | `[{"layer":25,"mode":"every","effect":"bond_layer_added_reward_equip"}]` | layer-based powers: `reach` (while L ≥ layer), `every` (each multiple), `first` (latched once) |
 | `desc`, `descRaw` | | bond panel text |
 | `effectId`, `effectName`, `effectDesc`, `effectDescRaw` | `"bondeffect_deput"`, …, `"所有干员防御力+{0:0%}（受层数影响）…"` | in-battle text with **positional** placeholders |
-| `effectDescParams[]` | `[{"index":0,"format":"0%","base":"base_def","perStack":"def_per_stack"}]` | `{i:fmt}` = `bb[base] + bb[perStack] × layers` — layers never exceed 999 (the official `MAX_GARRISON_STACK`, not in any table: shared/constants.js `BOND_LAYER_CAP`, research 11) |
+| `effectDescParams[]` | `[{"index":0,"format":"0%","base":"base_def","perStack":"def_per_stack"}]` | `{i:fmt}` = `bb[base] + bb[perStack] × layers`; optional `round:"floor"` floors the computed value (拉特兰's ASPD bonus). Layers never exceed 999 (the official `MAX_GARRISON_STACK`, not in any table: shared/constants.js `BOND_LAYER_CAP`, research 11) |
 | `bb`, `bbStr` | `{"base_def":0.15,"def_per_stack":0.012,"respawn_time":-0.3,"layer":2,"count":3,"more_layer":4}` | all buffs merged (first wins) |
 | `buffs[]` | `[{"key":"env_gbuff_new","bb":{…},"bbStr":{"key":"act1autochess_bond_eff_deput"}}, …]` | exact official buffs (e.g. 萨尔贡 has a second buff valid only with `band_narant`) |
 | `baseParams`, `perStackParams` | `["base_def"]`, `["def_per_stack"]` | official descParamBaseList / descParamPerStackList |
@@ -623,7 +623,7 @@ This fork's 外援 / 甄选 roster (`data/waiguan.json`: 87 candidates, their ti
 16. Research-only fields (null without `docs/research`): stage `name`, item `category/kind/family/implFormula/
     requiresBondId/rangeGrid/flavor`, bond `spec`, E2 art availability (falls back to "char has an E2 phase").
 17. [ASSUMED] content (flagged in data): 机变 family schedule and server pools, title criteria, income cap 12, per-turn
-    band-draft timer 30 s (`timers.bandTurn`, the step's only countdown — user playtest #4), the shop-only item list
+    band-draft timer 50 s (`timers.bandTurn`, the step's only countdown — user playtest #4), the shop-only item list
     (`SHOP_EXCLUDED_ITEMS`, from play), the alive / 4 proportion of the fixed pool's optional alive scaling
     (`bossHpScale.aliveAssumed`; `aliveScaling` off). The special-enemy generator, the leader table (`bloodPoint`, one
     pool for every field) and the 联防 timing are official; the pool's × players alive is the owner's decision of

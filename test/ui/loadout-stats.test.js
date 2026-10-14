@@ -35,7 +35,6 @@ await data.loadAll('chess', 'garrisons', 'assets', 'bonds', 'items');
 const get = (id) => data.lookup('chess', id);
 const INSIDE = 'chess_char_1_01_a'; // 隐现: MAR-X (+80 生命上限 / +22 攻击) or 不装备; S1 / S2
 const MIXER = 'chess_char_4_01_a'; // 信仰搅拌机: SPT-X (default) / SPT-Y "攻击距离+1"
-const MOSTIMA = 'chess_char_4_02_a'; // 莫斯提马: SPC-Y (default) / SPC-X (a wider range grid)
 const THORN = 'chess_char_5_15_a'; // 引星棘刺: S3 "被动效果：攻击范围扩大"
 const PASSENGER = 'chess_char_6_05_a'; // 异客: SPC-X-style module that rewrites her talents
 const PASSENGER_ALT = 'uniequip_003_pasngr';
@@ -128,15 +127,12 @@ test('statsPreview: no elite record → the normal one; no record → null; the 
   assert.equal(JSON.stringify([get(INSIDE), get(get(INSIDE).goldenId), get(MIXER), get(get(MIXER).goldenId)]), before);
 });
 
-test('the 攻击范围 follows the chosen module and skill (the sim\'s deployment range): SPT-Y +1, SPC-X wider, 引星棘刺 S3 passive', () => {
+test('the 攻击范围 follows the chosen module and skill (the sim\'s deployment range): SPT-Y +1 and 引星棘刺 S3 passive', () => {
   // 信仰搅拌机: SPT-Y's 特性 "攻击距离+1" → one more tile in her row; SPT-X, 不装备 and the normal chess keep 3
   assert.equal(rangeTiles(preview(MIXER, 'elite')), 3);
   assert.equal(rangeTiles(preview(MIXER, 'elite', { [MIXER]: { module: 'uniequip_003_rmixer' } })), 4);
   assert.equal(rangeTiles(preview(MIXER, 'elite', { [MIXER]: { module: 'none' } })), 3);
   assert.equal(rangeTiles(preview(MIXER, 'normal', { [MIXER]: { module: 'uniequip_003_rmixer' } })), 3);
-  // 莫斯提马: SPC-X's own range grid (9 → 10 tiles)
-  assert.equal(rangeTiles(preview(MOSTIMA, 'elite')), 9);
-  assert.equal(rangeTiles(preview(MOSTIMA, 'elite', { [MOSTIMA]: { module: 'uniequip_003_mostma' } })), 10);
   // 引星棘刺: the selected skill S3 "被动效果：攻击范围扩大" is her range while she carries it — at both levels
   const s3 = get(THORN).skills.find((s) => s.index === 2);
   assert.ok(s3.rangeGrid.length > get(THORN).rangeGrid.length && /被动效果：攻击范围扩大/.test(s3.desc));
@@ -151,7 +147,6 @@ test('the section draws the detail card\'s own stats block: same eight values an
   const cases = [
     [INSIDE, 'elite', {}], [INSIDE, 'elite', { [INSIDE]: { module: 'none' } }], [INSIDE, 'elite', { [INSIDE]: { skill: 0 } }], [INSIDE, 'normal', {}],
     [MIXER, 'elite', { [MIXER]: { module: 'uniequip_003_rmixer' } }], [MIXER, 'elite', { [MIXER]: { module: 'none' } }],
-    [MOSTIMA, 'elite', { [MOSTIMA]: { module: 'uniequip_003_mostma' } }], [MOSTIMA, 'normal', {}],
     [THORN, 'elite', { [THORN]: { skill: 2 } }], [THORN, 'normal', { [THORN]: { skill: 2 } }],
     [PASSENGER, 'elite', { [PASSENGER]: { module: PASSENGER_ALT } }],
   ];

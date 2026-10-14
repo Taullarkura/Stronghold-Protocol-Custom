@@ -167,7 +167,7 @@ test('a whole update: base zip v9.9.8 → --update v9.9.9 ships only what change
     put(co.dir, 'server/sim/rng.js', 'export const rng = 2;\n');
     put(co.dir, 'server/new.js', 'export const n = 1;\n');
     put(co.dir, 'public/assets/char/a.png', Buffer.concat([PNG, Buffer.from('v2')]));
-    fs.rmSync(path.join(co.dir, 'server/old.js'));
+    fs.unlinkSync(path.join(co.dir, 'server/old.js'));
     assert.equal(co.git('add', '-A').status, 0);
 
     r = runTool(['--root', co.dir, '--out', out, '--no-install', '--allow-dirty', '--update', '--from', baseZip]);

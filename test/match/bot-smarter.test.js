@@ -250,7 +250,7 @@ test('items: 信标 on a bench single; both 博士投影 on a normal operator ev
   ps.board.delete(topKey);
   const elite = give(m, ps, m.gd.goldenIdOf(top.id), 'board', parseKey(topKey));
   const single = give(m, ps, fresh(4), 'hand');
-  const pairId = fresh(1);
+  const pairId = fresh(2); // outrank the incidental tier-I pair already on the board
   const pairA = give(m, ps, pairId, 'hand');
   const pairB = give(m, ps, pairId, 'hand');
   const tierOf = (p) => m.gd.chess(p.id).tier;

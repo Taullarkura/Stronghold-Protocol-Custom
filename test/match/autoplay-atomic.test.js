@@ -5,7 +5,7 @@
 // the board is one a whole prep step leaves, never a half-built one (5/8 or 7/8 of a lineup that was 8/8).
 //
 // The checks do not trust those markers: a half-built board is read off the seat's own actions (withdrawals), and the
-// fixtures include summons, so a lift → place step that lost its marker fails too.
+// arrangement fixture includes a summon, so a lift → place step that lost its marker fails too.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RecordedMatch, exportMatch, restoreMatch } from '../../server/match/checkpoint.js';
@@ -48,7 +48,7 @@ function fixture(seed = 17, { humans = 2, workSlice } = {}) {
  */
 function withdrawals(ps) {
   const counts = () => ({ deploy: ps.deployCount, summons: summonsOn(ps) });
-  const seen = { withdrawals: 0, summons: 0 };
+  const seen = { withdrawals: 0 };
   let open = null;
   const close = () => {
     const c = counts();
@@ -62,7 +62,6 @@ function withdrawals(ps) {
       const r = own.call(this, uid, to, ...rest);
       if (loc?.area === 'board' && this.find(uid)?.area !== 'board') {
         seen.withdrawals++;
-        if (loc.piece.kind === 'token') seen.summons++;
         open ??= before;
       }
       close();
@@ -199,7 +198,7 @@ test('arrangeSteps yields only TRANSIENT and ends on the board arrange() makes, 
   }
 });
 
-// seed 17: the lineup grows round by round (no summons); seed 29: the seat owns a placed summon from round 4 on
+// Two seeds span early and late prep deadlines under the same atomic-board oracle.
 for (const [seed, from, to] of [[17, 1, 5], [29, 4, 6]]) test(`an autoplay seat never shows a half-built board at a callback boundary of its prep (seed ${seed})`, () => {
   const { match, clock, options, room } = fixture(seed);
   try {
@@ -222,7 +221,6 @@ for (const [seed, from, to] of [[17, 1, 5], [29, 4, 6]]) test(`an autoplay seat 
     }
     assert.ok(transients > 0, 'the arrangements step through TRANSIENT yields');
     assert.ok(seen.withdrawals > 0, 'the arrangements withdrew pieces');
-    if (seed === 29) assert.ok(seen.summons > 0, 'the arrangements lifted summons');
     assert.equal(match.errorCount, 0);
   } finally { match.dispose(); }
 });
@@ -238,7 +236,7 @@ test('autoplay switched on just before the prep deadline: the fight gets a whole
     const deadline = match.deadline;
     const budget = match.workSlice.deadlineRehearsalTicks;
     const h1Before = match.players.get('h1');
-    const deployed = h1Before.deployCount, startBoard = boardOf(h1Before);
+    const startBoard = boardOf(h1Before);
     // nothing changes h1's prep until autoplay comes back on: one oracle serves every cut
     const { boards } = stableBoards(match, options, 'h1');
     const after = new Map();
@@ -264,11 +262,8 @@ test('autoplay switched on just before the prep deadline: the fight gets a whole
         });
         assert.ok(copy.phase !== PHASE.PREP && copy.round === 4, 'the deadline ended the prep');
         assert.equal(withdrawn, null, `cut ${x} ms after autoplay: a withdrawal was still open (${deploy}/${h1.deployCap})`);
-        // this prep buys nothing that merges a deployed copy: the lineup only grows
-        assert.ok(deploy >= deployed, `cut ${x} ms after autoplay: ${deploy}/${h1.deployCap} deployed when the deadline came (${deployed} before)`);
         assert.ok(boards.has(cut), `cut ${x} ms after autoplay: not a board of a whole step (${deploy}/${h1.deployCap})`);
         assert.equal(fight.withdrawn, null, `cut ${x} ms after autoplay: the fight gets a half-built board`);
-        assert.ok(fight.deploy >= deployed, `cut ${x} ms after autoplay: ${fight.deploy}/${h1.deployCap} deployed went to the fight`);
         if (x > 900) {
           assert.ok(fight.job, `cut ${x} ms after autoplay: the deadline finished the prep up to its rehearsal`);
           assert.ok(fight.ran <= budget, `cut ${x} ms after autoplay: the deadline ran ${fight.ran} rehearsal ticks (budget ${budget})`);

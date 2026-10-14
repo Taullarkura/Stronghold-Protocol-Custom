@@ -81,7 +81,7 @@ legal from R14 into R15. The client mirrors it
 | Timer (real s, × `opts.timerScale`) | Value |
 |---|---|
 | INFO_CHECK | `config.timers.infoCheck` 25 |
-| band draft turn | `Match.BAND_TURN_SECONDS` 30 [ASSUMED] (= `timers.bandTurn`), the step's only countdown: `m.public.deadline` = the current turn's end, no step cap (`timers.bandDraft` 50 = the official whole step, informational) (co-op; solo / single human untimed); a match of more than 4 seats: `largeRoom.bandTurn` 20 (`Match.bandTurnSeconds`, DESIGN §F1) |
+| band draft turn | `Match.BAND_TURN_SECONDS` 50 [ASSUMED] (= `timers.bandTurn`), the step's only countdown: `m.public.deadline` = the current turn's end, no step cap (`timers.bandDraft` 50 = the official whole step, informational) (co-op; solo / single human untimed); a match of more than 4 seats: `largeRoom.bandTurn` 20 (`Match.bandTurnSeconds`, DESIGN §F1) |
 
 | BATTLE_CHECK | `battleCheck` 3 |
 | 机变 first / other pickers | `spFirst` 30 / `spTurn` 16 (co-op; solo / single human untimed); more than 4 alive at the draft start: other pickers `largeRoom.spTurn` 12 (`gd.spTurnSeconds`, DESIGN §F1) |
@@ -100,7 +100,7 @@ band draft / 机变 / PREP deadline, and BATTLE_CHECK / ROUND_START / SETTLE run
 `m.public.overtimeAt` = when the overtime drain starts: 120 real s for all-human teams, 150 real s with an AI teammate at fight start; both on the field clock).
 
 ### 1.1 Band draft
-Co-op: random order (all seats, bots included), one pick per turn, ONE countdown: `BAND_TURN_SECONDS` 30 s per turn (20 s
+Co-op: random order (all seats, bots included), one pick per turn, ONE countdown: `BAND_TURN_SECONDS` 50 s per turn (20 s
 in a match of more than 4 seats, DESIGN §F1), published as `m.public.deadline` (= `draft.turnDeadline`; `draft.turnSeconds` its length) — no step cap; AI seats pick at once. A turn that runs out takes the strategy the player highlights in the draft screen (`g.bandFocus {bandId?}`,
 `Match.timeoutBand`) while it is allowed and no teammate holds it, else `bandDraft.timeoutBandId` 华法琳, else the first
 free strategy by sortId (`defaultBand`; a departing seat gets `defaultBand` too). One skip per player (`g.bandSkip`: the
@@ -554,7 +554,7 @@ Any `choice:` handler whose EffectRef reuses its own key must guard like this (o
   extra slots at once, empty (the cards shown stay; the empty slots fill on the next roll); `MAX_LEVEL` at 6. One freeze
   toggle freezes every unsold slot until the next round start; a manual refresh rerolls everything (new slots stay
   frozen). Unfrozen slots are cleared at combat start. Slot positions are stable (frozen slots keep their index).
-* **Pool**: copies 12/14/18/16/8/5 (缪尔赛思 4) — a match of 5–8 seats (humans + bots at the start): ceil(copies × seats / 4),
+* **Pool**: tier bases 12/14/18/16/8/5; the co-op multiplier 2 gives 4-seat shared caps of 24/28/36/32/16/10. 缪尔赛思 uses the ordinary tier VI base 5, with no per-operator override. A 5–8-seat match scales the 4-seat shared caps by ceil(copies × seats / 4),
   fixed for the match (`gamedata.js poolCopies(id, players)`, DESIGN §F1); a normal piece holds 1 copy, an elite 3; displays never reserve copies;
   selling, temp resolution and elimination return exactly what a piece holds (`left + held = cap` always).
 * **自选编队 (0.2.0, `player/diy.js`; research 0.2.0 §2, the owner's decisions of 2026-10-05)**: a human's `seat.diy`

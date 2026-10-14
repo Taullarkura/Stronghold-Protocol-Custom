@@ -9,7 +9,11 @@ const CASES = [
   ['char_1015_aglna2', 2, [1, -1]],
 ];
 function field(charId, skillIndex, { tier = 6, elite = true, dir = 'RIGHT', cooldown = 0 } = {}) {
-  const h = makeBattle({ units: [{ uid: 1, diy: { slot: tier, charId, skillIndex }, elite, row: 10, col: 5, dir }],
+  const isPromoted = charId === 'char_1015_aglna2';
+  const unit = isPromoted
+    ? { uid: 1, chessId: `chess_${charId}_${elite ? 'b' : 'a'}`, skillIndex, row: 10, col: 5, dir }
+    : { uid: 1, diy: { slot: tier, charId, skillIndex }, elite, row: 10, col: 5, dir };
+  const h = makeBattle({ units: [unit],
     defs: { enemies: { dummy: enemyRec({ key: 'dummy', hp: 1e9, atk: 0, speed: 0 }),
       flyer: enemyRec({ key: 'flyer', hp: 1e9, atk: 0, speed: 0, motion: 'FLY' }) } },
     flags: { startOpCooldown: cooldown }, autoFinish: false, timeLimit: 90 });
@@ -18,8 +22,9 @@ function field(charId, skillIndex, { tier = 6, elite = true, dir = 'RIGHT', cool
 }
 
 for (const [charId, skillIndex, delta] of CASES) {
-  test(`${charId}: all DIY forms cast for a target in the actual skill area outside normal targeting`, () => {
-    for (const tier of [5, 6]) for (const elite of [false, true]) for (const dir of ['UP', 'RIGHT', 'DOWN', 'LEFT']) {
+  test(`${charId}: all forms cast for a target in the actual skill area outside normal targeting`, () => {
+    const tiers = charId === 'char_1015_aglna2' ? [5] : [5, 6];
+    for (const tier of tiers) for (const elite of [false, true]) for (const dir of ['UP', 'RIGHT', 'DOWN', 'LEFT']) {
       for (const key of ['dummy', 'flyer']) {
         const { h, u } = field(charId, skillIndex, { tier, elite, dir });
         // Leizi's terrain flood and Hoshiguma's x-2 are symmetric; Angelina's rear diagonal follows her facing.

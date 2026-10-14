@@ -2023,9 +2023,12 @@ const FORK_BOND_OVERRIDES = Object.freeze({
     buffs: Object.freeze([Object.freeze({ key: 'env_gbuff_new', bb: LATERANO_BB, bbStr: Object.freeze({ key: 'act1autochess_bond_eff_laterano' }) })]),
     desc: '【拉特兰】干员每消耗1发弹药，所有【拉特兰】干员攻击力提升（有上限）\n<在场6名不同【拉特兰】干员>【拉特兰】干员开启技能获得的弹药量提升（受层数影响）；未携带弹药类技能的【拉特兰】干员改为攻击速度提升（受层数影响）',
     descRaw: '【拉特兰】干员每消耗1发弹药，所有【拉特兰】干员<@ba.vup>攻击力</>提升（有上限）\n<在场<@autochess.dgreen>6</>名不同【拉特兰】干员>【拉特兰】干员开启技能获得的<@ba.vup>弹药量</>提升<@autochess.gray>（受层数影响）</>；未携带弹药类技能的【拉特兰】干员改为<@ba.vup>攻击速度</>提升<@autochess.gray>（受层数影响）</>',
-    effectDesc: '任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力+3%，至多+150%\n<在场6名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量+(5+1.5×层数)%（会取整），对未携带弹药类技能的【拉特兰】干员，改为攻击速度+(10+0.7×层数)（向下取整）',
-    effectDescRaw: '任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力<@ba.vup>+3%</>，至多<@ba.vup>+150%</>\n<在场<@ba.vup>6</>名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量<@ba.vup>+(5+1.5×层数)%</>（会取整），对未携带弹药类技能的【拉特兰】干员，改为攻击速度<@ba.vup>+(10+0.7×层数)</>（向下取整）',
-    effectDescParams: Object.freeze([]),
+    effectDesc: '任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力+3%，至多+150%\n<在场6名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量+{0:0.0%}，对未携带弹药类技能的【拉特兰】干员，改为攻击速度+{1:0}',
+    effectDescRaw: '任意【拉特兰】干员每消耗1发弹药，全体【拉特兰】干员攻击力<@ba.vup>+3%</>，至多<@ba.vup>+150%</>\n<在场<@ba.vup>6</>名不同【拉特兰】干员>【拉特兰】干员开启技能时获得的弹药量<@ba.vup>+{0:0.0%}</>，对未携带弹药类技能的【拉特兰】干员，改为攻击速度<@ba.vup>+{1:0}</>',
+    effectDescParams: Object.freeze([
+      Object.freeze({ index: 0, format: '0.0%', base: 'base_ammo_percent', perStack: 'ammo_percent_per_stack' }),
+      Object.freeze({ index: 1, format: '0', base: 'no_ammo_aspeed_base', perStack: 'no_ammo_aspeed_per_stack', round: 'floor' }),
+    ]),
     spec: Object.freeze({ tiers: Object.freeze([
       Object.freeze({ need: '3 distinct', effect: 'Any member\'s consumed ammo grants every member +3 % ATK, up to +150 % (FORK: the official record needs 6 distinct members for this).' }),
       Object.freeze({ need: '6 distinct', effect: 'A member\'s ammo skill gains ×(1 + 0.05 + 0.015 × L), floored (FORK: the official base effect); a member whose skill carries no ammo instead gains ASPD +floor(10 + 0.7 × L).' }),

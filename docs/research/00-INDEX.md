@@ -61,7 +61,7 @@ Boss rounds: the battle continues past the timer. Merged team LP drains **1/s af
 | Shop cleared | Unfrozen slots are emptied at combat start and refilled at round start. | VERIFIED |
 | Bounty coins | 1–6 per bounty enemy, to its killer (a 联防 helper counts). 战术特训: paid only on a perfect clear in your own phase. | DATA |
 
-**Shared pool (co-op), copies per operator:** T1 **12**, T2 **14**, T3 **18**, T4 **16**, T5 **8**, T6 **5** (缪尔赛思 4). An elite counts as 3. Every owned copy counts; shop displays don't. Eliminated or quitting players return their copies. [COMM, two independent sources]
+**Shared pool (co-op), source-reported tier bases:** T1 **12**, T2 **14**, T3 **18**, T4 **16**, T5 **8**, T6 **5**; an older community note reported 缪尔赛思 at 4. The merged v0.2.6 data follows ordinary tier VI (base 5, shared cap 10 in a 4-seat co-op; no per-operator override). An elite counts as 3. Every owned copy counts; shop displays don't. Eliminated or quitting players return their copies. [COMM, two independent sources]
 
 **Shop odds [ASSUMED; the official odds are unpublished].** Each slot draws 1 copy uniformly from all remaining pool copies of unbanned, non-hidden chess with tier ≤ shop level. Duplicates in one roll are allowed; a screenshot shows 2× 蛇屠箱 in one roll. Resulting tier shares with full pools and no bans:
 

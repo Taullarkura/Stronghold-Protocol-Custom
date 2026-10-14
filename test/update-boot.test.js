@@ -168,7 +168,7 @@ test('boot apply: a malformed UPDATE.json is logged and skipped — nothing dele
       assert.equal(read(outside, 'victim.txt'), 'keep me');
       assert.match(lines[0][1], /UPDATE\.json 格式不对，已跳过，服务器按现有文件启动/);
     }
-    fs.rmSync(path.join(dir, UPDATE_FILE));
+    fs.unlinkSync(path.join(dir, UPDATE_FILE));
     fs.mkdirSync(path.join(dir, UPDATE_FILE)); // unreadable (a folder)
     assert.equal(applyPendingUpdate(dir, quiet()).state, 'malformed');
   } finally {
@@ -184,7 +184,7 @@ test('boot apply: a file the server runs that does not match MANIFEST.json stops
   });
   try {
     put(dir, 'data/chess.json', '{"old": 1}'); // the base's copy: the update was extracted over another version
-    fs.rmSync(path.join(dir, 'server/index.js'));
+    fs.unlinkSync(path.join(dir, 'server/index.js'));
     const { lines, log } = quiet();
     const r = applyPendingUpdate(dir, { log });
     assert.equal(r.state, 'failed');
@@ -209,7 +209,7 @@ test('boot apply: a missing or foreign MANIFEST.json stops the start; docs-only 
   const c = newInstall({ 'server/index.js': 'new', 'README.md': 'readme', 'scripts/start.sh': 'sh', 'node_modules/ws/README.md': 'r', 'public/assets/x.png': 'x' },
     { shipped: ['public/assets/x.png'] });
   try {
-    fs.rmSync(path.join(a, MANIFEST_FILE));
+    fs.unlinkSync(path.join(a, MANIFEST_FILE));
     let q = quiet();
     assert.equal(applyPendingUpdate(a, { log: q.log }).state, 'failed');
     assert.match(q.lines.map((l) => l[1]).join('\n'), /没有完整解压（MANIFEST\.json is missing）/);
@@ -220,7 +220,7 @@ test('boot apply: a missing or foreign MANIFEST.json stops the start; docs-only 
     put(c, 'README.md', 'edited');
     put(c, 'scripts/start.sh', 'edited');
     put(c, 'node_modules/ws/README.md', 'edited');
-    fs.rmSync(path.join(c, 'public/assets/x.png'));
+    fs.unlinkSync(path.join(c, 'public/assets/x.png'));
     q = quiet();
     const r = applyPendingUpdate(c, { log: q.log });
     assert.equal(r.state, 'applied');

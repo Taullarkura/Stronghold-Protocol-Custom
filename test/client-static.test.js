@@ -1031,6 +1031,17 @@ describe('screen helpers', () => {
     assert.match(source, /<\$\{SettingsModal\} open=\$\{settingsOpen\}/, 'settings control opens the shared modal');
   });
 
+  test('title shows the new notice once and keeps a manual entry point', () => {
+    const source = readFileSync(path.join(PUBLIC, 'js/screens/title.js'), 'utf8');
+    assert.match(source, /useState\(\(\) => !hasSeenUpdateNotice\(loadPref\('updateNoticeSeen', \[\]\)\)\)/,
+      'unseen notice opens on the first title screen');
+    assert.match(source, /savePref\('updateNoticeSeen', rememberUpdateNotice\(loadPref\('updateNoticeSeen', \[\]\)\)\)/,
+      'dismissing the notice marks it as read');
+    assert.match(source, /<\$\{Modal\} open=\$\{announcementOpen\} onClose=\$\{closeAnnouncement\}/);
+    assert.match(source, /class="title-announcement" onClick=\$\{\(\) => setAnnouncementOpen\(true\)\}/,
+      'the footer entry reopens the notice');
+  });
+
   test('title connection row: 玩法说明 · 资源管理 · ⚙ · ⛶, and ⚙ / ⛶ split the touch area between them', () => {
     const source = readFileSync(path.join(PUBLIC, 'js/screens/title.js'), 'utf8');
     const row = source.slice(source.indexOf('<div class="title-conn">'));

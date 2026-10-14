@@ -322,7 +322,7 @@ describe('自选编队 tab (screens/diy.js)', () => {
 // ---- match UI -------------------------------------------------------------------------------------------------------------
 
 describe('match UI of a 自选 piece', () => {
-  const priv = { diy: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP, skillIndex: 2, uniEquipId: 'uniequip_002_acguad' } }, loadout: {}, standIns: [], board: [], hand: [], temp: [] };
+  const priv = { diy: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP, skillIndex: 2, uniEquipId: null } }, loadout: {}, standIns: [], board: [], hand: [], temp: [] };
   test('gameLogic: the own pick of a slot (normal + elite), the composed record, the own getter', () => {
     assert.deepEqual(G.ownDiyPick(priv, getChess(T5A)), SIEGE_PICK);
     assert.deepEqual(G.ownDiyPick(priv, getChess('chess_char_5_diy1_b')), SIEGE_PICK, 'the elite too');
@@ -367,7 +367,7 @@ describe('match UI of a 自选 piece', () => {
     assert.deepEqual(r.diy, SIEGE_PICK);
     assert.equal(resolveDetail({ kind: 'chess', id: T5A }, new Map(), { priv, backups: D.backups }).chess.charId, SIEGE, 'a shop card');
     assert.equal(resolveDetail({ kind: 'chess', id: T5A, foreign: true }, new Map(), { priv, backups: D.backups }).diy, undefined, 'the banned list / another player\'s card');
-    const u = resolveDetail({ kind: 'unit', unit: { id: 3, uid: 33, side: 'ally', kind: 'op', defId: T6A, diy: { charId: SHARP, skillIndex: 2, uniEquipId: 'uniequip_002_acguad' } } }, new Map(), { priv: null, backups: D.backups });
+    const u = resolveDetail({ kind: 'unit', unit: { id: 3, uid: 33, side: 'ally', kind: 'op', defId: T5A, diy: { charId: SHARP, skillIndex: 2, uniEquipId: 'uniequip_002_acguad' } } }, new Map(), { priv: null, backups: D.backups });
     assert.equal(u.chess.charId, SHARP);
     const blocks = ChessDetail({ chess: r.chess, piece, editable: false, bonds: [], loadout: priv.loadout, diy: r.diy });
     const head = blocks.find((b) => b.key === 'head');

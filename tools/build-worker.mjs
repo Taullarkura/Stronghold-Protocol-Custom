@@ -300,7 +300,7 @@ export async function bundleWorker({ root = ROOT, outfile = path.join(root, 'dis
     [path.join(root, 'server/sim/content/bonds.js'), { call: 'import(path)', key: 'path', imports: ['./bonds/core.js', './bonds/addon.js', './support/meta.js'] }],
   ]);
   const result = await build({
-    entryPoints: [path.join(root, entry)],
+    entryPoints: [path.resolve(root, entry)],
     outfile,
     bundle: true, format: 'esm', platform: 'neutral', target: 'es2022',
     external: ['node:*', 'cloudflare:*'], minify: true, keepNames: true, metafile: true,

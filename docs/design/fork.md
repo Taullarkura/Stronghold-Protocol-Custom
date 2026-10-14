@@ -30,11 +30,11 @@ The official 同盟模拟 has 1–4 players (research 09 §3.1; the room's four 
 
 ### F1.2 The shared pool — `gamedata.js poolCopies(baseId, players)`, `pool.js SharedPool({ players })`, `Match` constructor
 
-Copies per chess = ceil(official × n / 4), n = the match's seats (humans + bots) at the match start — every tier and the per-operator overrides (缪尔赛思 4): 5 seats 15 / 18 / 23 / 20 / 10 / 7 (缪尔赛思 5), 6 seats 18 / 21 / 27 / 24 / 12 / 8 (6), 7 seats 21 / 25 / 32 / 28 / 14 / 9 (7), 8 seats 24 / 28 / 36 / 32 / 16 / 10 (8). Sized once: an elimination returns the seat's copies as before and never shrinks the pool. A player's 自选编队 stock (§25.4, `match/player/diy.js`: 8 at tier 5, 5 at tier 6 per slot) is that player's own and never enters the shared pool, so the seat count does not size it (until 2026-10-08 the same held for the retired 外援 entries of §F3).
+Copies per chess = ceil(the 4-seat shared cap × n / 4), n = the match's seats (humans + bots) at the match start. The 4-seat co-op cap is the tier base (12 / 14 / 18 / 16 / 8 / 5) × `coopPoolMultiplier` (2); 缪尔赛思 uses the ordinary tier VI base 5, with no per-operator override. The 5–8-seat caps by tier I–VI are: 5 seats 30 / 35 / 45 / 40 / 20 / 13, 6 seats 36 / 42 / 54 / 48 / 24 / 15, 7 seats 42 / 49 / 63 / 56 / 28 / 18, 8 seats 48 / 56 / 72 / 64 / 32 / 20. Sized once: an elimination returns the seat's copies as before and never shrinks the pool. A player's 自选编队 stock (§25.4, `match/player/diy.js`: 8 at tier 5, 5 at tier 6 per slot) is that player's own and never enters the shared pool, so the seat count does not size it (until 2026-10-08 the same held for the retired 外援 entries of §F3).
 
 ### F1.3 Drafts — `Match.bandTurnSeconds`, `gamedata.js bandTurnSeconds / spTurnSeconds`, `choices.js spDraftCardCount / bountyDraftCards / shopDraftCards`, `shared/protocol.js SP_CARDS_MAX`
 
-- Strategy draft: a match of more than 4 seats has `largeRoom.bandTurn` = **20 s** turns (`BAND_TURN_SECONDS` 30 otherwise — 8 × 30 s would take 4 minutes); `draft.turnSeconds` shows it.
+- Strategy draft: a match of more than 4 seats has `largeRoom.bandTurn` = **20 s** turns (`BAND_TURN_SECONDS` 50 for up to 4 seats; the larger room keeps its draft bounded); `draft.turnSeconds` shows it.
 - 机变: co-op card count = max(the round's cards (6), alive + 2), alive = the players alive at the draft start — 6 for 1–4 (official), 7 / 8 / 9 / 10 for 5–8, so the last picker still chooses from 3; the former hard `Math.min(…, 6)` cap is gone. Structured drafts fill the extra cards: a 悬赏决策 tops its official structure up with other eligible bounty cards of the same kind, a 机密商店 draws its slot pattern again from the start (VI, VI, V, 盟约之币 …), 战术决策 / 道具补给 draw every card on its own anyway. `g.choice` takes `idx` < `SP_CARDS_MAX` (10). A later pick lasts `largeRoom.spTurn` = **12 s** when more than 4 are alive at the draft start (`spFirst` 30 s unchanged, `spTurn` 16 s for 1–4); `m.public.sp.turnSeconds` (5–8 only) is the current turn's length.
 
 ### F1.4 联防 with more than 4 alive players — `server/match/unite.js` (`uniteFieldBudget`, `uniteHelperGroups`, `assignLeakers`, `uniteFieldId`, `uniteGroups / uniteGroupOf`, `uniteBills / uniteResultFor`), `Match` (UNITE: `_uniteHomeField`, `settle(plan, results)`, `_watchClient`), `audit.js`, `sim/spec.js fitResult`, `battle/observe.js` (`multiUnite`, `uniteFields`, `uniteHomeField`, `uniteLocalFor`, `uniteSwitchFields`, `backTarget`), `ui/gameLogic.js fieldLabel`, `ui/combatHud.js UniteFieldSwitch`, `ui/teamPanel.js`, `screens/replay.js replayBattleLabel`
@@ -532,7 +532,8 @@ upstream merge that touches `isHidden` must keep this switch.
   gated) plus, for a 拉特兰 operator whose skill carries no ammo, 攻速 `+floor(10 + 0.7×层数)` (`no_ammo_aspeed_base` /
   `no_ammo_aspeed_per_stack`). A bond's `layerGain` fires *before* the layer is committed
   (`sim/battle/economy.js addLayers`), so the fallback re-reads its own layer through `battle.after(0, …)`.
-  `effectDescParams` is emptied with it: the official `{0:0%}` slot cannot spell "5 + 1.5×层数 会取整".
+  `effectDescParams` resolves the layer-scaled ammo bonus and the floored ASPD fallback from their blackboard values, so the
+  in-battle panel shows the current numbers instead of the formulas.
 
 **What it costs.** The visible roster keeps its size — 114 - 1 (缄默德克萨斯) + 1 (予愿安洁莉娜) = 114, with 安洁莉娜 moving a
 tier-5 row into tier 4 (per tier 16/18/19/22/20/19; the chess ids `chess_char_5_20_a` / `_b` keep their official names) and

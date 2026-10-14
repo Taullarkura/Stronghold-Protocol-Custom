@@ -56,13 +56,26 @@ test('boss preview, actual fields and Hidden Core retain one per-match draw', ()
   } finally { h.m.dispose(); }
 });
 
-test('pairing of 5–8 players (remake extension): seat pairs up to (7,8), an odd last player alone, gaps skipped', () => {
+test('pairing of 5–8 players (remake extension): seeded random pairs include everyone once, with one solo for odd counts', () => {
   const p = (seat) => ({ seat, playerId: `s${seat}` });
-  const pairs = (seats) => pairPlayers(seats.map(p)).map((g) => g.map((x) => x.seat));
-  assert.deepEqual(pairs([4, 3, 2, 1, 0]), [[0, 1], [2, 3], [4]]);
-  assert.deepEqual(pairs([0, 1, 2, 3, 4, 5, 6]), [[0, 1], [2, 3], [4, 5], [6]]);
-  assert.deepEqual(pairs([7, 6, 5, 4, 3, 2, 1, 0]), [[0, 1], [2, 3], [4, 5], [6, 7]]);
-  assert.deepEqual(pairs([7, 0, 5, 3, 2]), [[0, 2], [3, 5], [7]], 'eliminated seats leave gaps');
+  const pair = (seats, seed = 99) => pairPlayers(seats.map(p), createRng(seed));
+  const check = (seats) => {
+    const groups = pair(seats);
+    assert.deepEqual(groups, pair([...seats].reverse()), 'same seed, independent of input order');
+    assert.equal(groups.length, Math.ceil(seats.length / 2));
+    assert.deepEqual(groups.flat().map((x) => x.seat).sort((a, b) => a - b), [...seats].sort((a, b) => a - b));
+    assert.equal(groups.filter((g) => g.length === 1).length, seats.length % 2);
+    assert.ok(groups.every((g) => g.length === 1 || g.length === 2));
+  };
+  for (const n of [5, 6, 7, 8]) check(Array.from({ length: n }, (_, i) => i));
+  check([7, 0, 5, 3, 2]); // gaps left by eliminated players do not leave a missing pair.
+  const partners = new Set();
+  const all = Array.from({ length: 8 }, (_, i) => i);
+  for (let seed = 1; seed <= 32; seed++) {
+    const groups = pair(all, seed);
+    partners.add(groups.find((g) => g.some((x) => x.seat === 0)).find((x) => x.seat !== 0).seat);
+  }
+  assert.ok(partners.size > 1, 'the 8-seat room does not fall back to fixed seat pairs');
 });
 
 test('boss pool = bloodPoint[difficulty] × the players alive at the fight\'s start (solo × 1; 5–8 alive keep counting) × tuning; config restores the fixed pool; shared and never negative', () => {

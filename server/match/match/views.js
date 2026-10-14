@@ -392,7 +392,7 @@ export class MatchViews {
     // (`side`). Until 0.2.0 an eliminated player or a spectator seat scouting a player then saw the normal board and no
     // leader at all (community report of 2026-10-06, item 55).
     // The pair's other player stands on the other half (item 51: both players of a pair together, as in the battle).
-    // `players` / `sides` (the fork's issue #9 boss scout, kept for its clients): the group in seat order and each one's
+    // `players` / `sides` (the fork's issue #9 boss scout, kept for its clients): the seeded pair order and each one's
     // half, like a boss battle field's meta.
     const g = this.fields.length ? null : this.bossGroupOf(ps);
     if (!g) return meta;

@@ -174,7 +174,7 @@ function fakeCheckout() {
   const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
   assert.equal(git('init', '-q').status, 0);
   assert.equal(git('add', '-A').status, 0);
-  return { dir, put, rm: (rel) => fs.rmSync(path.join(dir, rel), { force: true }) };
+  return { dir, put, rm: (rel) => fs.unlinkSync(path.join(dir, rel)) };
 }
 
 const runTool = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8', env: { ...process.env, ...ENV }, maxBuffer: 16 * 1024 * 1024 });

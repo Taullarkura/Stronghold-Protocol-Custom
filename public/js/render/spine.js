@@ -784,8 +784,9 @@ export class SpineActor {
     const now = this._nowClip(), e = this.spine.state.tracks[0];
     // a swing under way towards this attack: the set's clip before its strike frame, its loop or begin clip — or the
     // one-shot wound up before the set changed (a skill without a begin clip began meanwhile: it strikes this attack)
-    const swinging = e && ((now === set.clip && (set.loop || e.trackTime <= hit + 0.12 * ts)) || (set.begin && now === set.begin)
-      || (this.swingClip && now === this.swingClip && !e.loop && e.trackTime <= this.swingHit + 0.12 * Math.max(0.05, e.timeScale || 1)));
+    const preserveSwing = this.clipPerAttack || this.swingAt != null || this.wound;
+    const swinging = e && ((now === set.clip && (set.loop || (preserveSwing && e.trackTime <= hit + 0.12 * ts))) || (set.begin && now === set.begin)
+      || (preserveSwing && this.swingClip && now === this.swingClip && !e.loop && e.trackTime <= this.swingHit + 0.12 * Math.max(0.05, e.timeScale || 1)));
     // upstream 0.2.3, #246 (by @TsangAsuna): a clip-per-attack enemy that was NOT wound up (a batch that arrived late)
     // and whose rhythm leaves room for the whole clip plays it complete from its wind-up — 重犯's iron ball lifts before
     // the slam — its strike a little late; else the clip is shown from its strike frame (the sim resolved the hit)

@@ -36,12 +36,13 @@ const ceilDiv = (a, b) => Math.ceil(a / b);
 const sorted = (a) => [...a].sort();
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/** base copies of a chess before the 5–8 scaling (config.economy.poolCopies[tier] / poolCopiesOverrides) */
+/** Copies before 5–8 seat scaling, including the configured co-op team multiplier. */
 function baseCopies(gd, id) {
   const eco = gd.economy || gd.config?.economy || {};
   const ov = eco.poolCopiesOverrides;
-  if (ov && Number.isInteger(ov[id])) return ov[id];
-  return eco.poolCopies?.[gd.tierOf(id)];
+  const configured = ov && Number.isInteger(ov[id]) ? ov[id] : eco.poolCopies?.[gd.tierOf(id)];
+  const multiplier = Number.isInteger(eco.coopPoolMultiplier) && eco.coopPoolMultiplier > 0 ? eco.coopPoolMultiplier : 1;
+  return Number.isInteger(configured) ? configured * multiplier : configured;
 }
 
 export function runLarge({ difficulty, humans, bots, seed }) {
@@ -157,7 +158,7 @@ export function runLarge({ difficulty, humans, bots, seed }) {
     if (!Number.isInteger(base) || base <= 0) continue;
     entries++;
     const want = Math.ceil(base * f);
-    check(m.pool.cap(id) === want, 'pool copies = ceil(base × n / 4)', `${id}: ${m.pool.cap(id)}, want ceil(${base} × ${n}/4) = ${want}`);
+    check(m.pool.cap(id) === want, 'pool copies = ceil(base × team multiplier × n / 4)', `${id}: ${m.pool.cap(id)}, want ceil(${base} × ${n}/4) = ${want}`);
   }
   check(entries > 0, 'the pool has entries', 'none');
   check(seen.drafts === 1, 'the strategy draft was observed', `${seen.drafts} looks`);

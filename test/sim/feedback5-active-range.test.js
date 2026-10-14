@@ -75,8 +75,9 @@ test('ACTIVE_RANGE heal skill: an injured ally inside the running range only cas
 });
 
 test('real data: 莫斯提马 S3 序时之匙 (3-15 over her 3-6) casts on its running range; 白面鸮 S2 脑啡肽 (y-7 over y-2, a heal) resolves to it too', () => {
-  const MOST = 'chess_char_4_02_a', PLOSIS = 'chess_char_4_21_a';
-  const d = ds.getChess(MOST);
+  const MOST = 'chess_char_6_diy1_a', MOST_PICK = { charId: 'char_213_mostma', skillIndex: 2, uniEquipId: null };
+  const PLOSIS = 'chess_char_4_21_a';
+  const d = ds.getChess(MOST, { diy: MOST_PICK });
   assert.equal(d.skill.trigger.rule, 'ACTIVE_RANGE');
   assert.equal(ds.getChess(PLOSIS).skill.trigger.rule, 'ACTIVE_RANGE');
   // an enemy on a field tile of 3-15 that 3-6 lacks (she stands at (10,3) facing right)
@@ -84,7 +85,8 @@ test('real data: 莫斯提马 S3 序时之匙 (3-15 over her 3-6) casts on its r
   const k = absoluteRangeKeys(d.skill.trigger.grid, 10, 3, 'RIGHT', 0).find((x) => !base.has(x) && ((x / COLS) | 0) >= 9 && ((x / COLS) | 0) <= 12);
   assert.ok(k != null);
   const h = makeBattle({
-    defs: { enemies: { e: dummy('e') } }, units: [{ chessId: MOST, row: 10, col: 3, dir: 'RIGHT' }],
+    defs: { enemies: { e: dummy('e') } },
+    units: [{ chessId: MOST, diy: { slot: 6, ...MOST_PICK }, row: 10, col: 3, dir: 'RIGHT' }],
     enemies: [{ key: 'e', pos: [(k / COLS) | 0, k % COLS] }], hooks: ['skillStart'], autoFinish: false, timeLimit: 30,
   });
   const u = h.unit(MOST);

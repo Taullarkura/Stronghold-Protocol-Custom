@@ -46,7 +46,7 @@ export const DEFAULTS = Object.freeze({
   hiddenCore: { single: 350, multi: 1200, minTeamLpExclusive: 1, difficulties: ['NORMAL', 'HARD', 'ABYSS'] },
   dp: { init: 10, perSec: 1, max: 99 },
   unite: { maxHelpers: 2, templates: { 1: 'act1autochess_escaped_single', 2: 'act1autochess_escaped_multi' } },
-  timers: { infoCheck: 25, bandDraft: 50, bandTurn: 30, battleCheck: 3, spFirst: 30, spTurn: 16 },
+  timers: { infoCheck: 25, bandDraft: 50, bandTurn: 50, battleCheck: 3, spFirst: 30, spTurn: 16 },
   bans: { FUNNY: { core: 0, addon: 1 }, NORMAL: { core: 3, addon: 4 }, HARD: { core: 3, addon: 4 }, ABYSS: { core: 3, addon: 4 } },
   bandDraft: { skipsPerPlayer: 1, timeoutBandId: 'band_bldsk' },
   leftoverFundsKeptByBands: ['band_cannot'],
@@ -62,7 +62,7 @@ export const DEFAULTS = Object.freeze({
    *   Hidden Core co-op threshold  hiddenCore.multi × f, f from the players whose layers are summed (end of R14 prep)
    *   overtime drain               bossOvertimeDrainPerSec × f, f from the players alive at the boss phase's start
    *   机变 cards                    max(the round's cards, alive + spCardsPlus) when alive > players (5–8 → 7–10)
-   *   strategy draft turn          bandTurn s (instead of Match.BAND_TURN_SECONDS 30) when the match has > players seats
+   *   strategy draft turn          bandTurn s (instead of Match.BAND_TURN_SECONDS 50) when the match has > players seats
    *   机变 later picks              spTurn s (instead of timers.spTurn 16) when > players are alive at the draft start
    *   result titles                a second pass for > players (results.js assignTitles)
    */
@@ -227,7 +227,7 @@ export class GameData {
 
   /**
    * Seconds of one co-op strategy-draft turn in a match of `seats` players (humans + bots): `base`
-   * (Match.BAND_TURN_SECONDS, 30) up to 4 seats, largeRoom.bandTurn (20) above.
+   * (Match.BAND_TURN_SECONDS, 50) up to 4 seats, largeRoom.bandTurn (20) above.
    */
   bandTurnSeconds(seats, base) {
     return this.isLargeRoom(seats) ? this.largeRoom.bandTurn : base;
@@ -367,7 +367,7 @@ export class GameData {
 
   /**
    * Copies of a base chess in the shared pool of a match with `players` seats (humans + bots at match start): the
-   * official count (economy.poolCopies by tier, poolCopiesOverrides e.g. 缪尔赛思 4) for 1–4 seats or when omitted;
+   * official count (economy.poolCopies by tier, with any explicit poolCopiesOverrides) for 1–4 seats or when omitted;
    * ceil(count × seats / 4) for 5–8 (largeRoom, remake extension: 8 seats double every count).
    * @param {string} baseId
    * @param {number} [players]

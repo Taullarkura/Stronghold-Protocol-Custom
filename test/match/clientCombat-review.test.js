@@ -22,10 +22,12 @@ import { DATA, makeMatch, checkInvariants } from './harness.js';
 
 const gd = new GameData(DATA, 'mode_multi_hard');
 
-test('client result names DIY and stand-in operators from the authoritative lineup, never the client or empty slot (#469)', () => {
+test('client result names promoted, DIY, and stand-in operators from the authoritative lineup, never client or empty-slot names (#469)', () => {
   const ordinary = Object.values(DATA.chess).find(c => c.visible && !c.isGolden && gd.standIn(c.chessId));
   const cases = [
-    { chessId: 'chess_char_6_diy1_a', diy: { charId: 'char_4231_clemnt', skillIndex: 2, uniEquipId: null }, expected: '克莱门莎' },
+    { chessId: 'chess_char_4231_clemnt_a', expected: DATA.chess.chess_char_4231_clemnt_a.name },
+    { chessId: 'chess_char_5_diy1_a', diy: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' },
+      expected: DATA.backups.units.char_112_siege.name },
     { chessId: ordinary.chessId, standIn: true, expected: gd.standIn(ordinary.chessId).name },
   ];
   for (const { expected, ...unit } of cases) {

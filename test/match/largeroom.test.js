@@ -44,21 +44,24 @@ test('large-room factor: 1 for 1–4 players, solo or no count; n / 4 above (def
   assert.equal(custom.spTurnSeconds(7), 10);
 });
 
-test('pool copies: the official counts for 1–4 seats; ceil(count × seats / 4) for 5–8 (overrides too), sized at match start', () => {
+test('co-op pool copies: twice the solo counts for 1–4 seats; ceil(shared count × seats / 4) for 5–8, sized at match start', () => {
   const gd = new GameData(DATA, 'mode_multi_normal');
+  const solo = new GameData(DATA, 'mode_single_normal');
   const base = { 1: 12, 2: 14, 3: 18, 4: 16, 5: 8, 6: 5 };
   const byTier = (t) => gd.visibleChess.find((id) => gd.tierOf(id) === t && id !== 'chess_char_6_11_a');
   for (let t = 1; t <= 6; t++) {
     const id = byTier(t);
-    for (const n of [undefined, 1, 2, 3, 4]) assert.equal(gd.poolCopies(id, n), base[t], `tier ${t}, ${n} seats`);
-    for (const n of [5, 6, 7, 8]) assert.equal(gd.poolCopies(id, n), Math.ceil((base[t] * n) / 4), `tier ${t}, ${n} seats`);
-    assert.equal(gd.poolCopies(id, 8), 2 * base[t], '8 seats double every count');
+    assert.equal(solo.poolCopies(id), base[t], `tier ${t}: solo official count`);
+    for (const n of [undefined, 1, 2, 3, 4]) assert.equal(gd.poolCopies(id, n), 2 * base[t], `tier ${t}, ${n} seats`);
+    for (const n of [5, 6, 7, 8]) assert.equal(gd.poolCopies(id, n), Math.ceil((2 * base[t] * n) / 4), `tier ${t}, ${n} seats`);
+    assert.equal(gd.poolCopies(id, 8), 4 * base[t], '8 seats scale the shared co-op pool to four times the solo count');
   }
-  assert.equal(gd.poolCopies('chess_char_6_11_a', 4), 4, '缪尔赛思 keeps her 4 copies');
-  assert.equal(gd.poolCopies('chess_char_6_11_a', 5), 5);
-  assert.equal(gd.poolCopies('chess_char_6_11_a', 8), 8);
-  assert.equal(gd.poolCopies(byTier(5), 5), 10, 'tier V: ceil(8 × 5 / 4)');
-  assert.equal(gd.poolCopies(byTier(6), 7), 9, 'tier VI: ceil(5 × 7 / 4) = ceil(8.75)');
+  assert.equal(solo.poolCopies('chess_char_6_11_a'), 5, '缪尔赛思 uses the standard upstream tier VI count');
+  for (const [n, expected] of [[4, 10], [5, 13], [6, 15], [7, 18], [8, 20]]) {
+    assert.equal(gd.poolCopies('chess_char_6_11_a', n), expected, `缪尔赛思, ${n} seats`);
+  }
+  assert.equal(gd.poolCopies(byTier(5), 5), 20, 'tier V: ceil(16 × 5 / 4)');
+  assert.equal(gd.poolCopies(byTier(6), 7), 18, 'tier VI: ceil(10 × 7 / 4) = ceil(17.5)');
   // SharedPool: omitted / 1–4 seats = the official pool
   const official = new SharedPool(gd);
   for (const n of [1, 4]) assert.deepEqual(new SharedPool(gd, { players: n }).snapshot(), official.snapshot());
@@ -132,7 +135,7 @@ test('overtime drain: 1 LP per real second for 1–4 alive at the boss phase sta
 });
 
 for (const n of [5, 8]) {
-  test(`Final Assault with ${n} players: ${Math.ceil(n / 2)} boss fields (seat pairs, a lone last player on _s), pool × ${n}, overtime × ${n}/4 → defeat`, () => {
+  test(`Final Assault with ${n} players: ${Math.ceil(n / 2)} random boss pairs, pool × ${n}, overtime × ${n}/4 → defeat`, () => {
     const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: n, seed: 60 + n, fake: true, instant: false, script: (b) => (b.kind === 'boss' ? { bossDps: 1 } : {}) }).start();
     const m = h.m;
     const audit = attachAudit(m);
@@ -143,18 +146,25 @@ for (const n of [5, 8]) {
     assert.equal(m.bossAlive, n);
     const fields = bossFields();
     assert.deepEqual(fields.map((f) => f.fieldId), Array.from({ length: Math.ceil(n / 2) }, (_, i) => `b${i + 1}`));
-    assert.deepEqual(m.fields.map((f) => f.players), Array.from({ length: Math.ceil(n / 2) }, (_, i) => [`p_${2 * i}`, `p_${2 * i + 1}`].filter((id) => m.players.has(id))));
+    const pairs = m.bossPairs;
+    assert.equal(pairs.length, Math.ceil(n / 2));
+    assert.deepEqual(m.fields.map((f) => f.players), pairs);
+    assert.deepEqual(pairs.flat().slice().sort(), Array.from({ length: n }, (_, i) => `p_${i}`).sort());
+    assert.equal(pairs.filter((group) => group.length === 1).length, n % 2);
     for (const f of fields) assert.equal(/_s$/.test(f.opts.waveId), f.opts.players.length === 1, `${f.fieldId}: ${f.opts.waveId}`);
     const bp = m.gd.boss(m.bossId).bloodPoint.FUNNY;
     assert.equal(m.bossPool.maxHp, bp * n, 'leader pool: bloodPoint per player alive, also past 4');
     assert.ok(fields.every((f) => f.sharedBoss === m.bossPool), 'one pool for every field');
-    assert.ok(m.publicView().overtimeAt > 0);
-    assert.equal(m.publicView().overtimeDrainPerSec, n / 4, 'm.public carries the scaled drain');
+    const overtime = m.publicView();
+    assert.ok(overtime.overtimeAt > 0);
+    const drainPerRealSecond = overtime.overtimeDrainPerSec;
+    assert.equal(drainPerRealSecond, n / 4, 'm.public carries the scaled drain');
+    const startingLp = m.teamLp;
     const end = h.runToEnd();
     assert.equal(end.victory, false);
     assert.equal(m.teamLp, 0);
-    // 10 LP each at n / 4 LP per real second: 40 real s of overtime → 300 + 80 game s (2 players at 1 LP/s: 340)
-    assert.ok(Math.abs(fields[0].time - 380) < 2.5, `ended ≈ 380 game s (${fields[0].time})`);
+    const expectedGameSeconds = (m.bossOvertimeStartReal + startingLp / drainPerRealSecond) * m.gd.combatTimeScale;
+    assert.ok(Math.abs(fields[0].time - expectedGameSeconds) < 2.5, `ended ≈ ${expectedGameSeconds} game s (${fields[0].time})`);
     assert.deepEqual(audit.violations, [], audit.violations.join('\n'));
     m.dispose();
   });
@@ -167,10 +177,14 @@ test('Final Assault with 4 players: the 0.2.0 pool (bloodPoint × 4), 1 LP/s, no
   for (const p of m.players.values()) p.lp = 10;
   h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
   assert.equal(m.bossPool.maxHp, m.gd.boss(m.bossId).bloodPoint.FUNNY * 4);
-  assert.ok(m.publicView().overtimeAt > 0);
-  assert.ok(!('overtimeDrainPerSec' in m.publicView()));
+  const overtime = m.publicView();
+  assert.ok(overtime.overtimeAt > 0);
+  assert.ok(!('overtimeDrainPerSec' in overtime));
+  const fields = bossFields();
+  const startingLp = m.teamLp;
+  const expectedGameSeconds = (m.bossOvertimeStartReal + startingLp) * m.gd.combatTimeScale;
   h.runToEnd();
-  assert.ok(Math.abs(bossFields()[0].time - 380) < 2.5, `40 LP at 1 LP/s: 300 + 80 game s (${bossFields()[0].time})`);
+  assert.ok(Math.abs(fields[0].time - expectedGameSeconds) < 2.5, `40 LP at 1 LP/s: ${expectedGameSeconds} game s (${fields[0].time})`);
   m.dispose();
 });
 

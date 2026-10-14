@@ -39,6 +39,7 @@ const { runnerCacheMax } = await import('../../public/js/battle/runner.js');
 const { draftOrderDense } = await import('../../public/js/screens/bandDraft.js');
 const { progressDense } = await import('../../public/js/ui/combatHud.js');
 const { pairPlayers } = await import('../../server/match/finalAssault.js');
+const { createRng } = await import('../../server/sim/rng.js');
 const { data } = await import('../../public/js/data.js');
 
 await data.loadAll('items', 'effects', 'choices', 'assets', 'chess', 'bonds');
@@ -253,24 +254,31 @@ describe('ticker queue and battle cache sized to the room', () => {
   });
 });
 
-describe('Final Assault prep of P5–P8: the half of the server\'s seat pairs (b1..b4, an odd last player alone)', () => {
-  const pub = (players) => ({ round: 14, bossRound: 14, hiddenRound: 15, players });
+describe('Final Assault prep of P5–P8: the half of the server\'s random pairs (b1..b4, an odd last player alone)', () => {
+  const pub = (players, groups) => ({ round: 14, bossRound: 14, hiddenRound: 15, players, bossPairs: groups.map((g) => g.map((p) => p.playerId)) });
   for (const n of [5, 6, 7, 8]) {
     test(`${n} players`, () => {
       const players = team(n).reverse(); // m.public order is not the seat order
-      const groups = pairPlayers(players.map((p) => ({ ...p })));
+      const groups = pairPlayers(players.map((p) => ({ ...p })), createRng(n));
+      const publicState = pub(players, groups);
       assert.equal(groups.length, Math.ceil(n / 2));
       for (const g of groups) {
-        g.forEach((p, j) => assert.deepEqual(prepCamera(pub(players), p.playerId), { kind: 'bossPrep', opts: { side: j === 1 ? 'R' : 'L' } }, `${p.playerId}`));
+        g.forEach((p, j) => assert.deepEqual(prepCamera(publicState, p.playerId), { kind: 'bossPrep', opts: { side: j === 1 ? 'R' : 'L' } }, `${p.playerId}`));
       }
-      if (n % 2) assert.equal(prepCamera(pub(players), `p${n - 1}`).opts.side, 'L', 'the lone last player: the left half');
+      if (n % 2) {
+        const lone = groups.find((g) => g.length === 1)[0];
+        assert.equal(prepCamera(publicState, lone.playerId).opts.side, 'L', 'the lone player uses the left half');
+      }
     });
   }
   test('an eliminated P3 of 8: the pairs close up like the server\'s', () => {
     const players = team(8).map((p) => (p.seat === 2 ? { ...p, alive: false } : p));
-    const groups = pairPlayers(players.filter((p) => p.alive).map((p) => ({ ...p })));
-    for (const g of groups) g.forEach((p, j) => assert.equal(prepCamera(pub(players), p.playerId).opts.side, j === 1 ? 'R' : 'L', p.playerId));
-    assert.equal(prepCamera(pub(players), 'p7').opts.side, 'L', 'P8 is the lone last player');
+    const alive = players.filter((p) => p.alive).map((p) => ({ ...p }));
+    const groups = pairPlayers(alive, createRng(8));
+    const publicState = pub(players, groups);
+    for (const g of groups) g.forEach((p, j) => assert.equal(prepCamera(publicState, p.playerId).opts.side, j === 1 ? 'R' : 'L', p.playerId));
+    const lone = groups.find((g) => g.length === 1)[0];
+    assert.equal(prepCamera(publicState, lone.playerId).opts.side, 'L', 'the server-selected lone player uses the left half');
   });
 });
 

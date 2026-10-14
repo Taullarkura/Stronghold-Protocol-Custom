@@ -94,6 +94,13 @@ describe('placeholders', () => {
       const pct = richTextPlain(formatBondEffect(bonds[id], 500)).match(/(\d+)%/);
       assert.ok(pct && Number(pct[1]) === 100, `${id} at 500 layers: ${pct && pct[0]}`);
     }
+    const laterano = bonds.lateranoShip;
+    for (const [layers, ammo, aspd] of [[0, '5.0%', 10], [1, '6.5%', 10], [2, '8.0%', 11], [10, '20.0%', 17]]) {
+      const out = richTextPlain(formatBondEffect(laterano, layers));
+      assert.ok(out.includes(`弹药量+${ammo}`), `拉特兰 ammo at ${layers} layers: ${out}`);
+      assert.ok(out.includes(`攻击速度+${aspd}`), `拉特兰 ASPD at ${layers} layers: ${out}`);
+      assert.doesNotMatch(out, /5\+1\.5×层数|10\+0\.7×层数/, `拉特兰 leaves a formula at ${layers} layers: ${out}`);
+    }
     assert.equal(formatBondEffect(null, 3), '');
     assert.equal(formatBondEffect({ effectDesc: 'x{0:0}', effectDescParams: [{ index: 0, format: '0', base: 'a', perStack: 'b' }], bb: { a: 1, b: 2 } }, 'bad'), 'x1');
   });

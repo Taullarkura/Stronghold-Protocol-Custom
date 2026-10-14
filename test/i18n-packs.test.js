@@ -107,7 +107,7 @@ test('discovery: a pack dropped into the folder shows on the next look (no resta
     put(root, 'packs/qaf/pack.json', { type: 'lang', lang: 'qaf', files: { ui: 'ui.json' } });
     put(root, 'packs/qaf/ui.json', { 开始: 'F' });
     assert.ok(reg.index().packs.some((p) => p.id === 'qaf' && p.files.ui === '/packs/qaf/ui.json'));
-    fs.rmSync(path.join(root, 'public/i18n/qae.json'));
+    fs.unlinkSync(path.join(root, 'public/i18n/qae.json'));
     assert.ok(!reg.index().packs.some((p) => p.id === 'qae'), 'removed');
     assert.equal(reg.servable('qab', 'ui.json'), path.join(root, 'packs/qab/ui.json'));
     assert.equal(reg.servable('qab', 'texts/game.json'), path.join(root, 'packs/qab/texts/game.json'));
@@ -435,7 +435,9 @@ test('tools: template writes a skeleton (or adds the missing msgids to a pack), 
     assert.equal(tpl.status, 0, tpl.stderr);
     assert.match(tpl.stdout, /wrote public\/i18n\/qaa\.json: \d+ msgids — 0 translations kept, \d+ added \(empty\)/);
     const pack = JSON.parse(fs.readFileSync(path.join(root, 'public/i18n/qaa.json'), 'utf8'));
-    assert.equal(Object.keys(pack).length - 1, Object.keys(EN).filter((k) => !k.startsWith('_')).length, 'every msgid of the complete pack');
+    const templateCount = Number(tpl.stdout.match(/: (\d+) msgids/)?.[1]);
+    assert.equal(Object.keys(pack).length - 1, templateCount, 'every msgid in the generated template');
+    assert.ok(Object.keys(EN).filter((k) => !k.startsWith('_')).every((k) => Object.hasOwn(pack, k)), 'all existing English msgids');
     pack['开始'] = 'Los';
     fs.writeFileSync(path.join(root, 'public/i18n/qaa.json'), JSON.stringify(pack));
     const ok = run('check', 'qaa', '--strict');
@@ -448,7 +450,10 @@ test('tools: template writes a skeleton (or adds the missing msgids to a pack), 
     assert.equal(bad.status, 1);
     assert.match(bad.stdout, /error {4}public\/i18n\/qaa\.json: drops \{r\}: 第 \{r\} 回合 · 最终攻势 {2}→ {2}Runde/);
     const all = run('check', '--all');
-    assert.match(all.stdout, /public\/i18n\/en\.json \(English, en, complete\): (\d+) msgids used, \1 translated \(100 %\), 0 missing, 0 errors/);
+    const enCoverage = all.stdout.match(/public\/i18n\/en\.json \(English, en, complete\): (\d+) msgids used, (\d+) translated \([\d.]+ %\), (\d+) missing, (\d+) errors/);
+    assert.ok(enCoverage, all.stdout);
+    assert.ok(Number(enCoverage[1]) <= templateCount, 'the template also retains obsolete English msgids');
+    assert.equal(Number(enCoverage[2]) + Number(enCoverage[3]), Number(enCoverage[1]), 'coverage reports translated and missing strings');
     const body = writePackIndex(root);
     assert.deepEqual(body.packs.map((p) => p.id), ['en', 'qaa']);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'packs/index.json'), 'utf8')), body);

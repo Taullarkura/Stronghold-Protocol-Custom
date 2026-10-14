@@ -1199,9 +1199,6 @@ function MatchScreen() {
           if (!e.detail && e.button !== 2 && op && inBattle) {
             audio.voice(e.unit.spine || e.unit.defId, 'select', { key: selectVoiceKey(lastFieldRef.current, e.unit.id ?? e.unitId) });
           }
-          setDetail({ kind: 'unit', unit: e.unit || null, unitId: e.unitId, uid: e.uid, inBattle });
-          return;
-        }
           setDetail({ kind: 'unit', unit: e.unit || null, unitId: e.unitId, uid: e.uid, prepMapChar: e.prepMapChar === true, inBattle });
           return;
         }

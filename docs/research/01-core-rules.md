@@ -315,7 +315,7 @@ The 20-fund 绮良 / 55-fund 帕格尼尼 band thresholds count **funds spent** 
   - NORMAL = uses the player's own operator (or a borrowed support). If neither is available it uses `backupCharId` (预备干员).
   - DIY = a player-chosen own operator in a tier V/VI slot.
 - **Shared pool (multi) [COMM, bilibili BV1JWy3BkEpt + note.com]:**
-  - Each operator has a fixed number of copies shared by all 4 players: **I 12, II 14, III 18, IV 16, V 8, VI 5** (缪尔赛思 4).
+  - The source reports fixed copies shared by all 4 players: **I 12, II 14, III 18, IV 16, V 8, VI 5** (缪尔赛思 4). The merged v0.2.6 data uses the ordinary tier VI base 5 for 缪尔赛思, yielding a 4-seat co-op cap of 10 with the co-op multiplier; it has no per-operator override.
   - An elite occupies 3 copies. Copies in a shop display do **not** occupy the pool.
   - All owned copies (board + bench, however obtained) do.
   - If owned copies ≥ cap, that operator can no longer roll.

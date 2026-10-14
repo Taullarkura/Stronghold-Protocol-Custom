@@ -3,7 +3,7 @@
 //
 // Model:
 //   * Every visible (non-hidden, non-DIY) base chess that is not banned this match has `cap` copies
-//     (config.economy.poolCopies[tier], overrides e.g. 缪尔赛思 4, and the co-op stock multiplier; 5–8 seats scale
+//     (config.economy.poolCopies[tier], any configured per-chess overrides, and the co-op stock multiplier; 5–8 seats scale
 //     this capacity by seats / 4). `left` is the signed capacity minus occupation; public availability clamps deficits
 //     to zero. Capacity is sized once at match start, so eliminated seats' copies simply return.
 //   * Owning a piece takes copies: a normal piece holds 1, an elite holds 3 (merge of 3 normals). Shop displays

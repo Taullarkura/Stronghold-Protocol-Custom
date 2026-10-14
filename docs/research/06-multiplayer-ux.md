@@ -58,7 +58,7 @@ Rich-text tags such as `<@ba.vup>…</>` are stripped. Rules this doc shares wit
     - Solo: > 350 and LP > 1.
     - In 上半 the thresholds were 1000 and 300.
     - Failing round 15 does not affect clear status or rewards. [WIKI PRTS 下半]
-14. **Shared pool** (co-op): copies per operator name by tier I..VI = **12 / 14 / 18 / 16 / 8 / 5** (Muelsyse 4).
+14. **Shared pool** (co-op): source-reported tier bases I..VI = **12 / 14 / 18 / 16 / 8 / 5** (an older community note reports Muelsyse 4). The merged v0.2.6 data uses the ordinary tier VI base 5 for Muelsyse, yielding a 4-player co-op cap of 10 with the co-op multiplier; there is no per-operator override.
     - An elite occupies 3 copies. Shop-displayed cards don't count.
     - The shop can't roll an operator whose owned copies (all players' boards, benches and effects) have reached the cap.
     - Units of players who are eliminated or who quit return immediately. [COMM video BV1JWy3BkEpt/BV1ZTUjBaEyy]
@@ -354,7 +354,7 @@ Visual [SHOT]: the banner is a dark strip with orange chevrons and orange-skull 
   |---|---|---|---|---|---|---|
   | Copies | 12 | 14 | 18 | 16 | 8 | 5 |
 
-  Exception: 缪尔赛思 (Muelsyse) has 4.
+  The source notes report 缪尔赛思 (Muelsyse) at 4; the merged v0.2.6 data instead uses the ordinary tier VI base 5 (10 copies in the 4-seat co-op pool after its multiplier).
 - A **normal** unit uses 1 copy and an **elite** uses 3.
 - **Counted:** units on every player's battlefield, bench and temp bench, from any source (buy, reward, strategy effect, 拟态/copy effects).
 - **Not counted:** cards currently displayed in any shop.

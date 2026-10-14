@@ -7,13 +7,6 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 ### 6.1 State machine (Match.js)
 
 ```
-LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed (§18.2); all ready ⇒ skip; the operator loadout (§16) locks when it ends) → BAND_DRAFT (co-op: random order, ONE countdown — `BAND_TURN_SECONDS` 30 s per turn = m.public.deadline (20 s in a match of more than 4 seats, §F1), AI seats pick at once, 1 skip each, a strategy a teammate already took is refused (队友已选), timeout ⇒ the strategy the player highlights (`g.bandFocus`) while free, else band_bldsk, else the first free one; solo: free pick, no timer, no skip; a single human: untimed) → BATTLE_CHECK (3 s)
-→ loop r = 1..lastRound:
-     ROUND_START   (income, upgrade price −1 (floor 0), temp NOT wiped — what overflowed after the last prep's deadline is shown in this
-                    prep (§6.2 temp overflow), unfrozen shop slots rerolled, frozen kept, <进入休整期时> effects)
-     [SP_DRAFT]    (if r ∈ spRounds: 机变 draft; co-op 6 cards (max(6, alive + 2) above 4 alive, §F1), 30 s first picker / 16 s others
-                    (12 s above 4 alive); solo 3 cards; solo / single human untimed;
-
 LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed (§18.2); all ready ⇒ skip; the operator loadout (§16) locks when it ends) → BAND_DRAFT (co-op: random order — the room option 「AI 队友最后选择」 (host, off by default; `room.setAiPicksLast`) puts every human seat before every AI seat, each group keeping the drawn order, and draws no extra random number; a skipping human goes behind the other humans still to pick and ahead of the AI seats, or to the very end when no other human remains [ASSUMED] —, ONE countdown — `BAND_TURN_SECONDS` 50 s per turn = m.public.deadline, AI seats pick at once, 1 skip each, a strategy a teammate already took is refused (队友已选), timeout ⇒ the strategy the player highlights (`g.bandFocus`) while free, else band_bldsk, else the first free one; solo: free pick, no timer, no skip; a single human: untimed) → BATTLE_CHECK (3 s)
 → loop r = 1..lastRound:
      ROUND_START   (income, upgrade price −1 (floor 0), temp NOT wiped — what overflowed after the last prep's deadline is shown in this

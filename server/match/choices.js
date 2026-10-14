@@ -154,10 +154,10 @@ function itemCard(gd, id) {
 
 /**
  * Build the draft cards for an SP round. `players`: the players alive at the draft start (spDraftCardCount; omitted ⇒
- * the official count).
+ * the official count). `itemAvailable` filters out equipment that cannot be added to the shared stock.
  * @returns {{ family: string, name: string, desc: string, eventId: string|null, cards: object[] } | null}
  */
-export function generateDraft(gd, rng, round, { stageId = null, bondAvailable = null, players = undefined } = {}) {
+export function generateDraft(gd, rng, round, { stageId = null, bondAvailable = null, itemAvailable = null, players = undefined } = {}) {
   const sch = scheduleFor(gd, round);
   const fams = Array.isArray(sch.families) && sch.families.length ? sch.families.map((f) => [f.family, f.weight]) : [['supply', 1]];
   let family = weightedPick(rng, fams) || 'supply';

@@ -533,8 +533,8 @@ export class MatchBoss {
   }
 
   /**
-   * Overtime drain on the boss field clock (`gt` game seconds): 1 team LP per real second from the 150 real-second mark
-   * (bossTurnHpReduceTime, gamedata.js bossOvertimeDue; × alive / 4 when more than 4 were alive at the phase's start).
+   * Overtime drain on the boss field clock (`gt` game seconds): 1 team LP per real second from `bossOvertimeStartReal`
+   * (120 real s for all-human teams; 150 with a bot teammate; × alive / 4 above 4 alive).
    */
   _applyOvertime(gt) {
     const due = this.gd.bossOvertimeDue(gt, this.bossAlive, this.bossOvertimeStartReal);

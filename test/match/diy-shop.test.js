@@ -53,7 +53,7 @@ test('room.diy: structural wire check; checkDiyPicks keeps the legal picks, drop
   }, { data: DATA, kitted: KITTED_CHARS });
   assert.deepEqual(res, {
     ok: true, dropped: 3,
-    picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP, skillIndex: 2, uniEquipId: 'uniequip_002_acguad' } },
+    picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP, skillIndex: 2, uniEquipId: null } },
   });
   // a 4★ reserve is a tier-5 pick only; an operator without a kit is never offered
   const r2 = checkDiyPicks({ [T5A]: { charId: CGUARD }, [T6A]: { charId: CGUARD }, [T6B]: UNKITTED ? { charId: UNKITTED, skillIndex: 0 } : null }, { data: DATA, kitted: KITTED_CHARS });
@@ -288,7 +288,7 @@ test('battleInput: a 自选 piece carries its pick (`diy`, no loadout fields); t
   const by = new Map(input.units.map((u) => [u.uid, u]));
   assert.deepEqual(by.get(elite.uid).diy, SIEGE_PICK);
   assert.ok(!('skillIndex' in by.get(elite.uid)) && !('moduleId' in by.get(elite.uid)) && !('standIn' in by.get(elite.uid)));
-  assert.deepEqual(by.get(s.uid).diy, { charId: SHARP, skillIndex: 2, uniEquipId: 'uniequip_002_acguad' });
+  assert.deepEqual(by.get(s.uid).diy, { charId: SHARP, skillIndex: 2, uniEquipId: null });
   const wave = m.wave;
   const spec = wire(buildBattleSpec({
     battleId: 't.1', fieldId: 'n:p_0', kind: 'normal', seed: 77, modeId: m.modeId, round: 1, stageId: m.stageId,

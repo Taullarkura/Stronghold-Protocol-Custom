@@ -80,7 +80,7 @@ describe('the asset index', () => {
       // a restart: the cache answers for the unchanged files; a changed file is hashed again; a removed one is dropped
       const a2 = randomBytes(2100);
       fs.writeFileSync(path.join(dir, 'public/assets/char/a.png'), a2);
-      fs.rmSync(path.join(dir, 'public/fonts/f.woff2'));
+      fs.unlinkSync(path.join(dir, 'public/fonts/f.woff2'));
       const idx2 = createAssetIndex({ publicDir: path.join(dir, 'public'), cacheFile, delayMs: 0 });
       idx2.start();
       await idx2.whenReady();

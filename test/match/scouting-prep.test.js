@@ -74,13 +74,17 @@ test('a boss round\'s scouting board is the pair\'s boss field: both halves mapp
   assert.equal(meta.kind, 'boss');
   assert.equal(meta.prep, true);
   assert.deepEqual(meta.rect, GEO.BOSS_RECT);
-  assert.deepEqual(meta.players, ['p_0', 'p_1']);
-  assert.deepEqual(meta.sides, { p_0: 'L', p_1: 'R' });
+  assert.deepEqual([...meta.players].sort(), ['p_0', 'p_1']);
+  assert.deepEqual(meta.sides, { [meta.players[0]]: 'L', [meta.players[1]]: 'R' });
   const by = new Map(meta.units.map((u) => [u.uid, u]));
-  // finalAssault.js bossFieldPlacement: rows ≥ 7 shift −7; the right half mirrored col c → 20 − c, RIGHT ↔ LEFT
-  assert.deepEqual([by.get(left.uid).y, by.get(left.uid).x, by.get(left.uid).dir, by.get(left.uid).ownerId], [4, 4, 'RIGHT', 'p_0']);
-  assert.deepEqual([by.get(right.uid).y, by.get(right.uid).x, by.get(right.uid).dir, by.get(right.uid).ownerId], [3, 17, 'LEFT', 'p_1']);
-  assert.deepEqual([by.get(bench.uid).area, by.get(bench.uid).y, by.get(bench.uid).x], ['hand', 0, 19]);
+  // Pair order is seeded and determines L/R; rows ≥ 7 shift −7, the right half mirrors col c → 20 − c and RIGHT ↔ LEFT.
+  const placement = (pid, row, col) => meta.sides[pid] === 'R'
+    ? [row - 7, 20 - col, 'LEFT', pid]
+    : [row - 7, col, 'RIGHT', pid];
+  assert.deepEqual([by.get(left.uid).y, by.get(left.uid).x, by.get(left.uid).dir, by.get(left.uid).ownerId], placement('p_0', 11, 4));
+  assert.deepEqual([by.get(right.uid).y, by.get(right.uid).x, by.get(right.uid).dir, by.get(right.uid).ownerId], placement('p_1', 10, 3));
+  assert.deepEqual([by.get(bench.uid).area, by.get(bench.uid).y, by.get(bench.uid).x],
+    ['hand', ...placement('p_1', 7, 1).slice(0, 2)]);
 
   const leaders = meta.nextEnemies.filter((e) => e.boss);
   assert.equal(leaders.length, 1, 'the leader is listed once');
@@ -97,5 +101,5 @@ test('a boss round\'s scouting board is the pair\'s boss field: both halves mapp
   assert.equal(views.length, before + 1, 'one new view of n:p_1');
   const moved = wire(views.at(-1)).units.find((u) => u.uid === left.uid);
   assert.equal(views.at(-1).fieldId, 'n:p_1');
-  assert.deepEqual([moved.y, moved.x], [tr - 7, tc], 'the left half\'s piece where it moved');
+  assert.deepEqual([moved.y, moved.x], placement('p_0', tr, tc).slice(0, 2), 'the piece where it moved on its half');
 });
