@@ -12,7 +12,9 @@
 //
 // Simplifications (one line per id; see also the report of the content phase):
 //  1_15 盟约·辅助干员  every damage she deals attaches all three elements, neural → burn → apoptosis (see pithst).
-//  6_01 蕾缪安   locks every 0.5 s while an enemy is in range (ends early — and bombs — when the range empties);
+//  6_01 蕾缪安   lock interval = 0.5 × 20 / (20 + the actual S3 ammo total for that cast, including skill-start bonuses);
+//                spending bullets does not shorten the interval (the 100 magazine cap is not the formula input);
+//                it applies while an enemy is in range (ends early — and bombs — when the range empties);
 //                the shells then follow one every 0.3 s (PRTS), each landing 0.3 s after it is fired [ASSUMED flight];
 //                the 1.5 radius (PRTS "碰撞箱判定") is read as the centre distance like every engine radius; knocked
 //                out / withdrawn after the end, she fires no further shell (those already in the air still land);

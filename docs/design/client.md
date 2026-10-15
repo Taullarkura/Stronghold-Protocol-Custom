@@ -56,6 +56,8 @@ Screens: **Title** (season art backdrop, 开始 → nickname), **Lobby** (独立
 
 For co-op rooms, capacity defaults to 4 seats and the host can set it to 4–8; the 5–8 seat layout uses two rows of four (§F1).
 
+During client-side combat, a button at the lower-left toggles the damage report. Its floating panel shows actual damage dealt, sorted by operator with damage share bars, refreshes every 500 ms, and remains available while the battle is running or waiting for teammates; owned summons are included under their operator. The report uses the battle simulation's credited damage totals, not rounded damage-number effects.
+
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 
 A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26).

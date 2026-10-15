@@ -132,6 +132,39 @@ test('authoritative battle: 2× pacing, ≤ max(8, 4·speed) ticks per frame, b.
   r.runner.dispose();
 });
 
+test('live damage report groups actual damage by operator and includes owned summons', async () => {
+  const start = realStart(7311);
+  const r = rig();
+  const reports = [];
+  r.runner.on('damageReport', (report) => reports.push(report));
+  r.net.emit('b.start', start);
+  await r.settle();
+  const e = r.runner._entries.get(start.battleId);
+  assert.equal(reports[0].total, 0, 'the shown battle publishes an initial report');
+  r.advance(6000);
+  const report = r.runner.damageReport();
+  const actual = e.battle.allyUnits.reduce((sum, unit) => sum + (Number(unit.stats?.dmg) || 0), 0);
+  assert.ok(report.total > 0, 'battle damage is recorded');
+  assert.ok(Math.abs(report.total - actual) < 1e-6, 'the total is the simulation damage actually credited to allies');
+  assert.equal(report.fieldId, start.fieldId);
+  assert.equal(report.round, start.spec.round);
+  assert.ok(reports.length > 2, 'live updates are published while the battle runs');
+  for (const row of report.rows.filter((x) => x.kind === 'chess')) {
+    const operator = e.battle.allyUnits.find((unit) => `op:${unit.id}` === row.key);
+    const expected = e.battle.allyUnits.reduce((sum, unit) => {
+      let owner = unit;
+      const seen = new Set();
+      while (owner && owner.kind !== 'op' && !seen.has(owner)) {
+        seen.add(owner);
+        owner = owner.ownerUnit;
+      }
+      return sum + (owner === operator ? Number(unit.stats?.dmg) || 0 : 0);
+    }, 0);
+    assert.ok(Math.abs(row.damage - expected) < 1e-6, `${row.name} includes damage from its owned summons`);
+  }
+  r.runner.dispose();
+});
+
 test('account battle recording reproduces the exact terminal battle and tick-indexed forced end',async()=>{
   const start=realStart(7441),r=rig();r.net.accountMode=true;
   r.net.emit('b.start',start);await r.settle();r.advance(3500);

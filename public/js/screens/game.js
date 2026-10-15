@@ -104,6 +104,7 @@ import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
+import { DamageCounter } from '../ui/damageCounter.js';
 import { SettingsModal, settingsStore } from '../ui/settings.js';
 import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
 import { openGuide } from '../ui/guide.js';
@@ -259,6 +260,8 @@ function MatchScreen() {
   const [selBusy, setSelBusy] = useState(false);
   const [holdSeq, setHoldSeq] = useState(0);             // bumped when a held piece is released (re-apply the prep state)
   const [hud, setHud] = useState(null);
+  const [damageReport, setDamageReport] = useState(null);
+  const [damageOpen, setDamageOpen] = useState(false);
   const [drawn, setDrawn] = useState(null);              // the battle slice the drawn picture shows (gameLogic pickDrawn)
   const [banner, setBanner] = useState(null);
   const [resultBox, setResultBox] = useState(null);      // the round's result box (ResultDialog), shown at SETTLE
@@ -277,6 +280,16 @@ function MatchScreen() {
   const phase = pub?.phase;
   const mode = phaseMode(phase);
   const combat = isCombatPhase(phase);
+  useEffect(() => {
+    if (!cc || !combat || !field?.local) {
+      setDamageReport(null);
+      setDamageOpen(false);
+      return;
+    }
+    const report = battleRunner?.damageReport?.() ?? null;
+    setDamageReport(report?.fieldId === field.fieldId ? report : null);
+  }, [cc, combat, field?.local, field?.fieldId]);
+  useEffect(() => { setDamageOpen(false); }, [damageReport?.battleId]);
   const solo = roomSolo || String(pub?.modeId || '').includes('single');
   const players = sortedPlayers(pub);
   const meP = players.find((p) => p.playerId === myId) || null;
@@ -741,8 +754,9 @@ function MatchScreen() {
       const L = live.current;
       sayResult(msg.battleId, L.myId, L.pub?.difficulty, L.shownCharId);
     };
+    const onDamageReport = (report) => setDamageReport(report);
     const offs = [net.on('m.field', onFieldMeta), net.on('b.snap', onSnap), net.on('b.ev', onEv)];
-    if (battleRunner) offs.push(battleRunner.on('field', onFieldMeta), battleRunner.on('snap', onSnap), battleRunner.on('ev', onEv), battleRunner.on('state', onState), battleRunner.on('ownDone', onOwnDone), battleRunner.on('result', onResult));
+    if (battleRunner) offs.push(battleRunner.on('field', onFieldMeta), battleRunner.on('snap', onSnap), battleRunner.on('ev', onEv), battleRunner.on('state', onState), battleRunner.on('ownDone', onOwnDone), battleRunner.on('result', onResult), battleRunner.on('damageReport', onDamageReport));
     if (engine) offs.push(view.on('battleEvents', (evs) => audio.handleBattleEvents(evs)));
     // Metadata must include enemies/tokens spawned before this renderer existed, not only events buffered during loading.
     if (view && !showPrep && field?.fieldId) {
@@ -1705,6 +1719,11 @@ function MatchScreen() {
       ${combat || mode === 'settle' ? html`<${CombatHud} pub=${pub} myId=${myId} watching=${watchingNow} hud=${hud} myDone=${!!myDone && alive}
         spectating=${!alive} spectator=${spectator} onWatch=${watchField}
         client=${cc ? { progress, observing: observingName ? { name: observingName } : null, onBack: alive ? backHome : null, layers, layer, onLayer: setLayer, uniteFields: uniteSw } : null} />` : null}
+      ${cc && combat && field?.local ? html`<${DamageCounter}
+        report=${damageReport?.fieldId === field.fieldId ? damageReport : null}
+        playerName=${meP?.name || ''}
+        open=${damageOpen}
+        onToggle=${setDamageOpen} />` : null}
 
       ${showDeadPill(alive, phase) ? (spectator
         ? html`<div class="gm__dead gm__dead--spectator" role="status"><${GIcon} name="eye" />${t('观战中 · 点击左侧成员头像切换查看')}</div>`

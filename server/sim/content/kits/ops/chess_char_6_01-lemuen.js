@@ -12,6 +12,7 @@ import { num, tbb, live, isElite, hasBond, ANY, bstate } from '../shared/tier6.j
 /** S3 bombardment: one shell every 0.3 s after the skill ends, for at most 10 s (PRTS S3 note, not in the data). */
 const LEMUEN_SHELL_INTERVAL = 0.3;
 const LEMUEN_SHELL_WINDOW = 10;
+const LEMUEN_S3_AMMO_CAP = 100;
 /**
  * Shell flight time [ASSUMED]: the first bombardment lands one interval after the skill ends, so every shell of the
  * PRTS count (≤ 33 in the 10 s window) lands inside it; the renderer draws the shell over this time (fx bombardShell).
@@ -72,7 +73,6 @@ function ensureWanted(battle) {
 
 function lemuen(bb, chess, def) {
   const t0 = tbb(def, 0), t1 = tbb(def, 1), tb = def?.traitBb || {};
-  const aim = Math.max(0.05, num(bb['attack@aim_interval'], 0.5));
   const d1 = num(bb['attack@dist_1'], 0.8);
   const d2 = num(bb['attack@dist_2'], num(bb['attack@projectile_range'], 1.5));
   const s1 = num(bb['attack@proj_atk_scale_1'], 1), s2 = num(bb['attack@proj_atk_scale_2'], 1);
@@ -190,13 +190,16 @@ function lemuen(bb, chess, def) {
     skill: {
       kind: 'ammo',
       ammo: Math.max(1, Math.floor(num(bb['attack@trigger_time'], 5))),
-      ammoCap: 100,
+      ammoCap: LEMUEN_S3_AMMO_CAP,
       attack: { noAttack: true },
       allyTargets: true,   // its locks take 白铁's 铁钳号 too (pickLock) — skills.js allyTargetsOk
-      onStart({ unit }) { unit.mem.lemLocks = []; unit.mem.lemAcc = aim; },
+      onStart({ unit }) { unit.mem.lemLocks = []; unit.mem.lemAcc = null; },
       onTick({ battle, unit, skill, dt }) {
         const m = unit.mem;
         if (!m.lemLocks) return;
+        // Read after skillStart bonuses; ammoMax stays fixed as shots are spent.
+        const aim = 0.5 * (20 / (20 + skill.ammoMax));
+        if (m.lemAcc == null) m.lemAcc = aim;
         for (const L of m.lemLocks) markOf(L);
         if (!unit.canAct) return;
         m.lemAcc += dt;

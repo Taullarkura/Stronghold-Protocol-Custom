@@ -59,9 +59,10 @@ test('the locked enemy dies and nothing else is in her range: S3 keeps running w
 });
 
 test('a locked walker leaves her range: the skill waits; the next enemy that comes is locked at once, and the spent bullets bomb every mark — the walker where it is now', () => {
-  const { h, u, ends, locks, shells, bombs, dmg } = lemuen([{ key: 'enemy_walker', route: { motion: 'WALK', start: [9, 5], end: [9, 10], checkpoints: [] } }]);
+  const { h, u, ends, locks, shells, bombs, dmg } = lemuen([{ key: 'enemy_walker', route: { motion: 'WALK', start: [10, 7], end: [10, 18], checkpoints: [] } }]);
   assert.ok(h.runUntil(() => u.skill.active, 5), 'S3 cast');
   const walker = h.enemy('enemy_walker');
+  u.skill.addAmmo(25);
   const full = u.skill.ammoMax;
   assert.ok(h.runUntil(() => inRange(h, u).length === 0, 10), 'the walker walks out of her range');
   const left = u.skill.ammoLeft;
@@ -70,7 +71,9 @@ test('a locked walker leaves her range: the skill waits; the next enemy that com
   assert.equal(u.skill.active, true, 'S3 waits with nothing in range');
   assert.equal(u.skill.ammoLeft, left, 'bullets kept');
   assert.ok(walker.alive && inRange(h, u).length === 0, 'the walker is still out of her range');
-  // the next enemy in range is locked the moment it comes (her lock is ready), every 0.5 s after that
+  const walkerAtBombard = { x: walker.x, y: walker.y };
+  h.b.applyStatus(walker, 'stun', { duration: 40 }); // keep it on-field at its new location for every delayed shell
+  // the next enemy in range is locked the moment it comes (her lock is ready), then follows the actual-ammo interval
   const late = h.spawn('enemy_late', { pos: [10, 6] });
   const t0 = h.b.time;
   h.step();
@@ -79,14 +82,17 @@ test('a locked walker leaves her range: the skill waits; the next enemy that com
   assert.ok(h.runUntil(() => !u.skill.active, 10), 'the skill ends once the bullets are spent');
   assert.deepEqual(ends.map((e) => e.reason), ['ammo']);
   assert.equal(h.hooksOf('ammoUsed').filter((c) => c.unit === u).length, full, 'every bullet spent on a lock');
-  assert.ok(h.b.time - t0 <= (left - 1) * u.def.skill.bb['attack@aim_interval'] + 0.1, 'the newcomer took the bullets left, 0.5 s apart');
+  const aimInterval = 0.5 * (20 / (20 + full));
+  assert.ok(h.b.time - t0 <= (left - 1) * aimInterval + 0.1, 'the newcomer took the bullets left at the actual-ammo interval');
   // the shells follow in lock order: the walker's marks first (it is followed out of her range), then the newcomer's
   const walkerLocks = full - left;
   h.run(0.3 * (full + 2));
   const s = shells();
   assert.equal(s.length, full, 'one shell per lock');
   const spread = u.def.skill.bb['attack@emit_offset'] + 0.01;
-  for (let i = 0; i < walkerLocks; i++) assert.ok(s[i].x > 6.5, `shell ${i} falls on the walker out of her range (x ${s[i].x.toFixed(2)})`);
+  for (let i = 0; i < walkerLocks; i++) {
+    assert.ok(Math.abs(s[i].x - walkerAtBombard.x) <= spread && Math.abs(s[i].y - walkerAtBombard.y) <= spread, `shell ${i} follows the walker to its current position`);
+  }
   for (let i = walkerLocks; i < full; i++) assert.ok(Math.abs(s[i].x - 6) <= spread && Math.abs(s[i].y - 10) <= spread, `shell ${i} on the newcomer`);
   assert.equal(bombs().filter((d) => d.tgt === walker.id).length, walkerLocks, 'the walker is hit by its own shells only');
   assert.equal(bombs().filter((d) => d.tgt === late.id).length, left, 'the newcomer by its own');

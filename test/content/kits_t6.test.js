@@ -76,11 +76,17 @@ test('盟约·辅助干员 (elite): element damage vs elite enemies uses the mod
 const lemFx = (h, kind) => h.eventsOf('fx').filter((e) => e[1] === kind).map((e) => ({ x: e[2], y: e[3], ...e[4] }));
 const SHELL_IV = 0.3; // PRTS S3 note: "以0.3s为间隔" (not in the blackboard)
 
-test('蕾缪安: S3 locks 5 (+1 talent) targets every 0.5 s, then the shells land one by one every 0.3 s (360 % centre)', () => {
+test('蕾缪安: S3 uses its actual ammo-total lock interval, then shells land every 0.3 s (360 % centre)', () => {
+  const ammoMaxByShot = [];
   const h = battle({
     units: [{ chessId: 'chess_char_6_01_a', row: 10, col: 3 }],
     enemies: [{ key: 'enemy_dummy', pos: [10, 5] }],
     hooks: ['ammoUsed', 'skillStart', 'skillEnd'],
+    setup(b) {
+      b.on('ammoUsed', ({ unit, skill }) => {
+        if (unit.defId === 'chess_char_6_01_a') ammoMaxByShot.push(skill.ammoMax);
+      }, { priority: -999 });
+    },
   });
   const u = h.unit('chess_char_6_01_a');
   const bb = u.def.skill.bb, t1 = u.def.talents[1].bb;
@@ -88,12 +94,20 @@ test('蕾缪安: S3 locks 5 (+1 talent) targets every 0.5 s, then the shells lan
   assert.ok(h.b.time >= t1.interval, 'talent 2 active (20 s on field) before the first cast');
   const start = h.b.time;
   assert.ok(u.findBuff('lemuen:extradition'), 'ATK +10 % after 20 s');
+  const ammoTotal = u.skill.ammoMax;
   assert.ok(h.runUntil(() => !u.skill.active, 20));
   const end = h.b.time;
   const ammo = h.hooksOf('ammoUsed').filter((c) => c.unit === u);
   const n = bb['attack@trigger_time'] + t1.add_count;
+  const aimInterval = 0.5 * (20 / (20 + ammoTotal));
   assert.equal(ammo.length, n);
-  assert.ok(Math.abs(end - start - (ammo.length - 1) * bb['attack@aim_interval']) < 0.1, 'one lock every 0.5 s');
+  assert.equal(ammoTotal, n, 'the actual cast total includes talent bullets');
+  assert.equal(u.skill.ammoCap, 100);
+  assert.deepEqual(ammoMaxByShot, Array(n).fill(ammoTotal), 'the interval basis does not drain with spent ammo');
+  for (let i = 1; i < ammo.length; i++) {
+    assert.ok(Math.abs(ammo[i].t - ammo[i - 1].t - aimInterval) <= 1 / 30 + 1e-9, 'one lock per actual-ammo-scaled interval');
+  }
+  assert.ok(Math.abs(end - start - (ammo.length - 1) * aimInterval) <= 1 / 30 + 1e-9, 'S3 lock interval uses the actual ammo total');
   assert.equal(lemFx(h, 'lock').length, n, 'one lock mark per bullet');
   assert.equal(h.dmg.filter((d) => d.src === u.id && d.tags.includes('bombard')).length, 0, 'nothing lands all at once at the end');
   const atk = u.s.atk;
@@ -155,7 +169,7 @@ test('蕾缪安: S3 lock marks follow a walking target and stay where it died; t
   // the walker's shells aim at where it is when each is fired (it keeps walking), not where it was locked
   const firstLock = locks.find((l) => l.id === walker.id);
   const at0 = { x: walker.x, y: walker.y };
-  assert.ok(Math.abs(at0.x - firstLock.x) > 0.6, `the walker moved on since its lock (${firstLock.x} → ${at0.x})`);
+  assert.ok(Math.abs(at0.x - firstLock.x) > 0.1, `the walker moved on since its lock (${firstLock.x} → ${at0.x})`);
   const order = locks.map((l) => l.id);
   const spread = bb['attack@emit_offset'] + 0.01;
   const shell0 = lemFx(h, 'bombardShell')[0];
