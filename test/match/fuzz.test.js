@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateC2S, C2S, SP_CARDS_MAX } from '../../shared/protocol.js';
-import { ERR, EMOTES, MAX_SEATS } from '../../shared/constants.js';
+import { ERR, EMOTES, MAX_SEATS, DEBUG_OPS } from '../../shared/constants.js';
 import { createRng } from '../../server/sim/rng.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
 
@@ -42,6 +42,10 @@ function randomIntent(rng, m, ps, large = false) {
     case 'g.watch': return { t, fieldId: rng.pick(large ? LARGE_WATCH : ['n:p_0', 'n:p_1', 'n:ai_0', 'u', 'b1', 'b2', 'zz', '']) };
     case 'g.autoplay': return { t, on: rng() < 0.05 };
     case 'g.pause': return { t, on: rng() < 0.5 };
+    // 开发控制台 (debug console): a random op with a plausible / unknown id and an in-range n. The fuzz's seats carry no
+    // DEBUG_NAME name, so the server answers BAD_MSG — the fuzz keeps it shape-valid and never an INTERNAL error
+    // (the grants themselves are covered by test/match/debug-console.test.js)
+    case 'g.debug': return { t, op: rng.pick(DEBUG_OPS), id: rng.pick(['chess_char_1_01_a', 'chess_item_1_01_e_a', 'chess_nope']), n: rng.int(400) - 100 };
     default: return { t };
   }
 }

@@ -46,6 +46,8 @@ export class MatchIntents {
       case 'g.pause': return this.setPause(ps, !!msg.on);
       // the stats the board's units start their next battle with (the detail card in prep, user playtest #4 item 7)
       case 'g.unitStats': return this.unitStats(ps, msg.seq ?? null);
+      // 开发控制台 (server/match/match/debug.js): a seat named DEBUG_NAME grants itself 干员 / 装备 / funds
+      case 'g.debug': return this.debugConsole(ps, msg);
       case 'g.leave': this.onLeave(ps.playerId); return OK;
       case 'b.progress': return this._onProgress(ps, msg);
       case 'b.result': return this._onResult(ps, msg);

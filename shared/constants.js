@@ -33,6 +33,17 @@ export const MAX_SPECTATORS = 2;
 export const ROOM_CODE_LEN = 4;
 export const NAME_MAX_LEN = 12;
 
+/**
+ * 开发控制台 (debug console): the nickname whose seat the server answers `g.debug` for, and the name the client shows
+ * the console UI to. Anyone may type it — it gates the console, it does not identify anyone (a convenience for testing
+ * in-game behaviour, never a security boundary; docs/design/network.md g.debug). Change this one line to use another.
+ */
+export const DEBUG_NAME = '__DEBUG__';
+/** The `g.debug { op }` ops (shared/protocol.js C2S → server/match/match/debug.js). */
+export const DEBUG_OPS = Object.freeze(['funds', 'chess', 'item']);
+/** Funds `g.debug { op: 'funds' }` grants when it carries no `n`. */
+export const DEBUG_FUNDS_STEP = 100;
+
 export const DIFFICULTIES = ['FUNNY', 'NORMAL', 'HARD', 'ABYSS'];
 export const DIFFICULTY_NAMES = { FUNNY: N_('标准模拟'), NORMAL: N_('险境模拟'), HARD: N_('绝境模拟'), ABYSS: N_('终极模拟') };
 export const DIFFICULTY_COLORS = { FUNNY: '#f6a329', NORMAL: '#e85a1a', HARD: '#e73118', ABYSS: '#ff0024' };

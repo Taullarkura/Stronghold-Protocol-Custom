@@ -58,6 +58,8 @@ For co-op rooms, capacity defaults to 4 seats and the host can set it to 4–8; 
 
 During client-side combat, a button at the lower-left toggles the damage report. Its floating panel shows actual damage dealt, sorted by operator with damage share bars, refreshes every 500 ms, and remains available while the battle is running or waiting for teammates; owned summons are included under their operator. The report uses the battle simulation's credited damage totals, not rounded damage-number effects.
 
+Both the damage report and 开发控制台 are buttons of the corner row (next to 设置 / 玩法说明 / 全屏), each opening its panel upwards; the game screen keeps one of them open at a time. The console is drawn for a seat whose nickname is the debug name (`shared/constants.js` `DEBUG_NAME`, `'__DEBUG__'`) only, and the server answers `g.debug` for that name alone (§8 `g.debug`): `funds [n]`, `chess <干员 id | 名称 | 英文名> [份数]`, `item <装备 id | 名称> [份数]`, `help`, `clear` — the client resolves a name against its own `data/chess.json` / `data/items.json` and prints what the server answered. It is a developer tool: its help and its output are Chinese developer text (`i18n-ignore-file`), never translated UI.
+
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 
 A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26).
