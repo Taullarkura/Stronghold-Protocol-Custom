@@ -405,6 +405,43 @@ test('enemy_abflag_inrange fork traits: 灵知 adds 灵巧; 银灰 adds 谢拉�
   assert.equal(num(GR('garrison_28_a').bb.prob), 0.5, '初雪 retains the original probability');
 });
 
+test('每场作战的叠加上限 (2026-10-15): 灵知 caps 灵巧 at 16 / 32; 凛御银灰\’s grant caps 【迅捷】 at 24 / 48 and leaves 谢拉格 open', () => {
+  /** Freeze `n` times on the holder's in-range enemy (a fresh entry each round) and return the gains. */
+  const freezeTimes = (h, n) => {
+    alwaysHit(h);
+    const e = h.enemies()[0];
+    for (let i = 0; i < n; i++) { h.b.removeStatus(e, 'freeze'); h.b.applyStatus(e, 'freeze', { duration: 1 }); }
+    return gains(h);
+  };
+  const one = (gid, bonds) => battle({ units: [{ id: 'holder', g: [gid], row: 10, col: 4 }], bonds, enemies: [{ key: 'e_dummy', pos: [10, 5] }] });
+
+  // 灵知 (normal): 20 entries × +1 → 16; 精锐: 20 × +2 → 32 — neither passes its own cap
+  const normal = one('garrison_fork_gnosis_freeze_a', { skillfulShip: B(0) });
+  assert.deepEqual(freezeTimes(normal, 20), { skillfulShip: 16 }, '灵知 at the cap');
+  assert.deepEqual(freezeTimes(normal, 5), { skillfulShip: 16 }, 'a later entry adds nothing');
+  checkInvariants(normal.b);
+  cover('garrison_fork_gnosis_freeze_a');
+  const elite = one('garrison_fork_gnosis_freeze_b', { skillfulShip: B(0) });
+  assert.deepEqual(freezeTimes(elite, 20), { skillfulShip: 32 }, '精锐 灵知 at its own cap');
+  assert.deepEqual(freezeTimes(elite, 1), { skillfulShip: 32 });
+  checkInvariants(elite.b);
+  cover('garrison_fork_gnosis_freeze_b');
+
+  // 凛御银灰's granted trait: 【迅捷】 stops at 24 (48 on the elite record), 谢拉格 keeps counting (uncapped)
+  for (const [gid, per, cap] of [['garrison_fork_silverash2_freeze_a', 1, 24], ['garrison_fork_silverash2_freeze_b', 2, 48]]) {
+    const h = battle({
+      units: [{ id: 'kj', g: [gid], row: 10, col: 4 }],
+      bonds: { kjeragShip: B(0), swiftShip: B(0) }, enemies: [{ key: 'e_dummy', pos: [10, 5] }],
+    });
+    const times = Math.ceil(cap / per) + 6;
+    const g = freezeTimes(h, times);
+    assert.equal(g.swiftShip, cap, `${gid}: 【迅捷】 capped at ${cap}`);
+    assert.equal(g.kjeragShip, times * per, `${gid}: 谢拉格 uncapped (${times} entries × ${per})`);
+    checkInvariants(h.b);
+    cover(gid);
+  }
+});
+
 test('onstart (砾 143 / 瑕光 106 / 史尔特尔 107 / 锏 155): every deploy, per-id caps', () => {
   for (const gid of idsOfKey('act2autochess_gar_event_onstart')) {
     if (!D.garrisons[gid].owners.some((o) => D.chess[o].visible)) continue; // 108: granted by 远牙 (ADD_BOND test)

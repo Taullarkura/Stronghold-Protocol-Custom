@@ -2212,9 +2212,9 @@ function forkGarrisonRecords(ctx) {
     };
   };
   for (const trait of FREEZE_TRAIT_ADJUSTMENTS) {
-    for (const [garrisonId, owner, add] of [
-      [trait.normalId, trait.ownerNormal, trait.addNormal],
-      [trait.eliteId, trait.ownerElite, trait.addElite],
+    for (const [garrisonId, owner, add, cap] of [
+      [trait.normalId, trait.ownerNormal, trait.addNormal, trait.capNormal ?? 0],
+      [trait.eliteId, trait.ownerElite, trait.addElite, trait.capElite ?? 0],
     ]) {
       out[garrisonId] = freezeBondTrait({
         garrisonId,
@@ -2223,6 +2223,8 @@ function forkGarrisonRecords(ctx) {
         bondNames: trait.bonds.map(bondName),
         add,
         prob: trait.prob,
+        cap,
+        capBonds: trait.capBonds ? [...trait.capBonds] : null,
       });
     }
   }

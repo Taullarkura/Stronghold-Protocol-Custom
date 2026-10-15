@@ -240,14 +240,17 @@ describe('§21.26 found on the way — the client-result layer bound reads the l
     }
   });
 
-  test('uncapped freeze traits allow their listed bonds up to 999: SilverAsh grants both 谢拉格 and 迅捷', () => {
+  test('uncapped freeze traits allow their listed bonds up to 999; 凛御银灰\'s capped 【迅捷】 stops at its plan cap', () => {
     const s = spec(12, SEED_107_R12, { kjeragShip: { count: 6, active: true, tier: 2, layers: 39 }, swiftShip: { count: 2, active: true, tier: 1, layers: 0 } });
     assert.equal(check(s, { kjeragShip: 112 }), 'ok', 'the board of coop/FUNNY/107 R12');
     assert.equal(check(s, { kjeragShip: 960 }), 'ok', '999 − 39');
     assert.equal(check(s, { kjeragShip: 961 }), 'layer bound', 'never past 999');
-    assert.equal(check(s, { swiftShip: 108 }), 'ok');
-    assert.equal(check(s, { swiftShip: 999 }), 'ok', '凛御银灰 grants a 迅捷 layer trait to the front 谢拉格 operator');
-    assert.equal(check(s, { swiftShip: 1000 }), 'layer bound', 'never past 999');
+    // 凛御银灰's handed-out freeze trait: 谢拉格 uncapped (999 − 39 above), 【迅捷】 capped at 48 by the 2026-10-15 plan
+    // (a comma-list max_add_count_per_battle). A handed-out trait counts once per operator of the player, 48 × 8 here.
+    const swiftBound = 60 + 4 * 12 + 48 * SEED_107_R12.length;
+    assert.equal(check(s, { swiftShip: swiftBound }), 'ok');
+    assert.equal(check(s, { swiftShip: swiftBound + 1 }), 'layer bound');
+    assert.equal(check(s, { swiftShip: 999 }), 'layer bound', 'the cap binds long before 999');
     assert.equal(check(s, { kjeragShip: 112 }, {}), 'layer bound', 'without game data: the flat bound as before');
   });
 

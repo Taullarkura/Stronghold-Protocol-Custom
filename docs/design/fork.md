@@ -733,3 +733,37 @@ unfiltered roll would have drawn one) and still covers 绮良's own unchanged be
 (`test/match/feedback1f-sciurus.test.js`) went with the effect; its 玛恩纳 case pins the rule that a free acquisition is
 no purchase. The golden corpus is recomputed wherever a match drafted the strategy. Emptying `BAND_ADJUSTMENTS` restores
 upstream's data (the price handler comes back with the plan's revert).
+
+## F13. The 2026-10-15 plan — 冻结触发特质的每场作战层数上限
+
+**Decision.** The two items of `todoList/10.15计划更改.md` ("干员调整", 2026-10-15), both caps on the 冻结 traits §F11
+introduced — those fire on every in-range freeze entry, so an unbounded board could bank 灵巧 / 迅捷 layers all battle:
+
+1. **灵知**'s trait (灵巧 +1, +2 on the elite) adds "每场作战至多叠加16层" — 32 on the elite record.
+2. **凛御银灰**'s handed-out trait adds "每场作战【迅捷】至多叠加24层" — 48 on the elite record. The plan names 【迅捷】 alone,
+   so 谢拉格's layers from the same gain stay uncapped, as they were.
+
+**How.** The official per-battle cap blackboard, `max_add_count_per_battle`, which the sim already applied per (instance,
+bond) through `support.gainLayers`:
+
+- `shared/forkTraits.js` states the numbers (`capNormal` / `capElite`, and `capBonds` for a cap that names only some of
+  the record's bonds) beside the `add` / `prob` it already carried. `maxAddPerBattle()` writes the blackboard — the plain
+  scalar when every listed bond is capped, else a comma list aligned with `bbStr.bond_id` (0 = uncapped), the convention
+  安洁莉娜's garrison_147 uses for `multiplier` / `max_layer` — and `capClause()` writes the text from the same numbers, so
+  text, blackboard and cap cannot drift. `tools/build-data.mjs forkGarrisonRecords` passes them through.
+- `server/sim/content/support/index.js` gains `bondLayerCaps(bb, bbStr)`: the list → `bondId → cap` (`Infinity` for a 0
+  entry), null for the scalar path. `content/garrisons/battle.js` reads it at install and, when it is a list, fires the
+  gain bond by bond so the bonds the list does not name stay uncapped (the `bond_actived_maxstack` whole-instance cap and
+  every official record keep the single-call path).
+- `server/match/fields.js layerAllowanceOf` — the bound `validateClientResult` puts on a client-reported `layerGains` —
+  reads the same list, so an honest 凛御银灰 board is no longer bounded as if its 迅捷 gain were unlimited (and a tampered
+  one is caught at the cap the sim applies).
+
+**What the tests pin.** `test/data.test.js` compares both records' text (and `descRaw`) with the plan's numbers and their
+blackboards (16 / 32, `'0,24'` / `'0,48'`), and that the shared family 银灰 / 初雪 use carries none.
+`test/content/garrisons_battle.test.js` runs the caps through a real battle: 20 freeze entries leave 灵知 at 16 (32 on
+the elite) and a later entry adds nothing; the 凛御银灰 records stop 迅捷 at 24 / 48 while 谢拉格 keeps counting every
+entry. `test/match/feedback1-gaps.test.js` pins the client-result bound of the coop/FUNNY/107 R12 board (60 + 4·round +
+48 per operator of the player for 迅捷; 谢拉格 still 999 − its start layers). The golden corpus is recomputed where a
+scenario fields either operator — the corpus's 灵巧 gains drop to the cap (46 → 32 in the roster family) and the two
+matches that field 灵知 drift from it. Setting `capNormal` / `capElite` back to 0 restores upstream's texts.

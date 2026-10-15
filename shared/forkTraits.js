@@ -25,6 +25,8 @@ export const FREEZE_TRAIT_ADJUSTMENTS = Object.freeze([
     addNormal: 1,
     addElite: 2,
     prob: 0.5,
+    capNormal: 16,
+    capElite: 32,
     replacements: Object.freeze([
       Object.freeze({ chessId: 'chess_char_4_13_a', from: 'garrison_111_a', to: 'garrison_fork_gnosis_freeze_a' }),
       Object.freeze({ chessId: 'chess_char_4_13_b', from: 'garrison_111_b', to: 'garrison_fork_gnosis_freeze_b' }),
@@ -55,14 +57,49 @@ export const FREEZE_TRAIT_ADJUSTMENTS = Object.freeze([
     addNormal: 1,
     addElite: 2,
     prob: 0.5,
+    capNormal: 24,
+    capElite: 48,
+    // the owner's plan of 2026-10-15 names 【迅捷】 alone (todoList/10.15计划更改.md): the cap limits that bond, and 谢拉格's
+    // layers stay uncapped. Flip `capBonds` to null to cap every bond the record names.
+    capBonds: Object.freeze(['swiftShip']),
     replacements: Object.freeze([]),
   }),
 ]);
 
-export function freezeBondTrait({ garrisonId, owner, bonds, bondNames, add, prob }) {
+/**
+ * The `bb.max_add_count_per_battle` of a record whose cap covers only some of the bonds it names: a comma list aligned
+ * with `bbStr.bond_id` (0 = that bond is uncapped), the convention 安洁莉娜's garrison_147 uses for `multiplier` /
+ * `max_layer`. Every listed bond capped (or a single bond) ⇒ the scalar official records carry.
+ * `server/sim/content/support/index.js bondLayerCaps` reads it, and so does the match's layer allowance
+ * (server/match/fields.js layerAllowanceOf).
+ * @param {readonly string[]} bonds the record's `bond_id` order
+ * @param {number} cap layers per battle
+ * @param {readonly string[] | null} capBonds the bonds the cap limits (null: all of them)
+ * @returns {number | string}
+ */
+export function maxAddPerBattle(bonds, cap, capBonds = null) {
+  const limited = capBonds ? new Set(capBonds) : null;
+  const all = bonds.every((b) => !limited || limited.has(b));
+  return all ? cap : bonds.map((b) => (!limited || limited.has(b) ? cap : 0)).join(',');
+}
+
+/**
+ * The "（每场作战…至多叠加N层）" clause of a capped freeze trait, `''` without one. Every bond the record names capped ⇒
+ * the tag-less official phrasing (`每场作战至多叠加16层`, like garrison_108's `每场作战至多24层`); otherwise the bonds the
+ * cap limits are spelled out (【迅捷】至多叠加24层), as the record's own gain clause does above it.
+ */
+function capClause({ bonds, bondNames, cap, capBonds }) {
+  if (!(cap > 0)) return '';
+  const limited = capBonds ? new Set(capBonds) : null;
+  const names = limited ? bonds.filter((b) => limited.has(b)).map((b) => `【${bondNames[bonds.indexOf(b)]}】`).join('') : '';
+  const all = !limited || bonds.every((b) => limited.has(b));
+  return `（每场作战${all ? '' : names}至多叠加${cap}层）`;   // i18n-ignore: 特质 text (data/garrisons.json)
+}
+
+export function freezeBondTrait({ garrisonId, owner, bonds, bondNames, add, prob, cap = 0, capBonds = null }) {
   const bondTags = bondNames.map((name) => `【${name}】`).join('');
   const probability = `${Math.round(prob * 100)}%`;
-  const text = `<战斗中>每当范围内1名敌人进入冻结时，有${probability}概率使已激活的${bondTags}层数+${add}`;   // i18n-ignore: 特质 text (data/garrisons.json)
+  const text = `<战斗中>每当范围内1名敌人进入冻结时，有${probability}概率使已激活的${bondTags}层数+${add}${capClause({ bonds, bondNames, cap, capBonds })}`;   // i18n-ignore: 特质 text (data/garrisons.json)
   return {
     garrisonId,
     desc: text,
@@ -74,7 +111,10 @@ export function freezeBondTrait({ garrisonId, owner, bonds, bondNames, add, prob
     effectKey: 'act1autochess_gar_event_enemy_abflag_inrange',
     battleRuneKey: 'char_dynamic_ability_new',
     charLevel: 0,
-    bb: { check_ab_flag: 16, bond_add_count: add, prob },
+    bb: {
+      check_ab_flag: 16, bond_add_count: add, prob,
+      ...(cap > 0 ? { max_add_count_per_battle: maxAddPerBattle(bonds, cap, capBonds) } : {}),
+    },
     bbStr: {
       key: 'act1autochess_gar_event_enemy_abflag_inrange',
       bond_type: 'bond_by_id',

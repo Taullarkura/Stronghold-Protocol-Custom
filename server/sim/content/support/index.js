@@ -360,3 +360,20 @@ export function gainLayers(battle, { playerId, bonds, n, requireActive = true, s
 export function layersUsed(battle, capKey, bondId) {
   return battleStore(battle, 'support:layerCaps', () => new Map()).get(`${capKey}|${bondId}`) ?? 0;
 }
+
+/**
+ * The per-bond caps of a layer 特质 whose `bb.max_add_count_per_battle` covers only some of the bonds it names: a comma
+ * list aligned with `bbStr.bond_id` (0 = that bond is uncapped) — the convention the fork's 冻结特质 uses for
+ * 凛御银灰 (【迅捷】 capped, 【谢拉格】 not; shared/forkTraits.js `maxAddPerBattle`). A scalar blackboard (every official
+ * capped record) returns null: the caller keeps its single-cap path.
+ * @param {any} bb the record's `bb`
+ * @param {any} bbStr the record's `bbStr`
+ * @returns {Map<string, number> | null} bondId → per-battle cap, or null for the scalar path
+ */
+export function bondLayerCaps(bb, bbStr) {
+  const raw = bb?.max_add_count_per_battle;
+  if (typeof raw !== 'string' || !raw.includes(',')) return null;
+  const bonds = String(bbStr?.bond_id ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  const caps = raw.split(',').map((x) => num(x, 0));
+  return new Map(bonds.map((b, i) => [b, caps[i] > 0 ? caps[i] : Infinity]));
+}

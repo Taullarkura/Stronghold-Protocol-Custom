@@ -191,6 +191,20 @@ test('fork freeze traits: isolated overrides and the shared grant records resolv
   }
   assert.equal(garrisons.garrison_126_a.bbStr.give_garrison_id, 'garrison_fork_silverash2_freeze_a');
   assert.equal(garrisons.garrison_126_b.bbStr.give_garrison_id, 'garrison_fork_silverash2_freeze_b');
+  // 每场作战的叠加上限 (the owner's plan of 2026-10-15, todoList/10.15计划更改.md): 灵知 caps 灵巧 at 16 / 32, 凛御银灰's
+  // granted trait caps 【迅捷】 at 24 / 48 and leaves 谢拉格 uncapped — a comma list aligned with bond_id (0 = uncapped)
+  for (const [id, cap, text] of [
+    ['garrison_fork_gnosis_freeze_a', 16, '（每场作战至多叠加16层）'],
+    ['garrison_fork_gnosis_freeze_b', 32, '（每场作战至多叠加32层）'],
+    ['garrison_fork_silverash2_freeze_a', '0,24', '（每场作战【迅捷】至多叠加24层）'],
+    ['garrison_fork_silverash2_freeze_b', '0,48', '（每场作战【迅捷】至多叠加48层）'],
+  ]) {
+    assert.equal(garrisons[id].bb.max_add_count_per_battle, cap, id);
+    assert.ok(garrisons[id].desc.endsWith(text), `${id}: ${garrisons[id].desc}`);
+    assert.equal(garrisons[id].descRaw.includes(text), true, `${id}: descRaw carries the cap too`);
+  }
+  assert.equal(garrisons.garrison_fork_silverash_freeze_a.bb.max_add_count_per_battle, undefined, '银灰 / 初雪 keep the uncapped shared family');
+  assert.equal(garrisons.garrison_28_a.bb.max_add_count_per_battle, undefined);
 });
 
 test('fork band adjustments: every adjusted strategy carries the authored effect, text and blackboards alike', async () => {

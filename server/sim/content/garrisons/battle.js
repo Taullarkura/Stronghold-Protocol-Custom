@@ -23,7 +23,10 @@
 //                       reason 'garrison', source = the trait's owner, cap = max_add_count_per_battle per (instance, bond)
 //                       — per instance for bond_actived_maxstack (塑心's garrison_90: the highest bond may change, the cap
 //                       does not; the fork demoted 塑心 into the 自选 pool, so the family's only shipped member now is
-//                       纯烬艾雅法拉's garrison_140, which carries no max_add_count_per_battle).
+//                       纯烬艾雅法拉's garrison_140, which carries no max_add_count_per_battle). `max_add_count_per_battle` is
+//                       a scalar for every official record; a comma list (bondLayerCaps) caps the bonds it names and leaves
+//                       the rest of `bond_id` uncapped — the fork's 凛御银灰 冻结特质, "（每场作战【迅捷】至多叠加24层）"
+//                       (2026-10-15), gains bond by bond then.
 //   fork_gar_event_bonddead (乌尔比安's 特质, a FORK record — build-data forkGarrisonOverrides; no official 特质 listens to
 //                       another operator's knock-out): every knock-out of a member of `bond_id` of the holder's own
 //                       player feeds the holder's layers (the holder included: it is a member itself).
@@ -79,10 +82,12 @@ export function install(battle) {
     if (set.has(g.garrisonId)) return null;
     set.add(g.garrisonId);
     const bb = g.bb || {};
-    const cap = S.num(bb.max_add_count_per_battle, 0) > 0 ? S.num(bb.max_add_count_per_battle) : Infinity;
+    // per-bond caps (bondLayerCaps): a comma list names the bonds the cap limits, so the instance gains bond by bond
+    const caps = S.bondLayerCaps(bb, g.bbStr);
+    const cap = !caps && S.num(bb.max_add_count_per_battle, 0) > 0 ? S.num(bb.max_add_count_per_battle) : Infinity;
     const it = {
       unit, g, gid: g.garrisonId, key: g.effectKey, bb, bbStr: g.bbStr || {}, grantedBy,
-      cap, capKey: `gar:${g.garrisonId}:${unit.id}`, cnt: 0, k: -1,
+      cap, caps, capKey: `gar:${g.garrisonId}:${unit.id}`, cnt: 0, k: -1,
     };
     all.push(it);
     return it;
@@ -213,10 +218,21 @@ export function fireGain(battle, it) {
     n = Math.min(Math.floor(n), Math.max(0, Math.floor(it.cap) - (it.wholeUsed ?? 0)));
     if (!(n > 0)) return 0;
   }
-  const added = S.gainLayers(battle, {
-    playerId: it.unit.ownerId, bonds, n, requireActive: true, source: it.unit, reason: 'garrison',
-    cap: whole ? Infinity : it.cap, capKey: whole ? null : it.capKey,
+  const give = (bonds_, cap, capKey) => S.gainLayers(battle, {
+    playerId: it.unit.ownerId, bonds: bonds_, n, requireActive: true, source: it.unit, reason: 'garrison', cap, capKey,
   });
+  // `it.caps` (per-bond caps): one gain per bond, so a list naming only some of them leaves the rest uncapped; the
+  // scalar path keeps the official single call.
+  let added;
+  if (it.caps && !whole) {
+    added = 0;
+    for (const b of bonds) {
+      const c = it.caps.get(b) ?? Infinity;
+      added += give([b], c, Number.isFinite(c) ? it.capKey : null);
+    }
+  } else {
+    added = give(bonds, whole ? Infinity : it.cap, whole ? null : it.capKey);
+  }
   if (whole && added > 0) it.wholeUsed = (it.wholeUsed ?? 0) + n;
   if (added > 0) S.fxOn(battle, 'garrison', it.unit, `gar:${it.gid}`, it.key, { n: added });
   return added;
