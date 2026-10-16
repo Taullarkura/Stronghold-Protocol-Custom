@@ -1185,6 +1185,9 @@ export function createBattleRunner(deps) {
         inputs: [], segment: null,
         // the LP meter the host attached (in page: the sim's; a Worker battle's comes with its packet)
         meter: host.meter,
+        // 作战统计 (upstream 0.3.0): the local combat reader, attached below only while the setting asks for it and
+        // never on a Worker host (its page holds wire state only). null is the honest "not attached" value.
+        combatMetrics: null,
         // counted leaks so far (normal fields; noteLeaks) and the Battle state they were counted at; 联防 fields: each
         // leaker's enemies still standing (noteUniteLeft)
         leaks: 0, leakMark: '', left: null,

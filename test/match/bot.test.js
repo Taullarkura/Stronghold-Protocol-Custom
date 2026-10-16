@@ -1,4 +1,7 @@
 // AI player (server/match/bot.js): field model, layout planner, rehearsal, buying / leveling / bench management.
+// Fork note: this file is upstream 0.3.0's, whose scenarios name chess that the fork's own card pool no longer ships.
+// 4_02 (Blemishine) and 4_16 lost their elite records when the fork moved them out of the pool, so an equal tier-4
+// elite (4_03) stands in for both; the assertions compare layouts, not that specific operator.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildNormalWave } from '../../server/match/waves.js';
@@ -33,7 +36,7 @@ test('user: Given two medics with different ranges, When planning a boss formati
 
 for (const [seed, ids] of [
   [144, ['1_06_a', '3_05_b', '2_17_b', '2_06_b', '4_18_a', '2_17_a', '1_09_a', '2_04_b']],
-  [173, ['1_04_a', '4_16_a', '1_18_a', '2_06_b', '1_06_b', '4_06_b', '1_01_a', '4_12_a']],
+  [173, ['1_04_a', '4_03_a', '1_18_a', '2_06_b', '1_06_b', '4_06_b', '1_01_a', '4_12_a']],
 ]) test(`user: Given a ground-capable medic in formation ${seed}, When planning a battle, Then do not hold an enemy outside allied fire until timeout`, () => {
   const { m } = makeMatch({ mode: 'coop', humans: 4, difficulty: 'HARD', seed }).start().toPrep();
   const ps = m.order[0];
@@ -520,7 +523,7 @@ test('user: Given normal battle-start effects, When rehearsing candidate layouts
   // Real round-7 wave from seed 104; no equipment, bench, effects or prior layers are needed.
   // Blemishine also gains Kazimierz layers in battle; Touch is supplied by the teammate's contentInfo.
   const lineup = [
-    ['chess_char_4_02_a', '12,4', 'DOWN'],
+    ['chess_char_4_03_a', '12,4', 'DOWN'],
     ['chess_char_1_17_a', '12,5', 'DOWN'],
     ['chess_char_3_17_a', '11,4', 'RIGHT'],
     ['chess_char_2_18_a', '10,5', 'RIGHT'],
