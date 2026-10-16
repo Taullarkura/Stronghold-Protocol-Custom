@@ -107,6 +107,27 @@ export class MatchPrep {
       if (!gen) { ready(); return; }
       drive(gen, '', ready);
     };
+    /** The chosen layout is applied in a callback of its own (a bounded slice ends one stage per call). */
+    const finish = (job) => {
+      if (bounded) later(0, () => { if (valid()) end(job); });
+      else end(job);
+    };
+    /**
+     * The rehearsal's slices once the job simulates locally — nobody answered the offer, or the server took it over.
+     * A job still waiting for the host's pick simulates nothing: its `run` would take it over first.
+     */
+    const runJob = (job) => {
+      const slice = () => {
+        if (!valid()) return;
+        let done = true;
+        try { done = job.run(this.botSliceMs); } catch (e) { this.reportError(`bot ${ps.playerId} rehearsal`, e); }
+        if (done) finish(job);
+        else later(0, slice);
+      };
+      // bounded slices start in a callback of their own (the economy + default layout above already used this one)
+      if (bounded) later(0, slice);
+      else slice();
+    };
     /**
      * The rest of the job now, in the order its slices would have run it (the prep deadline: _finishBotPrep). The begin
      * and end stages run to their end; the rehearsal runs at most `budget.ticks` more ticks and takes them from the
@@ -125,6 +146,19 @@ export class MatchPrep {
         run.job = job;
         run.stage = job ? 'rehearsal' : 'end';
         run.gen = null;
+        // Upstream's host delegation (DESIGN §14, Match.botRehearsalDelegate): the generation above may have handed
+        // this rehearsal to the current host's browser, which leaves the job `pending` until MatchRehearsal accepts
+        // its pick (`done`, the layout ready to apply — never simulated again) or takes it over (the server's own
+        // slices follow). The continuation is installed here rather than when the offer went out: the generator that
+        // offered the task still places the default layout after the delegation returns, so an outcome applied earlier
+        // would set the seat Ready and drop those steps — an answer that arrived meanwhile is the `run.done` above.
+        if (job && job.pending) {
+          job.onSettled = () => {
+            if (!valid()) return;
+            if (job.done) finish(job);
+            else { job.takeOver(); runJob(job); }
+          };
+        }
       }
       if (run.stage === 'rehearsal') {
         const job = run.job;
@@ -153,7 +187,7 @@ export class MatchPrep {
     later(delay, () => {
       if (!valid()) return;
       run.stage = 'begin';
-      drive(botPrepBeginSteps(this, ps), '', (job) => {
+      drive(botPrepBeginSteps(this, ps, { delegate: this.botRehearsalDelegate }), '', (job) => {
         run.job = job;
         if (!job) { end(null); return; }
         run.stage = 'rehearsal';
@@ -257,6 +291,9 @@ export class MatchPrep {
   endPrep() {
     if (this.phase !== PHASE.PREP) return;
     this.setDeadline(0);
+    // Upstream's host delegation (MatchRehearsal): a task that is still waiting for its host's answer dies with the
+    // prep — its host is told to stop it, and a late answer changes nothing (Match._cancelRehearsal).
+    this._cancelRehearsal();
     // a job the prep end dropped holds its rehearsal battles: let them go
     for (const ps of this.order) ps._botPrep = null;
     const alive = this.alivePlayers();
