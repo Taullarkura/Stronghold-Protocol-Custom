@@ -59,6 +59,9 @@ test('the locked enemy dies and nothing else is in her range: S3 keeps running w
 });
 
 test('a locked walker leaves her range: the skill waits; the next enemy that comes is locked at once, and the spent bullets bomb every mark — the walker where it is now', () => {
+  // Upstream 0.3.0: the walker leaves her range before her fifth lock — her range takes it until its 0.1 collider is
+  // past col 6 (x > 6.6). The fork walks it along her own row to (10,18), inside the same 3-9 range contract, and pays
+  // the extra bullets (addAmmo goes with the fork's ammoCap) so it still leaves mid-lock; its marks then follow it.
   const { h, u, ends, locks, shells, bombs, dmg } = lemuen([{ key: 'enemy_walker', route: { motion: 'WALK', start: [10, 7], end: [10, 18], checkpoints: [] } }]);
   assert.ok(h.runUntil(() => u.skill.active, 5), 'S3 cast');
   const walker = h.enemy('enemy_walker');

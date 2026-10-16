@@ -15,6 +15,7 @@
 
 import { ROOT, DATA_DIR, readDataDirectory } from './data-node.js';
 export { ROOT, DATA_DIR };
+import { forgetOfficialBounds, rememberOfficialBounds } from '../shared/plugins/officialBounds.js';
 
 /** Files the game expects (a warning lists the missing ones). */
 export const DATA_FILES = Object.freeze([
@@ -41,15 +42,27 @@ export function deepFreeze(root) {
   return root;
 }
 
+/** data/*.json files the server never reads, so never loads: the official effects' file list (data/local-fx.json, written
+ * by tools/local-extract/fx.py, DESIGN §33 — ~1 MB the browser alone fetches, through its served view). */
+export const UNLOADED_DATA = Object.freeze(['local-fx.json']);
+
 /**
- * Read every `*.json` in `dir` into `{ [basename]: parsed }`, deep-frozen.
+ * Read every `*.json` in `dir` into `{ [basename]: parsed }`, deep-frozen, leaving out UNLOADED_DATA.
+ * The reading itself is ./data-node.js's readDataDirectory (the Node side of the filesystem boundary).
  * Never throws: an unreadable directory yields `{}`; bad files are skipped with an error log.
  * @param {string} [dir] data directory (default ROOT/data)
  * @param {{ log?: { warn: Function, error: Function, info?: Function }, expected?: readonly string[] }} [opts]
  * @returns {Readonly<Record<string, any>>}
  */
 export function loadData(dir = DATA_DIR, { log = console, expected = DATA_FILES } = {}) {
-  const out = readDataDirectory(dir, log);
+  const loaded = readDataDirectory(dir, log);
+  // UNLOADED_DATA lives here, not in the reader (./data-node.js, replaced by worker/data-loader.js): the Worker bundle
+  // never carries those files, and its reader takes no options.
+  /** @type {Record<string, any>} */
+  const out = {};
+  for (const [key, value] of Object.entries(loaded)) {
+    if (!UNLOADED_DATA.includes(`${key.toLowerCase()}.json`)) out[key] = value;
+  }
   const missing = expected.filter((k) => !(k in out));
   if (missing.length) log.warn(`[data] missing data files: ${missing.map((k) => k + '.json').join(', ')}`);
   return deepFreeze(out);
@@ -64,12 +77,34 @@ let singleton = null;
  * @returns {Readonly<Record<string, any>>}
  */
 export function getData({ dir = DATA_DIR, log = console } = {}) {
-  if (!singleton) singleton = loadData(dir, { log });
+  if (!singleton) {
+    singleton = loadData(dir, { log });
+    rememberOfficialBounds(singleton);
+  }
   return singleton;
 }
 
 /** Drop the singleton so the next getData() reloads (tests / hot reload). */
-export function resetData() { singleton = null; }
+export function resetData() {
+  singleton = null;
+  forgetOfficialBounds();
+}
+
+/**
+ * Make `data` the process-wide singleton (deep-frozen) — a match host worker (server/match/host/entry.js, DESIGN §32
+ * P1c) calls it with its content set's merged data before it imports the match: every module of that worker that reads
+ * getData() (the content modules' gameData(), builtinMeta, the sim's default DataSource) then sees the content set,
+ * never the vanilla files. The main process never calls it. The official-bounds cache (shared/plugins/officialBounds.js,
+ * filled by getData() from the vanilla files in the main process) is never filled from `data` (a plugin must not raise its
+ * own caps): the match host installs the content set's snapshot after this (entry.js), as its pages do (runner.js).
+ * @param {Record<string, any>} data
+ * @returns {Readonly<Record<string, any>>}
+ */
+export function setData(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('setData: a data object { <file>: record map } is required');
+  singleton = deepFreeze(data);
+  return singleton;
+}
 
 // ---------------------------------------------------------------------------------------------------
 // Index getters

@@ -73,6 +73,10 @@
 // (as before the budget) plus the floors and the budget, an authority keeps its clock wherever the device can keep it at
 // all, and a preparation converges. Construction and the initial view setup remain synchronous.
 //
+// A gameplay content set does not simulate on the page: it runs in a Worker instead (DESIGN §32.11, WorkerSimHost),
+// whose steps and reads are RPCs — stats() counts the message round trip with them (the vanilla in-page cost is
+// measured as before).
+//
 //   import { battleRunner } from './battle/runner.js'     (browser singleton wired to net.js + store.js; null in Node)
 //   battleRunner.on('snap' | 'ev' | 'field' | 'state' | 'damageReport' | 'ownDone', fn) → off
 //     'ev' { t: 'b.ev', fieldId, gt, ev, handOver? }: `handOver` true on a batch of a catch-up frame or of the hidden-tab
@@ -108,14 +112,29 @@
 //                           play, DESIGN §20.15, 变形同构体 wearers included; a 补位 stand-in names the replaced charId,
 //                           a 自选 operator carries its pick like UnitInfo) | []
 //
+// Content sets (DESIGN §32.6 and §32.11 — cs checks preserved across both hosts): a b.start whose spec names a
+// content set (`spec.cs`) other than the one this page holds — the original content's (welcome.content.vanilla) or the
+// room's content set the page downloaded and checked (public/js/content.js) — is simulated by this page as a display
+// replica only, never as the battle's authority: no b.progress, no b.result; the server's deadline gives the field to
+// the server — and so is every spec naming a content while the page does not know the original one's cs. For a room's
+// content set the simulation is loaded on that set's data (content.js contentFor; the next spec of another content
+// loads it again — one at a time), and a b.result names the content the battle was simulated on (`cs`, its
+// simulation's; a vanilla room's sends none, as before).
+//
 // createBattleRunner(deps) builds an instance with injectable net / store / clock / frame scheduler / sim loader
 // (test/match/runner.test.js, runner-pending.test.js, runner-lifecycle.test.js and runner-budget.test.js drive it under Node).
 
 import { net as appNet } from '../net.js';
 import { store as appStore } from '../store.js';
-import { unitStatsEntry, fxForm, RESULT_LIMITS } from '../../../shared/protocol.js';
+import { contentFor as appContentFor, simContent as appSimContent, contentSet as appContentSet } from '../content.js';
+import { fxForm, RESULT_LIMITS } from '../../../shared/protocol.js';
 import { spectateEffects } from './observe.js';
 import { recordError, setBattleSource } from '../diag.js';
+import { loadBrowserSim } from './simLoader.js';
+import { InPageSimHost, WorkerSimHost } from './simHost.js';
+import { trackCombat, combineCombat } from './metrics.js';
+import { t } from '../../../shared/i18n.js';
+export { loadBrowserSim, SIM_DATA_FILES } from './simLoader.js';
 
 const TICK = 1 / 30;
 /** Fast-forward budget per frame (ticks) when far behind. */
@@ -191,12 +210,6 @@ export function compactHeld(list) {
   });
   return list.filter((x, i) => (x[0] === 'status' ? last.get(`s:${x[1]}:${x[2]}`) === i : x[0] === 'skill' ? last.get(`k:${x[1]}`) === i : true));
 }
-/**
- * Data files the simulation reads (DataSource + content/support gameData()). `backups` = data/backups.json (0.2.0 补位
- * stand-ins and 自选编队 operators): a stand-in / a 自选 slot fights in the browser's battle exactly as in the server's.
- */
-export const SIM_DATA_FILES = Object.freeze(['chess', 'enemies', 'tokens', 'stages', 'waves', 'bonds', 'items', 'garrisons', 'bands', 'effects', 'backups']);
-
 /** Request failures after which a b.result counts as never delivered (re-sent on the next session / b.start). */
 export const LOST_RESULT_CODES = Object.freeze(['DISCONNECTED', 'OFFLINE', 'TIMEOUT']);
 
@@ -213,43 +226,6 @@ export const ticksPerFrameCap = (speed) => Math.max(8, Math.ceil((Number(speed) 
  * @param {any} b the battle
  */
 export const uniteLeftMark = (b) => `${Number(b.killed) || 0}:${Number(b.leakedCount) || 0}:${Number(b.total) || 0}:${Array.isArray(b.enemies) ? b.enemies.length : 0}:${b.finished ? 1 : 0}`;
-
-function deepFreeze(root) {
-  const stack = [root];
-  while (stack.length) {
-    const o = stack.pop();
-    if (o === null || typeof o !== 'object' || Object.isFrozen(o)) continue;
-    Object.freeze(o);
-    for (const v of Object.values(o)) if (v !== null && typeof v === 'object') stack.push(v);
-  }
-  return root;
-}
-
-/**
- * Browser sim loader: the /sim/ modules + the data files (own frozen copies — the server's data is frozen too, so a
- * content bug that writes into a record fails identically on both sides).
- */
-export async function loadBrowserSim({ base = '/sim/', dataBase = '/data/', fetchFn = (...a) => globalThis.fetch(...a) } = {}) {
-  const [spec, simdata, support] = await Promise.all([
-    import(`${base}spec.js`), import(`${base}simdata.js`), import(`${base}content/support/index.js`),
-  ]);
-  const fetchOnce = async (n) => {
-    try {
-      const res = await fetchFn(`${dataBase}${n}.json`, { cache: 'no-cache' });
-      return res && res.ok ? await res.json() : null;
-    } catch { return null; }
-  };
-  const files = await Promise.all(SIM_DATA_FILES.map(async (n) => (await fetchOnce(n)) ?? fetchOnce(n)));
-  // a battle simulated without part of the data would still produce a plausible result the server accepts: never run
-  // one — the loader fails (the next b.start retries it; meanwhile the server's deadline takes the field over)
-  const missing = SIM_DATA_FILES.filter((n, i) => !files[i] || typeof files[i] !== 'object');
-  if (missing.length) throw new Error(`simulation data unavailable: ${missing.join(', ')}`);
-  const raw = {};
-  SIM_DATA_FILES.forEach((n, i) => { raw[n] = deepFreeze(files[i]); });
-  simdata.setSimData(raw);
-  if (typeof support.setGameData === 'function') support.setGameData(null); // re-read through the injected data
-  return { spec, ds: new simdata.DataSource(raw, null) };
-}
 
 /**
  * Another rules version's simulation: the archived engine the deployment publishes for it (worker/replay-engine.js,
@@ -282,7 +258,10 @@ const SIM_LOGGER = Object.freeze({
  * @param {{ net: any, store: any, loadSim?: () => Promise<{ spec: any, ds: any }>, now?: () => number,
  *   rulesVersion?: string|null, loadEngine?: (version: string) => Promise<{ spec: any, ds: any }>,
  *   raf?: (fn: (t: number) => void) => any, caf?: (h: any) => void, setInterval?: Function, clearInterval?: Function,
- *   doc?: { hidden?: boolean, addEventListener?: Function } | null, logger?: object }} deps
+ *   doc?: { hidden?: boolean, addEventListener?: Function } | null, logger?: object,
+ *   combatMetrics?: boolean, createHost?: Function }} deps
+ * `combatMetrics` true/false pins the 作战统计 meter for a test. Omit it and call setCombatMetrics (the settings
+ * screen does; the default is off). A Worker host never attaches the meter.
  */
 export function createBattleRunner(deps) {
   const net = deps.net;
@@ -293,10 +272,17 @@ export function createBattleRunner(deps) {
   const setIv = deps.setInterval || ((fn, ms) => globalThis.setInterval(fn, ms));
   const clearIv = deps.clearInterval || ((h) => globalThis.clearInterval(h));
   const doc = deps.doc !== undefined ? deps.doc : (typeof document !== 'undefined' ? document : null);
-  const loadSim = deps.loadSim || (() => loadBrowserSim());
+  // `content` (DESIGN §32.6): `{ cs, data }` of a room's content set → the sim on it; null → the original content
+  const loadSim = deps.loadSim || ((content) => (content ? loadBrowserSim({ data: content.data, cs: content.cs, bounds: content.bounds ?? null, scripts:content.scripts || [], hashInput:content.hashInput, nativeVerified:content.nativeVerified }) : loadBrowserSim()));
   const ownRules = deps.rulesVersion !== undefined ? deps.rulesVersion : (doc?.documentElement?.dataset?.spRules ?? null);
   const loadEngine = deps.loadEngine || ((version) => loadEngineSim(version));
   const logger = deps.logger || SIM_LOGGER;
+  // the content sets (DESIGN §32.6): the room's set the page holds (content.js) and the server's original one
+  const contentFor = deps.contentFor || appContentFor;
+  const heldContent = deps.simContent || appSimContent;
+  /** the content set the page is downloading now (content.js contentSet: its cs while loading), else null */
+  const loadingContent = deps.loadingContent || (() => { const c = appContentSet.get(); return c.status === 'loading' ? c.cs : null; });
+  const vanillaCs = deps.vanillaCs || (() => { try { return store?.get?.()?.content?.vanilla ?? null; } catch { return null; } });
 
   const listeners = new Map();
   const emit = (type, payload) => {
@@ -312,12 +298,43 @@ export function createBattleRunner(deps) {
   // Preparations receive controls immediately and share simulation work with committed entries, without rendering.
   const preparing = new Map();
   let workAfter = null;       // last battle ID that used a batch's soft budget; the next one starts after it (runBatch)
+  /** compact combat snapshots of locally simulated battles (battle/metrics.js) for the panel's match totals; `clear`
+   *  drops them when the match really restarts */
+  const combatHistory = new Map();
+  const rememberCombat = (e) => {
+    if (!e.combatMetrics) return;
+    const record = e.combatMetrics();
+    if (!(combatHistory.get(e.battleId)?.seconds > record.seconds)) combatHistory.set(e.battleId, record);
+  };
+  // Opt-in (设置「作战统计」, default off). A boolean deps.combatMetrics pins a test and ignores setCombatMetrics.
+  // Otherwise screens/game.js pushes the settings store. A Worker host never attaches: its page battle is wire state.
+  let metricsWanted = false;
+  const metricsEnabled = () => (typeof deps.combatMetrics === 'boolean' ? deps.combatMetrics : metricsWanted);
+  const detachCombat = (e) => {
+    if (!e?.combatMetrics) return;
+    rememberCombat(e);
+    try { e.combatMetrics.stop?.(); } catch { /* the reader is already gone */ }
+    e.combatMetrics = null;
+  };
+  function setCombatMetrics(on) {
+    if (typeof deps.combatMetrics === 'boolean') return;
+    const next = on === true;
+    if (next === metricsWanted) return;
+    metricsWanted = next;
+    // [ASSUMED] turning the meter on does not backfill a battle already prepared: the hooks would have missed the
+    // damage already dealt. The next prepare attaches. Turning it off detaches at once.
+    if (next) return;
+    for (const e of entries.values()) detachCombat(e);
+    for (const task of preparing.values()) detachCombat(task.entry);
+  }
   let cur = null;              // entry on screen
   let simP = null;
   let startSeq = 0;            // viewing selection; switching it must not cancel own authority
   let lifecycle = 0;          // clear / new round / leaving invalidates every unfinished preparation
   let disposed = false;
   let loading = null;          // b.start being prepared
+  /** the content set simP was loaded for (null: the original content) */
+  let simCs = null;
   let rafH = null;
   let rafAt = 0;               // when the pending frame was requested (FRAME_STALL_MS)
   let ivH = null;
@@ -338,19 +355,46 @@ export function createBattleRunner(deps) {
   const clock = () => (pausedAt != null ? pausedAt : now());
   const bossLike = (e) => e.kind === 'boss' || e.kind === 'hidden';
 
-  function ensureSim() {
-    if (!simP) {
-      simP = loadSim().catch((err) => { simP = null; throw err; });
-    }
-    return simP;
+  /**
+   * Is `cs` (a spec's) content this page can be the authority of (see the header): a spec without one, the original
+   * content's, or the room's content set the page holds — or is downloading (`loading`: a b.start that came while the
+   * page loads it, a reconnect; checked again once the simulation is built) — never another (a stale page, a tampered
+   * content set), and none at all while the page does not know the original content's cs (it could not tell which data
+   * to simulate on).
+   * @param {unknown} cs @param {{ loading?: boolean }} [opts]
+   */
+  function csAccepted(cs, { loading = false } = {}) {
+    if (typeof cs !== 'string' || cs === '') return true;
+    const vanilla = vanillaCs();
+    if (vanilla == null) return false;
+    if (cs === vanilla) return true;
+    const held = heldContent();
+    return (!!held && held.cs === cs) || (loading && loadingContent() === cs);
+  }
+
+  /**
+   * The simulation for a spec's content `cs` (see the header): the original content's (loaded from /data/) or a room's
+   * content set (its checked data, content.js contentFor); one at a time — another content loads it again.
+   */
+  function ensureSim(cs = null) {
+    const vanilla = vanillaCs();
+    const want = typeof cs === 'string' && vanilla != null && cs !== vanilla ? cs : null;
+    if (simP && simCs === want) return simP;
+    simCs = want;
+    const p = (want ? contentFor(want).then((content) => {
+      if (!content || content.cs !== want) throw new Error(`the content set ${want.slice(0, 8)} is not loaded on this page`);
+      return deps.loadSim ? loadSim(content) : { content, cs: want, remote: true };
+    }) : loadSim(null)).catch((err) => { if (simP === p) { simP = null; simCs = null; } throw err; });
+    simP = p;
+    return p;
   }
 
   // The simulation of a battle's rules: the page's own, or that version's archived engine. An engine that cannot run
   // live battles (archived before it could) leaves only the page's own rules — said in the console, once per version;
   // a failed load is not kept (the next b.start tries again, as with the page's own simulation).
   const engines = new Map();
-  function simFor(version) {
-    if (!version || version === ownRules) return ensureSim();
+  function simFor(version, cs = null) {
+    if (!version || version === ownRules) return ensureSim(cs);
     if (!engines.has(version)) {
       engines.set(version, loadEngine(version).catch((err) => {
         if (err.code !== 'ENGINE_NOT_LIVE') {
@@ -358,7 +402,7 @@ export function createBattleRunner(deps) {
           throw err;
         }
         console.warn(`[runner] rules version ${version}: ${err.message}; simulating with this page's rules`);
-        return ensureSim();
+        return ensureSim(cs);
       }));
     }
     return engines.get(version);
@@ -477,7 +521,7 @@ export function createBattleRunner(deps) {
     if (mark === e.leakMark) return;
     e.leakMark = mark;
     let n = e.leaks;
-    try { n = Math.max(0, Math.trunc(Number(e.sim.spec.battleProgress(b).leaks) || 0)); } catch { /* keep the last count */ }
+    try { n = Math.max(0, Math.trunc(Number(e.host.progress().leaks) || 0)); } catch { /* keep the last count */ }
     if (n !== e.leaks) { e.leaks = n; leaksDirty = true; }
   }
 
@@ -487,7 +531,7 @@ export function createBattleRunner(deps) {
     if (mark === e.leakMark) return;
     e.leakMark = mark;
     let left = e.left;
-    try { left = e.sim.spec.uniteLeft(b) || left; } catch { /* keep the last count */ }
+    try { left = e.host.uniteLeft() || left; } catch { /* keep the last count */ }
     if (JSON.stringify(left) !== JSON.stringify(e.left)) { e.left = left; leaksDirty = true; }
   }
 
@@ -536,7 +580,22 @@ export function createBattleRunner(deps) {
     const b = e.battle;
     const t = now();
     let k = 0;
+    const accept = (out) => { k = out.ticks; e.slices.push(...out.slices); };
     try {
+      // A Worker host simulates off the page thread (DESIGN §32.11): one RPC per batch, its slices landing in
+      // `e.slices` when it answers (a later batch renders them); the soft budget can only cut page-side ticks.
+      if (e.host && e.host.remote) {
+        if (e.failed || !(n > 0) || e.stepping) return 0;
+        e.stepping = true;
+        Promise.resolve(e.host.step(n, { slice: sliced ? EV_SLICE : 0 })).then((value) => {
+          if (e.failed) return;
+          accept(value);
+          stats.ticks += k;
+          stats.stepMs += now() - t;
+          if (e === cur && (b.finished || now() - (e.damagePublishedAt ?? -Infinity) >= 500)) publishDamage(e, true);
+        }, (err) => failWorker(e, err)).finally(() => { e.stepping = false; schedule(); });
+        return n;
+      }
       for (; k < n && !b.finished; k++) {
         if (budget) {
           if (budget.remaining <= 0 || now() >= budget.deadline) break;
@@ -568,7 +627,7 @@ export function createBattleRunner(deps) {
 
   /** The steps' events, each batch with its own game time: the sliced ones (stepEntry), then the rest at `gt`. */
   function drainSlices(e, gt) {
-    let ev = [];
+    let ev;
     try { ev = e.battle.drainEvents() || []; } catch { ev = []; }
     const out = e.slices;
     e.slices = [];
@@ -640,7 +699,8 @@ export function createBattleRunner(deps) {
    * → false when a report could not go out (offline: the next session's new segment carries the whole log again).
    */
   function report(e) {
-    const p = e.sim.spec.battleProgress(e.battle);
+    e.meter = e.host.meter;
+    const p = e.host.progress();
     const msg = { battleId: e.battleId, gt: Math.min(1e5, p.gt), killed: Math.min(p.killed, p.total), total: Math.min(1e5, p.total), done: !!p.done };
     // the HUD capsule's numerator of this field (shared/protocol.js b.progress `resolved`): the field's own scheduled
     // enemies knocked out or leaked. Sent only when the battle reports one (Battle.resolved) — an absent field leaves
@@ -687,9 +747,7 @@ export function createBattleRunner(deps) {
       e.resultSent = true;
       let result = null;
       try {
-        result = e.sim.spec.compactResult(e.battle.result());
-        // an oversized frame would close the socket at the very end of the battle (64 KB inbound limit)
-        if (typeof e.sim.spec.fitResult === 'function') result = e.sim.spec.fitResult(result, { bossLike: bossLike(e), battleId: e.battleId });
+        result = e.host.compactResult({ bossLike: bossLike(e), battleId: e.battleId });
       } catch (err) { console.warn('[runner] result failed', err); recordError('runner', err, 'result failed'); }
       if (result) {
         e.result = result;
@@ -722,7 +780,11 @@ export function createBattleRunner(deps) {
       return;
     }
     e.delivery = 'pending';
-    const msg = { battleId: e.battleId, result: e.result };
+    // a room's content set names itself in the result (DESIGN §32.6: the server refuses one without it) — the set the
+    // battle was actually simulated on (its simulation's `cs`: loadBrowserSim's), never only what the spec claims; the
+    // original content's result is what it always was
+    const cs = e.sim && typeof e.sim.cs === 'string' && e.sim.cs ? e.sim.cs : null;
+    const msg = cs ? { battleId: e.battleId, result: e.result, cs } : { battleId: e.battleId, result: e.result };
     const send = (tries) => {
       let req;
       try { req = net.request('b.result', msg, { timeout: 15000 }); } catch (err) { req = Promise.reject(err); }
@@ -772,7 +834,7 @@ export function createBattleRunner(deps) {
     schedule();
   }
 
-  function running(e) { return !e.battle.finished && (e === cur || (e.authoritative && !e.resultSent)); }
+  function running(e) { return !e.failed && !e.battle.finished && (e === cur || (e.authoritative && !e.resultSent)); }
 
   /**
    * A preparation is shown (committed) once it is within a frame's cap of its clock — or of the clock its last batch
@@ -889,6 +951,32 @@ export function createBattleRunner(deps) {
     flushLeaks();
   }
 
+  /** Stop reports immediately. Existing server deadline/takeover is the fallback; b.result's cs refusal asks for it now. */
+  function failWorker(e, err) {
+    if (!e || e.failed || (entries.get(e.battleId) !== e && preparing.get(e.battleId)?.entry !== e)) return;
+    const authority = e.authoritative;
+    e.failed = true; e.authoritative = false; e.done = true;
+    e.host?.stop();
+    stats.errors++;
+    recordError('runner', err, 'plugin worker stopped');
+    const text = t('插件卡死，本场由服务器接管');
+    if (deps.toast) deps.toast(text, 'error');
+    else if (typeof document !== 'undefined') import('../ui/toasts.js').then(m => m.toast(text, 'error')).catch(() => {});
+    emit('takeover', { battleId: e.battleId, fieldId: e.fieldId, text });
+    // A structurally valid result with no cs is always refused for gameplay sets (requireCs), invoking _runOnServer.
+    // It is a failure signal only, never a claimed battle outcome. Vanilla never reaches this path.
+    if (authority) {
+      const perPlayer = Object.fromEntries(e.members.map(id => [id, { killed: 0, total: 0, leaked: [], perfect: false, layerGains: {}, unitsEnd: [] }]));
+      try { Promise.resolve(net.request('b.result', { battleId: e.battleId, result: { reason: 'forced', time: 0, perPlayer } })).catch(() => {}); } catch { /* deadline takes over offline */ }
+    }
+    if (cur === e) cur = null;
+    if (loading && loading.battleId === e.battleId) loading = null;
+    // a battle being prepared here stops waiting for its catch-up (prepare) and is dropped
+    const task = preparing.get(e.battleId);
+    if (task && task.entry === e) settlePreparation(task);
+    publishState(); schedule();
+  }
+
   function frame() {
     rafH = null;
     stats.frames++;
@@ -927,7 +1015,7 @@ export function createBattleRunner(deps) {
     e.held = [];
     e.slices = [];
     e.stale = false;
-    let meta = null;
+    let meta;
     try { meta = e.battle.fieldMeta(); } catch { meta = { units: [] }; }
     const field = {
       t: 'm.field', ...meta, fieldId: e.fieldId, kind: e.kind, rect: meta.rect ?? e.spec.rect, stageId: meta.stageId ?? e.spec.stageId,
@@ -954,6 +1042,8 @@ export function createBattleRunner(deps) {
     for (const [id, e] of entries) {
       if (entries.size <= max) break;
       if (e === cur || (e.authoritative && !e.resultSent) || e.own || e.delivery === 'pending' || e.delivery === 'undelivered') continue;
+      rememberCombat(e);
+      e.host?.stop();
       entries.delete(id);
     }
   }
@@ -964,13 +1054,20 @@ export function createBattleRunner(deps) {
     if (preparing.get(task.msg.battleId) === task) preparing.delete(task.msg.battleId);
     settlePreparation(task);
     task.controls.length = 0;
-    task.entry?.meter.detach?.();
+    if (task.entry) {
+      // its combat snapshot joins the 作战统计 totals before it goes (host.stop() drops an in-page Battle)
+      detachCombat(task.entry);
+      task.entry.meter.detach?.();
+      task.entry.host?.stop();
+    }
     task.entry = null;
   }
 
   function updateStart(e, msg, pending = false) {
     const was = e.authoritative;
-    e.authoritative = !!msg.authoritative && !e.resultSent;
+    // a spec of another content than the page's is a display replica only (see csAccepted), and a stopped
+    // plugin Worker's battle never takes authority back
+    e.authoritative = !!msg.authoritative && !e.resultSent && !e.failed && csAccepted(e.spec.cs, { loading: !e.battle });
     e.watch = !!msg.watch;
     if (msg.authoritative && e.resultSent) deliver(e);
     if (pending) {
@@ -1003,6 +1100,7 @@ export function createBattleRunner(deps) {
       selectStart();
       loading = null;
       // a resend of what is already on screen (reconnect / resync) only updates the state; switching back shows it
+      if (existing.failed) return;
       if (cur !== existing) show(existing);
       else { publishState(); schedule(); }
       return;
@@ -1010,7 +1108,7 @@ export function createBattleRunner(deps) {
     const pending = preparing.get(msg.battleId);
     if (pending) {
       // Reconnect / resync of a battle still loading or catching up: update it, never construct a second copy.
-      pending.authoritative = !!msg.authoritative;
+      pending.authoritative = !!msg.authoritative && csAccepted(msg.spec.cs, { loading: true });
       pending.seq = startSeq + 1;
       if (pending.entry) {
         updateStart(pending.entry, msg, true);
@@ -1026,7 +1124,7 @@ export function createBattleRunner(deps) {
     selectStart();
     // target: the entry's target tick at its last batch (runBatch: the floor follows its growth); caught: that batch
     // brought it within a frame's cap of it (preparationReady); ended: a forced / timeout b.end came for it (selectStart)
-    const task = { msg, seq: startSeq, lifecycle, authoritative: !!msg.authoritative, ended: false, entry: null,
+    const task = { msg, seq: startSeq, lifecycle, authoritative: !!msg.authoritative && csAccepted(msg.spec.cs, { loading: true }), ended: false, entry: null,
       controls: [], pool: lastPool, resume: null, promise: null, target: 0, caught: false };
     preparing.set(msg.battleId, task);
     loading = { battleId: msg.battleId, fieldId: msg.fieldId, kind: msg.kind };
@@ -1039,7 +1137,7 @@ export function createBattleRunner(deps) {
     const msg = task.msg;
     try {
       let sim;
-      try { sim = await simFor(msg.rulesVersion); } catch (err) {
+      try { sim = await simFor(msg.rulesVersion, msg.spec.cs); } catch (err) {
         if (!validPreparation(task)) return;
         console.warn('[runner] simulation unavailable', err);
         recordError('runner', err, 'simulation unavailable');
@@ -1048,25 +1146,45 @@ export function createBattleRunner(deps) {
       }
       if (!validPreparation(task)) return;
       let battle;
+      let host = null;
       try {
-        battle = sim.spec.createBattleFromSpec(msg.spec, sim.ds, { logger });
+        // the host (DESIGN §32.11): the vanilla content's Battle in page, a gameplay content set's in a Worker
+        host = deps.createHost ? deps.createHost(sim, (err) => failWorker(task.entry, err)) : sim.remote
+          ? new WorkerSimHost({ onFailure: (err) => failWorker(task.entry, err), timeoutMs: deps.workerTimeoutMs })
+          : new InPageSimHost();
+        if (host.remote) {
+          await host.load(sim.cs, sim.content);
+          if (!validPreparation(task)) return;
+          await host.start(msg.spec);
+        } else { host.sim = sim; host.start(msg.spec, { logger }); }
+        battle = host.battle;
       } catch (err) {
-        console.warn('[runner] battle construction failed', err);
-        recordError('runner', err, 'battle construction failed');
+        // a Worker host that could not load / start is a plugin failure (it toasts and hands the field over)
+        if (host && host.remote && task.entry) failWorker(task.entry, err);
+        else {
+          console.warn('[runner] battle construction failed', err);
+          recordError('runner', err, 'battle construction failed');
+        }
         if (task.seq === startSeq) { loading = null; publishState(); }
         return;
       }
+      if (!validPreparation(task)) return;
       stats.battles++;
       const e = {
-        battleId: msg.battleId, fieldId: msg.fieldId || msg.spec.fieldId, kind: msg.kind || msg.spec.kind, spec: msg.spec, sim, battle,
-        authoritative: !!msg.authoritative, watch: !!msg.watch, own: !msg.watch, speed,
+        battleId: msg.battleId, fieldId: msg.fieldId || msg.spec.fieldId, kind: msg.kind || msg.spec.kind, spec: msg.spec, sim, battle, host,
+        // its latest b.start (`seq`: the 作战统计 panel orders a player's battles by it); the content the simulation
+        // holds must still be the spec's (the room could have changed it meanwhile) — a spec of another content than
+        // the page's is a display replica only, never this battle's authority (csAccepted)
+        seq: task.seq,
+        authoritative: !!msg.authoritative && csAccepted(msg.spec.cs, { loading: true }), watch: !!msg.watch, own: !msg.watch, speed,
         members: (msg.spec.players || []).map((p) => p && p.playerId).filter(Boolean),
         t0: clock() - ((Number(msg.elapsed) || 0) / speed) * 1000, lastProgressAt: -Infinity, done: false, resultSent: false,
         result: null, delivery: null,
         // the replay log (tick inputs: b.pool syncs, the b.end) and its report segment { id, session, seq: the next one,
         // sent: the inputs it carried } (null: the next report starts one)
         inputs: [], segment: null,
-        meter: sim.spec.attachLpMeter(battle),
+        // the LP meter the host attached (in page: the sim's; a Worker battle's comes with its packet)
+        meter: host.meter,
         // counted leaks so far (normal fields; noteLeaks) and the Battle state they were counted at; 联防 fields: each
         // leaker's enemies still standing (noteUniteLeft)
         leaks: 0, leakMark: '', left: null,
@@ -1082,6 +1200,9 @@ export function createBattleRunner(deps) {
         endReason: null, ownDoneSent: false, lateEnd: false, noReplay: false,
       };
       task.entry = e;
+      // The Worker page holds wire state only (time, ids): no `damaged` hook and no `heal`, so trackCombat cannot
+      // run there. An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it).
+      if (metricsEnabled() && !host.remote) e.combatMetrics = trackCombat(battle);
       if (task.pool && battle.sharedBoss) syncPool(e, task.pool);
       for (const control of task.controls) {
         if (control.kind === 'pool' && battle.sharedBoss) syncPool(e, control.msg);
@@ -1091,10 +1212,10 @@ export function createBattleRunner(deps) {
       task.controls.length = 0;
       task.target = targetTick(e, clock());
       // Construction is synchronous; the catch-up steps run in the RAF / hidden-pump batches (runBatch).
-      while (validPreparation(task) && !preparationReady(task)) {
+      while (validPreparation(task) && !e.failed && !preparationReady(task)) {
         await new Promise(resolve => { task.resume = resolve; schedule(); });
       }
-      if (!validPreparation(task)) return;
+      if (!validPreparation(task) || e.failed) return;
       entries.set(e.battleId, e);
       task.entry = null;
       evict();
@@ -1114,7 +1235,9 @@ export function createBattleRunner(deps) {
   function syncPool(e, msg) {
     const acked = msg.acked ? msg.acked[e.fieldId] : undefined;
     if (!e.battle.finished) e.inputs.push({ tick: e.battle.tickCount, kind: 'pool', hp: msg.hp, acked: acked ?? null });
-    e.battle.sharedBoss.sync(msg.hp, acked);
+    // a Worker battle syncs its shared pool through its host instead (DESIGN §32.11)
+    if (e.host?.remote) e.host.syncPool(msg.hp, acked);
+    else e.battle.sharedBoss.sync(msg.hp, acked);
   }
 
   function onPool(msg) {
@@ -1135,7 +1258,7 @@ export function createBattleRunner(deps) {
     else if (task) task.ended = true;
     if (task && !task.entry) { task.controls.push({ kind: 'end', msg }); return; }
     const e = entries.get(msg.battleId) || task?.entry;
-    if (!e) return;
+    if (!e || e.failed) return;
     applyEnd(e, msg, !!task);
   }
 
@@ -1159,6 +1282,19 @@ export function createBattleRunner(deps) {
       if (pending && !e.battle.tickCount) e.noReplay = true;
       const reason = msg.reason === 'timeout' ? 'timeout' : 'forced';
       e.inputs.push({ tick: e.battle.tickCount, kind: 'end', reason });
+      // a Worker battle is ended off the page thread (DESIGN §32.11): the result goes out when it answers
+      if (e.host?.remote) {
+        e.host.forceEnd(reason).then(() => {
+          if (e.failed) return;
+          e.meter = e.host.meter;
+          if (e === cur) emitFrame(e, false);
+          if (pending) e.lateEnd = true;
+          finished(e);
+          flushLeaks();
+          schedule();
+        }, (err) => failWorker(e, err));
+        return;
+      }
       try { e.battle.forceEnd(reason); } catch { /* ignore */ }
     }
     if (e === cur) emitFrame(e, false);
@@ -1168,18 +1304,28 @@ export function createBattleRunner(deps) {
     schedule();
   }
 
-  /** Drop every battle (a new round's prep, the match ended, the player left). */
-  function clear() {
+  /**
+   * Drop every battle (a new round's prep, the match ended, the player left). Each dropped battle keeps its last
+   * combat snapshot in combatHistory for the panel's match totals; `keepMetrics` false (a new match) starts over.
+   */
+  function clear({ keepMetrics = false } = {}) {
     ++lifecycle;
     ++startSeq;
     loading = null;
     for (const task of preparing.values()) dropPreparation(task);
     for (const e of entries.values()) {
-      // never drop an unreported authoritative result (the round already moved on: the server has its own)
-      if (e.authoritative && !e.resultSent && !e.battle.finished) { try { e.battle.forceEnd('forced'); } catch { /* ignore */ } }
+      // never drop an unreported authoritative result (the round already moved on: the server has its own).
+      // A Worker battle is ended by stopping its host below, not by forceEnd on the page-side stub.
+      if (!e.host?.remote && e.authoritative && !e.resultSent && e.battle && !e.battle.finished) { try { e.battle.forceEnd('forced'); } catch { /* ignore */ } }
+      rememberCombat(e);
     }
+    // every battle that was being prepared is already dropped above (dropPreparation: it keeps the combat snapshot
+    // and stops the host); the committed ones stop theirs here (a Worker's is terminated, an in-page one drops the
+    // Battle the meter reads)
+    for (const e of entries.values()) e.host?.stop();
     entries.clear();
     workAfter = null;
+    if (!keepMetrics) combatHistory.clear();
     cur = null;
     lastPool = null;
     if (rafH != null) { caf(rafH); rafH = null; }
@@ -1201,19 +1347,28 @@ export function createBattleRunner(deps) {
   }
   // phase changes: combat fields live until the next prep; leaving the match drops everything
   let lastPhase = null;
+  let lastRound = 0;
   if (store && typeof store.subscribe === 'function') {
     offs.push(store.subscribe((s) => {
       const pub = s && s.match && s.match.public ? s.match.public : null;
+      const round = Number(pub?.round) || 0;
+      // a fresh match (m.public gone), a rewound round or a return to a lobby-like phase resets the combat totals
+      const resetMetrics = (!pub && lastPhase != null) || round < lastRound
+        || (pub?.phase !== lastPhase && ['LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(pub?.phase));
+      if (resetMetrics) combatHistory.clear();
+      lastRound = round;
       // solo pause (DESIGN §14): the local battle clocks follow m.public.paused
       setPaused(!!(pub && pub.paused));
       const phase = pub ? pub.phase : null;
-      if (phase === lastPhase) return;
+      if (phase === lastPhase && !resetMetrics) return;
       lastPhase = phase;
       if (!phase || ['PREP', 'ROUND_START', 'SP_DRAFT', 'RESULT', 'LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(phase)) {
-        if (entries.size || preparing.size || loading) clear();
+        if (entries.size || preparing.size || loading) clear({ keepMetrics: !resetMetrics });
       }
-      // warm the simulation up as soon as a match runs (the first b.start then starts at once)
-      if (phase && phase !== 'LOBBY' && !simP) ensureSim().catch(() => {});
+      // warm the simulation up as soon as a match runs (the first b.start then starts at once) — on the room's content set
+      // when it plays one (DESIGN §32.6)
+      const roomCs = s && s.room && s.room.content && s.room.content.vanilla === false ? s.room.content.cs : null;
+      if (phase && phase !== 'LOBBY' && (!simP || simCs !== (roomCs || null))) ensureSim(roomCs).catch(() => {});
     }));
   }
   if (doc && typeof doc.addEventListener === 'function') {
@@ -1230,6 +1385,33 @@ export function createBattleRunner(deps) {
       return () => listeners.get(type)?.delete(fn);
     },
     state,
+    /**
+     * 设置「作战统计」. Ignored when `deps.combatMetrics` pins the runner. Off detaches meters already attached.
+     * On does not attach to a battle that was prepared while the meter was off.
+     * @param {boolean} on
+     */
+    setCombatMetrics,
+    /**
+     * Local-only damage/healing accounting (battle/metrics.js) for the 作战统计 panel: the own current battle
+     * (`battle`) or every battle simulated so far in this match (`match`), each restricted to `ownerId` when given.
+     * Read on demand by the panel — never sent to the server.
+     * @param {{ scope?: 'battle'|'match', ownerId?: string|null }} [opts]
+     */
+    combatMetrics({ scope = 'match', ownerId = null } = {}) {
+      const localEntries = [...entries.values(), ...[...preparing.values()].map((task) => task.entry).filter(Boolean)];
+      if (scope === 'battle') {
+        // scouting another field must not replace the player's own current battle statistics
+        const e = ownerId == null ? cur : localEntries.filter((entry) => entry.members.includes(ownerId))
+          .sort((a, b) => b.seq - a.seq)[0];
+        return combineCombat(e?.combatMetrics ? [e.combatMetrics()] : [], ownerId);
+      }
+      const records = new Map(combatHistory);
+      for (const e of localEntries) if (e.combatMetrics) {
+        const record = e.combatMetrics();
+        if (!(records.get(e.battleId)?.seconds > record.seconds)) records.set(e.battleId, record);
+      }
+      return combineCombat(records.values(), ownerId);
+    },
     /**
      * The battle on screen as a report attaches it (diag.js): its b.start fields and its game time; null without one.
      * @returns {{ battleId: string, fieldId: string, kind: string, spec: object, time: number|null }|null}
@@ -1254,10 +1436,7 @@ export function createBattleRunner(deps) {
     unitStats(unitId, fieldId = null) {
       const e = cur;
       if (!e || !Number.isInteger(unitId) || (fieldId != null && e.fieldId !== fieldId)) return null;
-      let u = null;
-      try { u = typeof e.battle.unitById === 'function' ? e.battle.unitById(unitId) : null; } catch { u = null; }
-      if (!u) return null;
-      try { return unitStatsEntry(u, u._s || null); } catch { return null; }
+      try { return e.host.unitStats(unitId); } catch { return null; }
     },
     /**
      * The unit id of the board piece `uid` owned by `ownerId` in the battle on screen (an own operator's card opened in
@@ -1281,14 +1460,7 @@ export function createBattleRunner(deps) {
     ownerOps(ownerId, fieldId = null) {
       const e = cur;
       if (!e || typeof ownerId !== 'string' || !ownerId || (fieldId != null && e.fieldId !== fieldId)) return [];
-      const list = Array.isArray(e.battle.allyUnits) ? e.battle.allyUnits : [];
-      return list.filter((u) => u && u.kind === 'op' && u.ownerId === ownerId && typeof u.defId === 'string')
-        .map((u) => {
-          const o = Array.isArray(u.items) && u.items.length ? { kind: 'op', ownerId, defId: u.defId, items: [...u.items] } : { kind: 'op', ownerId, defId: u.defId };
-          const si = u.def && typeof u.def.standInFor === 'string' ? u.def.standInFor : null;
-          const diy = u.def?.diyFor ? u.def.loadout?.diy : null;
-          return { ...o, ...(si ? { standInFor: si } : {}), ...(diy ? { diy: { ...diy } } : {}) };
-        });
+      return e.host.ownerOps(ownerId);
     },
     /**
      * How `playerId`'s part of the finished own battle `battleId` went (see the header) — the settlement voice line is

@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
 const MATCHES = read('./golden/matches.json');
 const BACKUPS = read('../data/backups.json');
+const ECONOMY = read('../data/config.json').economy;
 
 test('matches: the 自选 match\'s human seat draws its 自选 pieces and fields an operator in battle', () => {
   const id = 'coop2-NORMAL-70-diy';
@@ -30,6 +31,12 @@ test('matches: the 自选 match\'s human seat draws its 自选 pieces and fields
       assert.ok(BACKUPS.units[charId], `${r}: ${charId} has operator data`);
     }
   }
-  // the stock: never above its cap (8 at tier 5, 5 at tier 6)
-  for (const [slot, left] of Object.entries(dg.diy.stock)) assert.ok(left >= 0 && left <= (BACKUPS.diy.slots[slot.replace(/_b$/, '_a')].tier === 5 ? 8 : 5), slot);
+  // the stock: never above its cap (8 at tier 5, 5 at tier 6 — doubled in co-op like the shared pool, GitHub #650)
+  const factor = dg.mode === 'coop' ? ECONOMY.coopPoolMultiplier : 1;
+  for (const [slot, left] of Object.entries(dg.diy.stock)) {
+    const cap = ECONOMY.poolCopies[BACKUPS.diy.slots[slot.replace(/_b$/, '_a')].tier] * factor;
+    assert.ok(left >= 0 && left <= cap, `${slot}: ${left} left, cap ${cap}`);
+  }
+  assert.equal(factor, 2, 'the 自选 match is co-op');
+  assert.ok(Object.values(dg.diy.stock).some((left) => left > 8), 'a co-op stock above the single-player 8 (#650)');
 });

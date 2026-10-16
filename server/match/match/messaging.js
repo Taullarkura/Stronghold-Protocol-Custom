@@ -107,8 +107,9 @@ export class MatchMessaging {
     const json = JSON.stringify(rest);
     if (!force && json === this._lastPubJson) return;
     this._lastPubJson = json;
-    // measured from the frame's own stamp: building the view takes time, and clients see serverNow
-    this._lastPubAt = serverNow;
+    // Throttle from the broadcast itself, not the call's start: building the view and serializing it take time,
+    // and clients see the frame's own serverNow. The later of the frame's stamp and this moment is the broadcast.
+    this._lastPubAt = Math.max(serverNow, this.sched.now());
     this.broadcast(view);
   }
 }

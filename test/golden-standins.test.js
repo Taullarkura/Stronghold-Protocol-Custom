@@ -61,8 +61,22 @@ test('matches: the 补位 match\'s human seat fields stand-ins (listed per round
   assert.ok(dg, 'scenario present');
   assert.deepEqual(dg.errors, { engine: 0, logged: 0, sim: 0, dispatcher: 0 });
   const fielded = dg.standIns.rounds.filter(([, s]) => s).flatMap(([, s]) => s.split(' '));
-  // (≥ 2 since a level-up leaves its new slot empty — GitHub #332, PR #333 by @2321Robin: this match's shop rolls, and with
-  // them which stand-ins the human seat fields, part from the stream in which the upgrade drew a card into the new slot)
+  assert.ok(new Set(fielded).size >= 2, `stand-ins fielded: ${[...new Set(fielded)].join(', ')}`);
+  for (const f of fielded) {
+    const [id, charId] = f.split('→');
+    const c = CHESS[`chess_char_${id}`];
+    assert.ok(dg.standIns.notOwned.includes(c.baseId || c.chessId), `${f}: not owned`);
+    assert.equal(charId, c.backup.charId);
+  }
+});
+
+// Upstream's roster-independent companion to the seed-14 补位 match: the human seat owns no NORMAL operator at all, so
+// stand-in coverage does not depend on which of a small set of missing operators its AI happens to buy (test/golden/README.md).
+test('user: Given no owned NORMAL operators, When AI plays a full match, Then it fields stand-ins without engine errors', () => {
+  const dg = MATCHES.scenarios['coop2-NORMAL-1-unowned-roster'];
+  assert.ok(dg, 'scenario present');
+  assert.deepEqual(dg.errors, { engine: 0, logged: 0, sim: 0, dispatcher: 0 });
+  const fielded = dg.standIns.rounds.filter(([, s]) => s).flatMap(([, s]) => s.split(' '));
   assert.ok(new Set(fielded).size >= 2, `stand-ins fielded: ${[...new Set(fielded)].join(', ')}`);
   for (const f of fielded) {
     const [id, charId] = f.split('→');
