@@ -192,6 +192,20 @@ export class MatchPrep {
         if (!job) { end(null); return; }
         run.stage = 'rehearsal';
         run.gen = null;
+        // Upstream's host delegation (DESIGN §14, Match.botRehearsalDelegate): the generation above may have handed this
+        // rehearsal to the current host's browser, which leaves the job `pending` — the server must NOT simulate those
+        // candidates again (that CPU is the whole point of the delegation). MatchRehearsal calls back once the host
+        // answers (`job.done`, the pick already in `job.best`) or takes the job over (the server's own slices follow).
+        // A job nobody was asked for (no host, delegation off, or the frame could not be sent) is never pending and
+        // runs its slices right away, exactly as the fork did before delegation existed.
+        if (job.pending) {
+          job.onSettled = () => {
+            if (!valid()) return;
+            if (job.done) finish(job);
+            else { job.takeOver(); runJob(job); }
+          };
+          return;
+        }
         const slice = () => {
           if (!valid()) return;
           let done = true;
