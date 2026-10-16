@@ -57,7 +57,12 @@ export class MatchDebug {
     const rec = ps.gd.chess(id);
     // an unfilled 自选 slot has no body to gain (the same rule as a purchase / a reward)
     if (!rec || (rec.isDiy && !rec.diyFor)) return fail(ERR.BAD_TARGET, 'unknown chess');
-    // a full hand refuses the gain (acquireChess toasts 整备区已满 and returns null)
+    // A full bench refuses the gain, exactly like a purchase or a reward. Since 0.3.0 the overflow temp queue is
+    // expandable (pieces.js stow appends past its five visible slots), so acquireChess itself never fails on a full
+    // hand — it queues the piece instead. The refusal is the bench being full: no free hand slot and the queue
+    // already holding something, which is what "常规区 10 格仍满时不能购买或领取奖励" means.
+    const benchFull = !ps.hand.some((p) => !p) && ps.temp.some(Boolean);
+    if (benchFull) return fail(ERR.HAND_FULL);
     return ps.acquireChess(id, { source: 'debug' }) ? OK : fail(ERR.HAND_FULL);
   }
 
