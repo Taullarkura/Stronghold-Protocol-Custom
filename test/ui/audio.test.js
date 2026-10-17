@@ -33,6 +33,10 @@ describe('bgm selection', () => {
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }), 'combat');
     // 联防 has its own track: the official escaped_single / escaped_multi levels declare bgmEvent = corrosion
     assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE }), 'unite');
+    // a match with one player asks for the plugin-able `unite:solo`; two players keep `unite`
+    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }] }), 'unite:solo');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'p2' }] }), 'unite');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }] }, 1), 'unite:solo');
     // 开战 BGM: the round's own track (combatTrackFor) indexes the manifest's `bgm.combatAlts`
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }, 0), 'combat:0');
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }, 1), 'combat:1');
@@ -89,6 +93,14 @@ describe('bgm selection', () => {
     assert.equal(resolveBgm(manifest, 'unite').intro, unite.intro ?? null);
     assert.notEqual(unite.loop, manifest.audio.bgm.combat.loop, 'not the shop / default combat loop');
     assert.equal(resolveBgm({ audio: { bgm: { combat: { loop: '/shop.mp3' } } } }, 'unite').loop, '/shop.mp3');
+    // `unite:solo` (a 联防 phase in a match with one player) is the plugin-able slot: the installation ships no
+    // `uniteSolo`, so it falls back to `unite` — and to `combat` when an older manifest lacks that too
+    assert.equal(manifest.audio.bgm.uniteSolo, undefined, 'the installation leaves uniteSolo to a cosmetic plugin');
+    assert.equal(resolveBgm(manifest, 'unite:solo').loop, unite.loop);
+    const solo = { audio: { bgm: { ...manifest.audio.bgm, uniteSolo: { loop: '/solo.mp3', intro: '/solo-intro.mp3' } } } };
+    assert.equal(resolveBgm(solo, 'unite:solo').loop, '/solo.mp3');
+    assert.equal(resolveBgm(solo, 'unite:solo').intro, '/solo-intro.mp3');
+    assert.equal(resolveBgm({ audio: { bgm: { combat: { loop: '/shop.mp3' } } } }, 'unite:solo').loop, '/shop.mp3');
     assert.equal(resolveBgm(null, 'lobby'), null);
     assert.equal(resolveBgm(manifest, null), null);
     assert.equal(resolveBgm(manifest, 'nope'), null);
@@ -115,8 +127,11 @@ describe('bgm selection', () => {
       // a re-render / teammate view inside the same battle never moves
       fire(state, {}); assert.equal(calls.at(-1), 'combat:1');
       // 联防 has its OWN track (#110, the official escaped levels' `bgmEvent = corrosion`) — it does not inherit the
-      // round's 开战 track
+      // round's 开战 track; this match has one player, so it asks for the plugin-able `unite:solo` first
       state.match.public = pub({ phase: PHASE.UNITE });
+      fire(state, {}); assert.equal(calls.at(-1), 'unite:solo');
+      // …while a match with two players keeps 联防's own `unite`
+      state.match.public = pub({ phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'p2' }] });
       fire(state, {}); assert.equal(calls.at(-1), 'unite');
       // …and back to the round's own track in the 作战
       state.match.public = pub({ phase: PHASE.COMBAT });

@@ -1,7 +1,7 @@
 // Audio manager (Web Audio): BGM per phase, UI SFX, per-unit battle SFX, operator battle voice. Never throws.
 //
 // Sources: data/assets.json → audio (docs/ASSETS.md):
-//   bgm { lobby, prep, combat, combatAlts?: [ {intro?, loop}, … ], boss: { intro?, loop } },
+//   bgm { lobby, prep, combat, combatAlts?: [ {intro?, loop}, … ], unite?, uniteSolo?, boss: { intro?, loop } },
 //   bossBgm { [bossId]: { intro?, loop } },
 //   voice { [charId]: { start, faceEnemy, select, place, skill1…skill4, squad, squadFirst, result*, gacha } },
 //   voiceJp / voiceEn / voiceKr / voiceNative { [charId]: { …the same slots } } (日本語 / English / 한국어 / the
@@ -137,7 +137,7 @@ const SKILL_MODE_FILE = /_(d|h|s)\d*\.mp3$/i;
  * @param {any} pub m.public (may be null)
  * @param {0|1|null} [combatTrack] the round's own 开战 track index into `bgm.combatAlts` (combatTrackFor; omitted ⇒
  *   plain 'combat', i.e. the manifest's default combat track)
- * @returns {string|null} 'lobby' | 'prep' | 'combat' | 'combat:<i>' | 'unite' | 'boss' | 'boss:<bossId>' | null
+ * @returns {string|null} 'lobby' | 'prep' | 'combat' | 'combat:<i>' | 'unite' | 'unite:solo' | 'boss' | 'boss:<bossId>' | null
  */
 export function bgmKeyFor(route, pub, combatTrack = null) {
   if (route !== 'game') return route === 'title' || route === 'lobby' || route === 'room' ? 'lobby' : null;
@@ -149,8 +149,10 @@ export function bgmKeyFor(route, pub, combatTrack = null) {
     case PHASE.UNITE:
       // 联防 has its own track: the official `escaped_single` / `escaped_multi` levels declare
       // `bgmEvent = corrosion` (level_act1autochess_escaped_*.json), so the rescue phase is not the 作战's track.
-      // resolveBgm falls back to `bgm.combat` when a manifest predates it.
-      return 'unite';
+      // resolveBgm falls back to `bgm.combat` when a manifest predates it. A match with one player asks for
+      // `unite:solo` instead, so a cosmetic plugin can give the lone player another track (resolveBgm falls back
+      // to `bgm.unite` when the installation's manifest has none).
+      return soloMatch(pub) ? 'unite:solo' : 'unite';
     case PHASE.COMBAT:
       // 开战 BGM: the round's own track — 骑士之日 / 无畏者 are fixed per round, not drawn (combatTrackFor)
       return combatTrack == null ? 'combat' : `combat:${combatTrack ? 1 : 0}`;
@@ -165,8 +167,9 @@ export function bgmKeyFor(route, pub, combatTrack = null) {
 
 /**
  * Resolve a BGM key to { intro?, loop } URLs from the manifest: `boss:<id>` falls back to the generic boss track,
- * `combat:<i>` to the i-th `bgm.combatAlts` entry (and to `bgm.combat` when the manifest has none), and `unite`
- * (联防's own track) to `bgm.combat` when the manifest predates it.
+ * `combat:<i>` to the i-th `bgm.combatAlts` entry (and to `bgm.combat` when the manifest has none), `unite:solo`
+ * (联防 with one player in the match) to `bgm.uniteSolo`, and `unite` (联防's own track) to `bgm.unite` — each
+ * falling back to `bgm.combat` / `bgm.unite` for a manifest that predates it.
  * @param {any} manifest
  * @param {string|null} key
  * @returns {{ intro: string|null, loop: string }|null}
@@ -174,13 +177,20 @@ export function bgmKeyFor(route, pub, combatTrack = null) {
 export function resolveBgm(manifest, key) {
   const a = manifest?.audio;
   if (!a || !key) return null;
-  let t = null;
+  /** @type {any} */
+  let t;
   if (key.startsWith('boss:')) t = a.bossBgm?.[key.slice(5)] || a.bgm?.boss;
   else if (key.startsWith('combat:')) t = a.bgm?.combatAlts?.[Number(key.slice('combat:'.length))] || a.bgm?.combat;
+  else if (key === 'unite:solo') t = a.bgm?.uniteSolo || a.bgm?.unite || a.bgm?.combat;
   else if (key === 'unite') t = a.bgm?.unite || a.bgm?.combat;
   else t = a.bgm?.[key];
   if (!t || typeof t.loop !== 'string') return null;
   return { intro: typeof t.intro === 'string' ? t.intro : null, loop: t.loop };
+}
+
+/** One player in the match (`m.public.players`) — a solo 联防 phase asks for `unite:solo`. */
+function soloMatch(pub) {
+  return Array.isArray(pub?.players) && pub.players.length === 1;
 }
 
 /**

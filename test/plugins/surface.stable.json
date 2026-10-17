@@ -460,6 +460,10 @@
     "anchor": "shared/plugins/visual.js#ASSET_CONTAINERS"
   },
   {
+    "name": "overlay.audio.bgm.uniteSolo",
+    "anchor": "shared/plugins/visual.js#ASSET_CONTAINERS"
+  },
+  {
     "name": "overlay.audio.bgm.boss",
     "anchor": "shared/plugins/visual.js#ASSET_CONTAINERS"
   },

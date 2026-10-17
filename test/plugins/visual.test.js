@@ -149,7 +149,7 @@ describe('reading an overlay', () => {
       'assets.fonts is not something a cosmetic plugin changes (ignored)',
       'assets.skillsById is not something a cosmetic plugin changes (ignored)',
       'assets.chars.char_102_texas.owner is not a field a cosmetic plugin changes (ignored)',
-      'assets.audio.bgm.combatAlts is not one of lobby, prep, combat, unite, boss (ignored)',
+      'assets.audio.bgm.combatAlts is not one of lobby, prep, combat, unite, uniteSolo, boss (ignored)',
     ]);
     assert.match(read({ chars: { 'bad key!': { avatar: 'art/a.png' } } }).problems.join(), /is not an entry key/);
     assert.match(read([]).problems.join(), /not an object in the shape of data\/assets\.json/);

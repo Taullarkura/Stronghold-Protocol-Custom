@@ -441,13 +441,16 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                                     // group + name of the same picture (the client takes the local one first)
   prof:    { icon: {caster…warrior}, large: {…}, battlecard: {…, token}, sub: {[subProfessionId]: url} },
   audio: {
-    bgm:     { lobby, prep, combat, combatAlts?: [{ intro?, loop }, …], unite?: { intro?, loop }, boss: { intro?, loop } },
+    bgm:     { lobby, prep, combat, combatAlts?: [{ intro?, loop }, …], unite?: { intro?, loop },
+               uniteSolo?: { intro?, loop }, boss: { intro?, loop } },
              // intro then crossfade to loop (1 s); combatAlts = the 开战 tracks of the mode's own act, chosen by the
              // round, not drawn: [0] = m_bat_kazimierz2_1 骑士之日 (rounds 8–13), [1] = m_bat_kazimierz2_2 无畏者
              // (rounds 1–7) — audio.js combatTrackFor / bgmKeyFor 'combat:<i>', the same on every client;
              // `unite` = 联防's own track — the official escaped_single / escaped_multi levels declare
              // `bgmEvent = corrosion` (卡西米尔 act13d5d0), so the rescue phase does not reuse the 作战's track
-             // (audio.js bgmKeyFor 'unite', falling back to `bgm.combat` for a manifest that lacks it)
+             // (audio.js bgmKeyFor 'unite', falling back to `bgm.combat` for a manifest that lacks it);
+             // `uniteSolo` = the track a 联防 phase asks for when the match has one player ('unite:solo', falling
+             // back to `unite`): the installation ships none, so it is a cosmetic plugin's slot
     bossBgm: { [bossId]: { intro?, loop } },                   // per-boss track of its R14/R15 level
 
 

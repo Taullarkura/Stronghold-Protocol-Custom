@@ -13,7 +13,7 @@
 //   chars[charId]            { avatar, avatarE2, portrait, portraitE2: image, spine: { front, back: Spine } }
 //   enemies[key]             { icon: image, spine: Spine }          tokens[id]  { avatar: image, spine: Spine }
 //   bonds / items / bands / skills / modules / ui[key], prof.icon / large / battlecard / sub[key]     image
-//   audio.bgm[lobby|prep|combat|unite|boss], audio.bossBgm[bossId]     a track { loop, intro? }: replaced as a whole
+//   audio.bgm[lobby|prep|combat|unite|uniteSolo|boss], audio.bossBgm[bossId]     a track { loop, intro? }: replaced as a whole
 //   audio.voice / voiceJp / voiceEn / voiceKr / voiceNative[charId]  { <slot>: audio or a list of 1–16 }      audio.sfx.ui / battle[key]  audio
 //   audio.sfx.units[id]      { attack, hit, skill, die, born: audio, skills / attacks / hits: { <index>: audio } }
 // A value is a path inside the plugin folder (an image .png .jpg .webp, audio .mp3 .ogg), a Spine object
@@ -132,8 +132,9 @@ export const ASSET_CONTAINERS = Object.freeze(/** @type {AssetContainer[]} */ ([
   { path: ['tokens'], record: { fields: { avatar: 'image', spine: 'spine' } } },
   ...['bonds', 'items', 'bands', 'skills', 'modules', 'ui'].map((k) => ({ path: [k], record: 'image' })),
   ...['icon', 'large', 'battlecard', 'sub'].map((k) => ({ path: ['prof', k], record: 'image' })),
-  // audio.bgm: the tracks by name — not combatAlts, a list of tracks the client reads by round
-  { path: ['audio', 'bgm'], record: 'track', keys: ['lobby', 'prep', 'combat', 'unite', 'boss'] },
+  // audio.bgm: the tracks by name — not combatAlts, a list of tracks the client reads by round; uniteSolo is the
+  // 联防 track a match with one player asks for (audio.js bgmKeyFor 'unite:solo')
+  { path: ['audio', 'bgm'], record: 'track', keys: ['lobby', 'prep', 'combat', 'unite', 'uniteSolo', 'boss'] },
   { path: ['audio', 'bossBgm'], record: 'track' },
   { path: ['audio', 'voice'], record: { each: 'audioList', key: SLOT } },
   { path: ['audio', 'voiceJp'], record: { each: 'audioList', key: SLOT } },

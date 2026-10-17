@@ -292,7 +292,7 @@ is a number of `data/enemies.json`), so a room's `cs` is the vanilla one whateve
 | `enemies[key]` | `icon` (image), `spine` (Spine) |
 | `tokens[id]` | `avatar` (image), `spine` (Spine) |
 | `bonds`, `items`, `bands`, `skills`, `modules`, `ui`, `prof.icon` / `large` / `battlecard` / `sub` `[key]` | an image |
-| `audio.bgm[lobby \| prep \| combat \| unite \| boss]`, `audio.bossBgm[bossId]` | a track `{ loop, intro? }` (audio), written whole — not `audio.bgm.combatAlts` (see below) |
+| `audio.bgm[lobby \| prep \| combat \| unite \| uniteSolo \| boss]`, `audio.bossBgm[bossId]` | a track `{ loop, intro? }` (audio), written whole — not `audio.bgm.combatAlts` (see below) |
 | `audio.voice[charId]`, `audio.voiceJp[charId]`, `audio.voiceEn[charId]`, `audio.voiceKr[charId]`, `audio.voiceNative[charId]` (the operator's own-language dub) | `<slot>`: an audio file or a list of 1–16 |
 | `audio.sfx.ui[key]`, `audio.sfx.battle[key]` | audio |
 | `audio.sfx.units[id]` | `attack`, `hit`, `skill`, `die`, `born` (audio), `skills` / `attacks` / `hits` `{ <index>: audio }` |
@@ -316,7 +316,9 @@ also takes away that entry's local-client model (`spineLocal`, which the client 
 that model: a model write the browser leaves out, or whose file fails to load, leaves the local model too. The split
 battle music `audio.bgm.combatAlts` (the mode's own 开战 tracks, 骑士之日 / 无畏者, fixed per round) is not something a
 plugin changes: the client plays it instead of `combat` in the rounds it covers, so a plugin's `combat` is heard only
-where no such track plays. Writing an
+where no such track plays. `audio.bgm.uniteSolo` is the 联防 track of a match with one player: `audio.js` asks for
+`unite:solo` then and falls back to `unite` (the installation ships no `uniteSolo`, so writing it is `assets.add`) —
+a lone player's 联防 phase hears the plugin's track while a two-player match keeps `unite`. Writing an
 entry the installation has needs the permission `assets.override`, a new entry `assets.add`. `theme` is not applied yet
 (a warning).
 
