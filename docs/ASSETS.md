@@ -743,8 +743,9 @@ bandwidth, layer 1) the server hands out a view of each (`server/http/assetIndex
 
 ## The local resource cache (`/resource-manifest.json`)
 
-The title screen's **资源管理** dialog (`public/js/resources/`, view in `public/js/resources/view.js`) keeps the whole art
-and font tree in Cache Storage, so a player downloads it once and the game reads it from disk. The file list is
+The **资源管理** dialog (`public/js/resources/`, view in `public/js/resources/view.js`) keeps the whole art
+and font tree in Cache Storage, so a player downloads it once and the game reads it from disk. It opens from 资源管理
+on the 大厅 and the 房间, and on the title screen from **下载完整素材** (the section below). The file list is
 `GET /resource-manifest.json` — the same document the Cloudflare build publishes with `tools/resource-pack.mjs`
 (`format: 1`, one `{ url, size, sha256, type }` per file under `public/assets/` and `public/fonts/`, a `version` that is
 the SHA-256 of the list, `totalBytes`). A Node install builds it itself: `server/http/resourceManifest.js` walks the
@@ -768,13 +769,21 @@ hashed URLs.
 
 ## Player-initiated predownload
 
-The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js`, queue in
-`public/js/assetDownload.js`) downloads every unique art/font URL in the server's current `assets.json` and optional
-`local-assets.json`, including Spine skeletons, atlases, pages, scene files, and audio. Audio uses the same `/media/`
-URLs as playback. Four concurrent requests consume complete response bodies without decoding them or retaining
-all files in memory. This warms the existing browser HTTP cache and works over HTTP as well as HTTPS; it does not
-require a service worker. Freshness and eviction remain under the browser's control, so completion is not persisted
-as a permanent/offline guarantee. A later check reads current manifests and uses ordinary HTTP cache validation.
+The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js`) is the download of that cache where the
+cache can run: it opens the resource dialog (js/resources/index.js `openResourceCache`) and starts the store's download
+once the check finds files missing, so the count and the bytes on screen are what Cache Storage really holds, and a visit
+after an art change fetches only what changed. The title screen has this one resource entry; 资源管理 stays on the 大厅
+and the 房间, where there is no download button.
+
+Where the cache cannot run — plain `http://` to a LAN IP, a browser without service workers or site data — the button
+falls back to the HTTP-cache queue in `public/js/assetDownload.js`, which downloads every unique art/font URL in the
+server's current `assets.json` and optional `local-assets.json`, including Spine skeletons, atlases, pages, scene files,
+and audio. Audio uses the same `/media/` URLs as playback. Four concurrent requests consume complete response bodies
+without decoding them or retaining all files in memory. This queue warms the existing browser HTTP cache and works over
+HTTP as well as HTTPS; it does not require a service worker. Freshness and eviction remain under the browser's control,
+so completion is not persisted as a permanent/offline guarantee. A later check reads current manifests and uses ordinary
+HTTP cache validation. Its 已就绪 / 缺少 line counts only the files an imported pack supplies, which is nothing without a
+service worker, so it appears only when that count is not zero.
 
 The dialog shows successful file count, progress, and bytes read (including cache hits). Closing it or leaving the
 title screen pauses and aborts pending requests. Resume keeps completed files for this page; retry requests only

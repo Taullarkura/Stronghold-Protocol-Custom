@@ -1,9 +1,14 @@
 // The title screen's 下载完整素材 (docs/history/0.3.0.md §32.14.23): the button, its hint line and the dialog, which starts the
 // download queue (assetDownload.js) as it opens; closing it pauses. The import of a local pack has its own button beside
 // this one (ui/assetImport.js, §32.14.39): a file already imported counts as ready here and is not requested again.
+// Where the local resource cache can run (a secure context, service workers, site data), the button opens that store
+// instead (js/resources/index.js) and starts its download: Cache Storage is where files that stay are kept, so the same
+// button fills it and the dialog reports what is really stored. Only where it cannot run — a plain-http LAN address, an
+// in-app browser — is the HTTP-cache queue here the download, and this dialog its only report.
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Modal, ProgressBar } from './components.js';
 import { assetDownload } from '../assetDownload.js';
+import { openResourceCache } from '../resources/index.js';
 import { t } from '../../../shared/i18n.js';
 
 /** 下载完整素材: the button, its hint line and the download dialog. */
@@ -34,11 +39,14 @@ export function AssetDownloadButton() {
 
   const ready = state.cached || 0;
   const missing = Math.max(0, (state.total || 0) - ready);
+  /** The button opens the local resource cache where it can run (a download of it), this queue where it cannot. */
+  const start = async () => {
+    if (await openResourceCache({ download: true }) !== false) return;
+    setOpen(true);
+    if (state.phase !== 'complete') void assetDownload.start();
+  };
   return html`<div class="title-assets__item">
-    <${Button} variant="secondary" block=${true} size="sm" data-testid="asset-download" aria-describedby="title-asset-download-hint" onClick=${() => {
-      setOpen(true);
-      if (state.phase !== 'complete') void assetDownload.start();
-    }}>${label}<//>
+    <${Button} variant="secondary" block=${true} size="sm" data-testid="asset-download" aria-describedby="title-asset-download-hint" onClick=${() => void start()}>${label}<//>
     <small id="title-asset-download-hint">${t('含模型、贴图和音频，建议使用 Wi-Fi 下载。')}</small>
     <${Modal} open=${open} onClose=${close} title=${t('下载完整素材')} class="asset-download" actions=${html`
       ${busy ? html`<${Button} onClick=${() => assetDownload.pause()}>${t('暂停下载')}<//>`
@@ -48,7 +56,7 @@ export function AssetDownloadButton() {
       <p role="status" data-testid="asset-download-status">${status}</p>
       <${ProgressBar} value=${state.done} max=${state.total || 1} label=${t('已完成 {done} / {total} 个文件', { done: state.done, total: state.total })} />
       <p>${t('已读取 {size} MB（含浏览器缓存）', { size: (state.bytes / 1048576).toFixed(1) })}</p>
-      ${state.total > 0 ? html`<p>${t('已就绪 {ready}，缺少 {missing}', { ready, missing })}</p>` : null}
+      ${state.total > 0 && ready > 0 ? html`<p>${t('已就绪 {ready}，缺少 {missing}', { ready, missing })}</p>` : null}
       <p class="t-lo">${t('已导入的素材直接使用，不再向服务器请求。')}</p>
       <p class="t-lo">${t('下载本服务器提供的素材到浏览器缓存。关闭窗口会暂停；缓存被清理后可再次下载。')}</p>
       ${state.localMissing ? html`<p class="t-lo">${t('服务器未提供额外的本地素材包，将使用基础素材。')}</p>` : null}

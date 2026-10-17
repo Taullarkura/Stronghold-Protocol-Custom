@@ -30,7 +30,6 @@ import { html, Button, Icon, MicroLabel, Modal, TextField, PingPill, AvatarFrame
 import { LogoutButton } from '../ui/accountMenu.js';
 import { AccountCard } from '../ui/accountForms.js';
 import { GuideButton } from '../ui/guide.js';
-import { ResourceButton } from '../ui/resourceButton.js';
 import { InstallButton } from '../ui/install.js';
 import { openStats } from './stats.js';
 import { toast } from '../ui/toasts.js';
@@ -374,7 +373,6 @@ export function TitleScreen() {
           </span>
           <span class="title-conn__tools">
             <${GuideButton} class="title-guide" label=${t('玩法说明')} />
-            <${ResourceButton} class="title-res" />
             <button type="button" class="title-settings fsbtn tapx" aria-label=${t('设置')} title=${t('设置')}
               onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
             <${FullscreenButton} class="title-fs" />

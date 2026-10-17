@@ -1043,26 +1043,28 @@ describe('screen helpers', () => {
       'the footer entry reopens the notice');
   });
 
-  test('title connection row: 玩法说明 · 资源管理 · ⚙ · ⛶, and ⚙ / ⛶ split the touch area between them', () => {
+  test('title connection row: 玩法说明 · ⚙ · ⛶, and ⚙ / ⛶ split the touch area between them', () => {
     const source = readFileSync(path.join(PUBLIC, 'js/screens/title.js'), 'utf8');
     const row = source.slice(source.indexOf('<div class="title-conn">'));
     const at = (re) => { const m = re.exec(row); assert.ok(m, `title-conn has ${re}`); return m.index; };
     const guide = at(/<\$\{GuideButton\} class="title-guide"/);
-    const res = at(/<\$\{ResourceButton\} class="title-res"/);
     const gear = at(/class="title-settings fsbtn tapx"/);
     const fs = at(/<\$\{FullscreenButton\} class="title-fs"/);
-    assert.ok(guide < res && res < gear && gear < fs, 'the fork’s 资源管理 and #183’s ⚙ both stay, text buttons first');
+    assert.ok(guide < gear && gear < fs, 'the text button first, then ⚙ and ⛶');
+    // one entry per thing: the title screen's resources are 下载完整素材 (ui/assetDownload.js), which opens the same
+    // dialog 资源管理 opens from the 大厅 and the 房间, so the row carries no 资源管理 button of its own
+    assert.doesNotMatch(row, /ResourceButton/, 'the title screen’s resource entry is 下载完整素材');
     // ⛶'s centred 44 px area covered half of the 16 px ⚙ on a phone (a tap on ⚙ toggled fullscreen)
     const css = readFileSync(path.join(PUBLIC, 'css/devices.css'), 'utf8');
     assert.match(css, /\.sp-coarse \.title-conn :is\(\.title-settings, \.title-fs\)::before \{ width: calc\(100% \+ \.16rem\); \}/);
     assert.match(css, /\.title-fs, \.title-settings \{ width: \.4rem; height: \.4rem; margin-left: \.06rem; \}/, '.16rem apart: gap .1rem + margin .06rem');
     const titleCss = readFileSync(path.join(PUBLIC, 'css/screens/title.css'), 'utf8');
     assert.match(titleCss, /\.title-conn__state, \.title-conn__tools \{[^}]*gap: \.1rem;/);
-    // 玩法说明 · 资源管理 · ⚙ · ⛶ (Cloudflare) do not fit next to the state: the tools wrap as a whole onto their own line
-    // instead of the row squeezing the state text onto two lines and ⚙ / ⛶ out of square (test/ui/title-conn.e2e.test.js)
+    // 玩法说明 · ⚙ · ⛶ do not fit next to the state: the tools wrap as a whole onto their own line instead of the row
+    // squeezing the state text onto two lines and ⚙ / ⛶ out of square (test/ui/title-conn.e2e.test.js)
     const tools = row.slice(row.indexOf('<span class="title-conn__tools">'));
     assert.ok(row.indexOf('class="title-conn__state"') >= 0 && row.indexOf('class="title-conn__state"') < row.indexOf('title-conn__tools'));
-    for (const re of [/class="title-guide"/, /class="title-res"/, /class="title-settings /, /class="title-fs"/]) assert.match(tools, re);
+    for (const re of [/class="title-guide"/, /class="title-settings /, /class="title-fs"/]) assert.match(tools, re);
     assert.match(titleCss, /\.title-conn \{[^}]*flex-wrap: wrap;/);
   });
 

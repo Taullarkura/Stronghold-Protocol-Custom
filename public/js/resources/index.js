@@ -122,6 +122,26 @@ export function installResourceManager() {
   if (supported()) installResourceOpener(openManager);
 }
 
+/**
+ * The title screen's 下载完整素材 opens this cache too (ui/assetDownload.js): Cache Storage is where the files that
+ * really stay are kept, so that button is a download of it and not a second layer. Resolves with the status the dialog
+ * left — null when it closed before its first check — or **false** when this browser cannot keep the cache (a plain-http
+ * LAN address, no service worker or no storage access), which is the caller's cue to fall back to its HTTP queue.
+ * @param {{ download?: boolean }} [options] download: start the download once the check finds files missing
+ */
+export async function openResourceCache({ download = false } = {}) {
+  if (!supported()) return false;
+  try {
+    await registerWorker();
+    return await showManager(await loadStore(), false, { autoDownload: download });
+  } catch (error) {
+    // No toast: the caller has another way to download, and says nothing was kept only when that fails too.
+    console.warn('[resources] resource cache unavailable', error);
+    storePromise = undefined;
+    return false;
+  }
+}
+
 async function openManager() {
   const store = await openStore();
   if (store) await showManager(store);
@@ -151,7 +171,7 @@ function saveBlob(blob, name) {
 }
 
 /** Show the dialog; resolves with the installation's last known status when it closes. */
-function showManager(store, firstTime = false) {
+function showManager(store, firstTime = false, { autoDownload = false } = {}) {
   openDialog ??= new Promise(resolve => {
     const lastFocus = document.activeElement;
     // index.html's slow-boot hint stays away while the first visit's dialog replaces the boot screen
@@ -194,7 +214,10 @@ function showManager(store, firstTime = false) {
 
     async function check() {
       try {
-        update({ status: await locked(() => checkStatus(store)), busy: false });
+        const status = await locked(() => checkStatus(store));
+        update({ status, busy: false });
+        // 下载完整素材 opened this dialog: it asked for the missing files, not for a status to read.
+        if (autoDownload && !closed && !closing && !status.complete) void download();
       } catch (error) {
         if (error.name === 'AbortError') return; // the dialog closed while the check waited
         console.error('[resources] local resource check failed', error);
