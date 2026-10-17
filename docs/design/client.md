@@ -523,9 +523,11 @@ enters b.progress / b.result, and a tracked battle's result and rendered events 
 ### Update notice (更新公告) — the fork's title-screen release notice
 
 `UPDATE_NOTICE_VERSION` (screens/title.js) is the release the notice describes and is drawn beside the heading;
-`UPDATE_NOTICE_CONTENT` holds the groups (a faction title, its lines, an optional detail line) and
-`UPDATE_NOTICE_HEADING` the heading above them (调整). The text is the maintainer's own simplified-Chinese prose marked
-`i18n-ignore`: it is not an interface string, so no language pack translates it.
+`UPDATE_NOTICE_CONTENT` holds the groups (a section title, its lines, an optional detail line) and
+`UPDATE_NOTICE_HEADING` the heading above them (更新内容). A release whose notes are one flat list still uses one group
+per version — the draft's `### / #### / #####` outline is flattened into `版本 · 势力` group titles rather than nested
+headings. The text is the maintainer's own simplified-Chinese prose marked `i18n-ignore`: it is not an interface string,
+so no language pack translates it.
 
 `UPDATE_NOTICE_ID` is that version plus an FNV-1a fingerprint of the text (`updateNoticeId`), and the title screen opens
 the dialog only while the id is missing from the local `updateNoticeSeen` preference (which keeps the newest 20 ids).

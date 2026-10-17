@@ -26,20 +26,20 @@ test('the notice id is its version plus a fingerprint of its text, so an edited 
   assert.equal(UPDATE_NOTICE_ID, updateNoticeId());
   assert.equal(UPDATE_NOTICE_ID, `${UPDATE_NOTICE_VERSION}-${UPDATE_NOTICE_ID.slice(UPDATE_NOTICE_VERSION.length + 1)}`);
   assert.match(UPDATE_NOTICE_ID.slice(UPDATE_NOTICE_VERSION.length + 1), /^[0-9a-f]{8}$/);
-  // the same text always makes the same id (a reload does not pop the notice again)
-  assert.equal(updateNoticeId(UPDATE_NOTICE_VERSION, '调整', UPDATE_NOTICE_CONTENT), UPDATE_NOTICE_ID);
+  // the same text always makes the same id (a reload does not pop the notice again); the heading keeps its default
+  assert.equal(updateNoticeId(UPDATE_NOTICE_VERSION, undefined, UPDATE_NOTICE_CONTENT), UPDATE_NOTICE_ID);
   // a new release re-shows it …
-  assert.notEqual(updateNoticeId('9.9.9', '调整', UPDATE_NOTICE_CONTENT), UPDATE_NOTICE_ID);
+  assert.notEqual(updateNoticeId('9.9.9', undefined, UPDATE_NOTICE_CONTENT), UPDATE_NOTICE_ID);
   // … and so does editing the notice without bumping the version
   const edited = structuredClone(UPDATE_NOTICE_CONTENT);
   edited[0].items.push('新条目');
-  assert.notEqual(updateNoticeId(UPDATE_NOTICE_VERSION, '调整', edited), UPDATE_NOTICE_ID);
+  assert.notEqual(updateNoticeId(UPDATE_NOTICE_VERSION, undefined, edited), UPDATE_NOTICE_ID);
   const retitled = structuredClone(UPDATE_NOTICE_CONTENT);
   retitled[0].title = '阿戈尔(改)';
-  assert.notEqual(updateNoticeId(UPDATE_NOTICE_VERSION, '调整', retitled), UPDATE_NOTICE_ID);
+  assert.notEqual(updateNoticeId(UPDATE_NOTICE_VERSION, undefined, retitled), UPDATE_NOTICE_ID);
 });
 
-test('the notice content is versioned prose: every group names a faction and carries lines', () => {
+test('the notice content is versioned prose: every group carries a heading and lines', () => {
   assert.ok(UPDATE_NOTICE_CONTENT.length >= 1);
   for (const group of UPDATE_NOTICE_CONTENT) {
     assert.equal(typeof group.title, 'string');
