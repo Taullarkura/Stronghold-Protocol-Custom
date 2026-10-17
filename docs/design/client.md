@@ -529,6 +529,12 @@ per version — the draft's `### / #### / #####` outline is flattened into `版�
 headings. The text is the maintainer's own simplified-Chinese prose marked `i18n-ignore`: it is not an interface string,
 so no language pack translates it.
 
+Both come from the maintainer's markdown draft `todoList/更新公告.md` (a gitignored note): `tools/update-notice.mjs`
+(`npm run notice`) rewrites the block between the `update-notice:start` / `update-notice:end` markers in screens/title.js
+— `### v…` is a release, `##### 势力` a group, a bare line under the bullets its `detail` — and `--check` fails when the
+screen is out of date with the note (test/update-notice-sync.test.js). A checkout without the note skips it: the note
+never ships.
+
 `UPDATE_NOTICE_ID` is that version plus an FNV-1a fingerprint of the text (`updateNoticeId`), and the title screen opens
 the dialog only while the id is missing from the local `updateNoticeSeen` preference (which keeps the newest 20 ids).
 Editing a line — or bumping the version — changes the id and shows the notice to every client again, while the footer's
