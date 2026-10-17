@@ -442,7 +442,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   prof:    { icon: {caster…warrior}, large: {…}, battlecard: {…, token}, sub: {[subProfessionId]: url} },
   audio: {
     bgm:     { lobby, prep, combat, combatAlts?: [{ intro?, loop }, …], unite?: { intro?, loop },
-               uniteSolo?: { intro?, loop }, boss: { intro?, loop } },
+               uniteSolo?: { intro?, loop }, boss: { intro?, loop }, bossOvertime?: { intro?, loop } },
              // intro then crossfade to loop (1 s); combatAlts = the 开战 tracks of the mode's own act, chosen by the
              // round, not drawn: [0] = m_bat_kazimierz2_1 骑士之日 (rounds 8–13), [1] = m_bat_kazimierz2_2 无畏者
              // (rounds 1–7) — audio.js combatTrackFor / bgmKeyFor 'combat:<i>', the same on every client;
@@ -450,7 +450,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
              // `bgmEvent = corrosion` (卡西米尔 act13d5d0), so the rescue phase does not reuse the 作战's track
              // (audio.js bgmKeyFor 'unite', falling back to `bgm.combat` for a manifest that lacks it);
              // `uniteSolo` = the track a 联防 phase asks for when the match has one player ('unite:solo', falling
-             // back to `unite`): the installation ships none, so it is a cosmetic plugin's slot
+             // back to `unite`): the installation ships none, so it is a cosmetic plugin's slot;
+             // `bossOvertime` = the track of a 最终攻势 / 隐秘核心 round once its level countdown ends
+             // ('boss:<id>:overtime' / 'boss:overtime', audio.js bgmKeyFor / installAudio): the installation ships
+             // none either, so it too is a plugin's slot, falling back to the boss track the round would have had
     bossBgm: { [bossId]: { intro?, loop } },                   // per-boss track of its R14/R15 level
 
 

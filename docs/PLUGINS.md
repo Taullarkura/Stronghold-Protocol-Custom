@@ -292,7 +292,7 @@ is a number of `data/enemies.json`), so a room's `cs` is the vanilla one whateve
 | `enemies[key]` | `icon` (image), `spine` (Spine) |
 | `tokens[id]` | `avatar` (image), `spine` (Spine) |
 | `bonds`, `items`, `bands`, `skills`, `modules`, `ui`, `prof.icon` / `large` / `battlecard` / `sub` `[key]` | an image |
-| `audio.bgm[lobby \| prep \| combat \| unite \| uniteSolo \| boss]`, `audio.bossBgm[bossId]` | a track `{ loop, intro? }` (audio), written whole — not `audio.bgm.combatAlts` (see below) |
+| `audio.bgm[lobby \| prep \| combat \| unite \| uniteSolo \| boss \| bossOvertime]`, `audio.bossBgm[bossId]` | a track `{ loop, intro? }` (audio), written whole — not `audio.bgm.combatAlts` (see below) |
 | `audio.voice[charId]`, `audio.voiceJp[charId]`, `audio.voiceEn[charId]`, `audio.voiceKr[charId]`, `audio.voiceNative[charId]` (the operator's own-language dub) | `<slot>`: an audio file or a list of 1–16 |
 | `audio.sfx.ui[key]`, `audio.sfx.battle[key]` | audio |
 | `audio.sfx.units[id]` | `attack`, `hit`, `skill`, `die`, `born` (audio), `skills` / `attacks` / `hits` `{ <index>: audio }` |
@@ -318,7 +318,11 @@ battle music `audio.bgm.combatAlts` (the mode's own 开战 tracks, 骑士之日 
 plugin changes: the client plays it instead of `combat` in the rounds it covers, so a plugin's `combat` is heard only
 where no such track plays. `audio.bgm.uniteSolo` is the 联防 track of a match with one player: `audio.js` asks for
 `unite:solo` then and falls back to `unite` (the installation ships no `uniteSolo`, so writing it is `assets.add`) —
-a lone player's 联防 phase hears the plugin's track while a two-player match keeps `unite`. Writing an
+a lone player's 联防 phase hears the plugin's track while a two-player match keeps `unite`. `audio.bgm.bossOvertime` is
+the track of a 最终攻势 / 隐秘核心 round **after its level countdown ends** (`m.public.deadline`, the level's `maxPlayTime`):
+the client asks for `boss:<bossId>:overtime` then and falls back to the boss track the round would have had — the
+installation ships no `bossOvertime`, so writing it is `assets.add` too, and a client books the switch with a timer at
+the deadline (`installAudio`; no `m.public` field changes at that moment). Writing an
 entry the installation has needs the permission `assets.override`, a new entry `assets.add`. `theme` is not applied yet
 (a warning).
 

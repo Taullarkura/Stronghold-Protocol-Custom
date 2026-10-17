@@ -44,7 +44,7 @@ import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/compone
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { net, identity, NetError, CLIENT_ERR_TEXT } from './net.js';
-import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectator } from './store.js';
+import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectator, serverNow } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen } from './screens/title.js';
@@ -485,7 +485,7 @@ async function boot() {
   // Audio: unlock on first gesture, BGM and the battle voice follow the route / match (js/audio.js).
   // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get(),
-    onFailed: (url) => cosmetics.fail(url) });
+    now: serverNow, onFailed: (url) => cosmetics.fail(url) });
   // …and the music follows the art: the screen's track again when the cosmetic layers change its URLs
   cosmetics.subscribe(() => audio.refreshBgm());
   data.load('assets').catch(() => {});

@@ -137,9 +137,13 @@ const SKILL_MODE_FILE = /_(d|h|s)\d*\.mp3$/i;
  * @param {any} pub m.public (may be null)
  * @param {0|1|null} [combatTrack] the round's own 开战 track index into `bgm.combatAlts` (combatTrackFor; omitted ⇒
  *   plain 'combat', i.e. the manifest's default combat track)
- * @returns {string|null} 'lobby' | 'prep' | 'combat' | 'combat:<i>' | 'unite' | 'unite:solo' | 'boss' | 'boss:<bossId>' | null
+ * @param {{ levelOver?: boolean }} [o] levelOver: a boss round's level countdown (`m.public.deadline`) has run out —
+ *   the key then carries `:overtime` (`bgm.bossOvertime`, a cosmetic plugin's slot, so a plugin can cue the battle's
+ *   overtime as its own track)
+ * @returns {string|null} 'lobby' | 'prep' | 'combat' | 'combat:<i>' | 'unite' | 'unite:solo' | 'boss' |
+ *   'boss:<bossId>' | 'boss:overtime' | 'boss:<bossId>:overtime' | null
  */
-export function bgmKeyFor(route, pub, combatTrack = null) {
+export function bgmKeyFor(route, pub, combatTrack = null, { levelOver = false } = {}) {
   if (route !== 'game') return route === 'title' || route === 'lobby' || route === 'room' ? 'lobby' : null;
   const phase = pub?.phase;
   if (!phase) return 'lobby';
@@ -157,9 +161,9 @@ export function bgmKeyFor(route, pub, combatTrack = null) {
       // 开战 BGM: the round's own track — 骑士之日 / 无畏者 are fixed per round, not drawn (combatTrackFor)
       return combatTrack == null ? 'combat' : `combat:${combatTrack ? 1 : 0}`;
     case PHASE.FINAL_ASSAULT:
-      return pub.bossId ? `boss:${pub.bossId}` : 'boss';
+      return bossKey(pub.bossId, levelOver);
     case PHASE.HIDDEN_CORE:
-      return pub.hiddenBossId ? `boss:${pub.hiddenBossId}` : pub.bossId ? `boss:${pub.bossId}` : 'boss';
+      return bossKey(pub.hiddenBossId || pub.bossId, levelOver);
     default:
       return 'prep';
   }
@@ -169,7 +173,9 @@ export function bgmKeyFor(route, pub, combatTrack = null) {
  * Resolve a BGM key to { intro?, loop } URLs from the manifest: `boss:<id>` falls back to the generic boss track,
  * `combat:<i>` to the i-th `bgm.combatAlts` entry (and to `bgm.combat` when the manifest has none), `unite:solo`
  * (联防 with one player in the match) to `bgm.uniteSolo`, and `unite` (联防's own track) to `bgm.unite` — each
- * falling back to `bgm.combat` / `bgm.unite` for a manifest that predates it.
+ * falling back to `bgm.combat` / `bgm.unite` for a manifest that predates it. A `…:overtime` key (a boss round past
+ * its level countdown) resolves `bgm.bossOvertime` — a cosmetic plugin's slot — and falls back to the boss track the
+ * round would have played, so an installation without the slot sounds exactly as before.
  * @param {any} manifest
  * @param {string|null} key
  * @returns {{ intro: string|null, loop: string }|null}
@@ -179,7 +185,8 @@ export function resolveBgm(manifest, key) {
   if (!a || !key) return null;
   /** @type {any} */
   let t;
-  if (key.startsWith('boss:')) t = a.bossBgm?.[key.slice(5)] || a.bgm?.boss;
+  if (key.endsWith(BOSS_OVERTIME)) t = a.bgm?.bossOvertime || resolveBgm(manifest, key.slice(0, -BOSS_OVERTIME.length));
+  else if (key.startsWith('boss:')) t = a.bossBgm?.[key.slice(5)] || a.bgm?.boss;
   else if (key.startsWith('combat:')) t = a.bgm?.combatAlts?.[Number(key.slice('combat:'.length))] || a.bgm?.combat;
   else if (key === 'unite:solo') t = a.bgm?.uniteSolo || a.bgm?.unite || a.bgm?.combat;
   else if (key === 'unite') t = a.bgm?.unite || a.bgm?.combat;
@@ -192,6 +199,38 @@ export function resolveBgm(manifest, key) {
 function soloMatch(pub) {
   return Array.isArray(pub?.players) && pub.players.length === 1;
 }
+
+/** Suffix `bgmKeyFor` adds once a boss round's level countdown ran out (`bgm.bossOvertime`; resolveBgm handles it). */
+const BOSS_OVERTIME = ':overtime';
+
+/**
+ * `boss`, `boss:<id>`, and their `:overtime` variants — 最终攻势 / 隐秘核心 keep the same phase and bossId while the
+ * level's countdown (m.public.deadline) runs out, so the switch to a plugin's overtime track rides on the key.
+ * @param {string|undefined|null} id boss / hidden-boss id
+ * @param {boolean} levelOver
+ */
+function bossKey(id, levelOver) {
+  const base = id ? `boss:${id}` : 'boss';
+  return levelOver ? `${base}${BOSS_OVERTIME}` : base;
+}
+
+/**
+ * ms until a boss round's level countdown ends; null outside 最终攻势 / 隐秘核心, with no deadline, or while the
+ * match is paused (the clock holds, so a switch booked at that deadline would come early).
+ * @param {any} pub m.public
+ * @param {number} nowMs
+ * @returns {number|null} remaining ms (≤ 0 once the countdown ran out: the round is past its level time)
+ */
+export function bossCountdownLeft(pub, nowMs) {
+  if (pub?.phase !== PHASE.FINAL_ASSAULT && pub?.phase !== PHASE.HIDDEN_CORE) return null;
+  if (pub?.paused) return null;
+  const deadline = Number(pub?.deadline);
+  if (!Number.isFinite(deadline) || deadline <= 0 || !Number.isFinite(nowMs)) return null;
+  return deadline - nowMs;
+}
+
+/** Margin past the level deadline before the overtime switch (the server flips its flag on the next duel tick). */
+const BOSS_OVERTIME_LAG_MS = 250;
 
 /**
  * The last round that plays 无畏者 (1–7); from the next round on it is 骑士之日 (8–13) — the official schedule
@@ -1512,15 +1551,24 @@ export const audio = new AudioManager({ getManifest: () => manifestGetter() });
  * Wire the singleton to the app (called once by main.js): manifest source, settings and store-driven BGM.
  * @param {{ getManifest: () => any, subscribe: (fn: (s:any, prev:any) => void) => () => void, getState: () => any,
  *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean, voiceLang?:string, voiceOverrides?:Record<string,string>, voiceNative?:boolean },
- *   onFailed?: (url: string) => boolean }} deps  onFailed: a sound did not load (the cosmetic layers: see the header)
+ *   onFailed?: (url: string) => boolean, now?: () => number }} deps  onFailed: a sound did not load (the cosmetic layers: see the header);
+ *   now: server time source for the boss overtime timer (main.js passes store's `serverNow`)
  */
 export function installAudio(deps) {
+  let overtimeStop = () => {};
   try {
     manifestGetter = typeof deps?.getManifest === 'function' ? deps.getManifest : manifestGetter;
     if (typeof deps?.onFailed === 'function') audio.onFailed = deps.onFailed;
     audio.install();
     if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang, deps.settings.voiceOverrides); audio.setVoiceNative(deps.settings.voiceNative); }
     if (typeof deps?.subscribe === 'function' && typeof deps?.getState === 'function') {
+      // 最终攻势 / 隐秘核心: the level countdown (m.public.deadline) running out switches the boss track to
+      // `bgm.bossOvertime` — a cosmetic plugin's slot, so a plugin can cue the battle's overtime as its own track.
+      // No `m.public` field the screens push changes at that moment (only the server's duel clock does), so the one
+      // switch is booked here with a timer at the deadline; every m.public change clears and re-books it.
+      const now = typeof deps.now === 'function' ? deps.now : () => Date.now();
+      let overtimeTimer = null;
+      overtimeStop = () => { if (overtimeTimer != null) { clearTimeout(overtimeTimer); overtimeTimer = null; } };
       const sync = (s) => {
         try {
           const pub = s.match?.public ?? null;
@@ -1532,15 +1580,26 @@ export function installAudio(deps) {
           // 开战 BGM: the round's own track out of bgm.combatAlts (骑士之日 / 无畏者 are fixed per round, not drawn),
           // so every client of a room hears the same one, a mid-fight re-render (or a teammate view) never switches,
           // and the next round moves on by the table. 联防 shares its round ⇒ same key ⇒ the loop keeps playing.
-          audio.playBgm(bgmKeyFor(deps.selectRoute(s), pub, combatTrackFor(pub?.round)));
+          // Past a boss round's level deadline the key grows `:overtime` (resolveBgm: bgm.bossOvertime).
+          const left = bossCountdownLeft(pub, now());
+          audio.playBgm(bgmKeyFor(deps.selectRoute(s), pub, combatTrackFor(pub?.round), { levelOver: left != null && left <= 0 }));
+          overtimeStop();
+          if (left != null && left > 0) {
+            overtimeTimer = setTimeout(() => {
+              overtimeTimer = null;
+              try { sync(deps.getState()); } catch { /* ignore */ }
+            }, left + BOSS_OVERTIME_LAG_MS);
+          }
         } catch { /* ignore */ }
       };
       sync(deps.getState());
       return deps.subscribe((s, prev) => {
         if (s.match?.public?.phase !== prev?.match?.public?.phase || s.room !== prev?.room || s.session !== prev?.session
-          || s.match?.public?.bossId !== prev?.match?.public?.bossId) sync(s);
+          || s.match?.public?.bossId !== prev?.match?.public?.bossId
+          || s.match?.public?.deadline !== prev?.match?.public?.deadline
+          || s.match?.public?.paused !== prev?.match?.public?.paused) sync(s);
       });
     }
   } catch (err) { console.warn('[audio] install failed', err); }
-  return () => {};
+  return () => { try { overtimeStop(); } catch { /* ignore */ } };
 }

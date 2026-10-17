@@ -468,6 +468,10 @@
     "anchor": "shared/plugins/visual.js#ASSET_CONTAINERS"
   },
   {
+    "name": "overlay.audio.bgm.bossOvertime",
+    "anchor": "shared/plugins/visual.js#ASSET_CONTAINERS"
+  },
+  {
     "name": "overlay.audio.bossBgm.*",
     "anchor": "shared/plugins/visual.js#ASSET_CONTAINERS"
   },

@@ -46,6 +46,11 @@ describe('bgm selection', () => {
     assert.equal(bgmKeyFor('game', { phase: PHASE.FINAL_ASSAULT, bossId: 'boss_4' }), 'boss:boss_4');
     assert.equal(bgmKeyFor('game', { phase: PHASE.FINAL_ASSAULT }), 'boss');
     assert.equal(bgmKeyFor('game', { phase: PHASE.HIDDEN_CORE, bossId: 'boss_1', hiddenBossId: 'boss_9' }, 1), 'boss:boss_9');
+    // a boss round past its level countdown asks for the `:overtime` key (bgm.bossOvertime, a cosmetic plugin's slot)
+    assert.equal(bgmKeyFor('game', { phase: PHASE.FINAL_ASSAULT, bossId: 'boss_4' }, 1, { levelOver: true }), 'boss:boss_4:overtime');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.HIDDEN_CORE, hiddenBossId: 'boss_9' }, null, { levelOver: true }), 'boss:boss_9:overtime');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.FINAL_ASSAULT }, null, { levelOver: true }), 'boss:overtime');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }, null, { levelOver: true }), 'combat', 'only the boss rounds count down');
     assert.equal(bgmKeyFor('game', { phase: PHASE.RESULT }), 'lobby');
     assert.equal(bgmKeyFor('weird', null), null);
   });
@@ -101,6 +106,15 @@ describe('bgm selection', () => {
     assert.equal(resolveBgm(solo, 'unite:solo').loop, '/solo.mp3');
     assert.equal(resolveBgm(solo, 'unite:solo').intro, '/solo-intro.mp3');
     assert.equal(resolveBgm({ audio: { bgm: { combat: { loop: '/shop.mp3' } } } }, 'unite:solo').loop, '/shop.mp3');
+    // `…:overtime` (a boss round past its level countdown) resolves the plugin slot `bossOvertime` and falls back to
+    // the boss track the round would have played — the installation ships none, so an installation without a plugin
+    // sounds exactly as before
+    assert.equal(manifest.audio.bgm.bossOvertime, undefined, 'the installation leaves bossOvertime to a cosmetic plugin');
+    assert.equal(resolveBgm(manifest, 'boss:boss_4:overtime').loop, manifest.audio.bossBgm.boss_4.loop);
+    assert.equal(resolveBgm(manifest, 'boss:overtime').loop, manifest.audio.bgm.boss.loop);
+    const overtime = { audio: { ...manifest.audio, bgm: { ...manifest.audio.bgm, bossOvertime: { loop: '/ot.mp3' } } } };
+    assert.equal(resolveBgm(overtime, 'boss:boss_4:overtime').loop, '/ot.mp3', 'a plugin overtime track answers every boss id');
+    assert.equal(resolveBgm(overtime, 'boss:overtime').loop, '/ot.mp3');
     assert.equal(resolveBgm(null, 'lobby'), null);
     assert.equal(resolveBgm(manifest, null), null);
     assert.equal(resolveBgm(manifest, 'nope'), null);
@@ -149,6 +163,44 @@ describe('bgm selection', () => {
       // the boss rounds keep their own tracks
       state.match.public = pub({ phase: PHASE.FINAL_ASSAULT, bossId: 'boss_4' });
       fire(state, {}); assert.equal(calls.at(-1), 'boss:boss_4');
+    } finally { audio.playBgm = origPlay; }
+  });
+  test('installAudio: a boss round past its level countdown switches to the overtime track (bgm.bossOvertime)', (t) => {
+    const calls = [];
+    const origPlay = audio.playBgm;
+    audio.playBgm = (k) => { calls.push(k); };
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let now = 1000;
+    try {
+      const pub = (o) => ({ phase: PHASE.FINAL_ASSAULT, round: 14, stageId: 'st1', bossId: 'boss_4', players: [{ playerId: 'p1' }], deadline: 1600, ...o });
+      const state = { route: 'game', match: { public: pub({}) } };
+      let fire = null;
+      const off = installAudio({
+        getManifest: () => manifest, getState: () => state, selectRoute: (s) => s.route, now: () => now,
+        subscribe: (fn) => { fire = fn; return () => {}; },
+      });
+      assert.equal(calls.at(-1), 'boss:boss_4', 'inside the level countdown the round keeps its boss track');
+      // deadline - now = 600 ms (+ the 250 ms margin): the switch is booked by a timer, since no m.public field changes
+      // when the countdown runs out
+      t.mock.timers.tick(600);
+      assert.equal(calls.at(-1), 'boss:boss_4', 'not yet: the margin is still running');
+      now = 1700; // the fake clock reaches the deadline with the timer
+      t.mock.timers.tick(300);
+      assert.equal(calls.at(-1), 'boss:boss_4:overtime', 'the countdown running out switches the track');
+      // paused: the clock holds, so nothing is booked…
+      calls.length = 0; now = 5000;
+      state.match.public = pub({ paused: true });
+      fire(state, {});
+      t.mock.timers.tick(5000);
+      assert.equal(calls.at(-1), 'boss:boss_4', 'paused: no overtime switch');
+      // …and the deadline it resumes with is booked again
+      calls.length = 0; now = 6000;
+      state.match.public = pub({ deadline: 6100 });
+      fire(state, {});
+      now = 6300;
+      t.mock.timers.tick(1100);
+      assert.equal(calls.at(-1), 'boss:boss_4:overtime', 'the deadline it resumes with is booked again');
+      off();
     } finally { audio.playBgm = origPlay; }
   });
 });
