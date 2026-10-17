@@ -33,9 +33,19 @@ describe('bgm selection', () => {
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }), 'combat');
     // 联防 has its own track: the official escaped_single / escaped_multi levels declare bgmEvent = corrosion
     assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE }), 'unite');
-    // a match with one player asks for the plugin-able `unite:solo`; two players keep `unite`
+    // a match with one human asks for the plugin-able `unite:solo`: a 联机 room's AI teammates fill seats but are
+    // not a second player (单人联防); two humans keep `unite`
     assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }] }), 'unite:solo');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'ai_0', isBot: true }] }), 'unite:solo');
+    assert.equal(bgmKeyFor('game', {
+      phase: PHASE.UNITE,
+      players: [{ playerId: 'p1' }, { playerId: 'ai_0', isBot: true }, { playerId: 'ai_1', isBot: true }],
+    }), 'unite:solo', 'three AI teammates still leave one human');
     assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'p2' }] }), 'unite');
+    assert.equal(bgmKeyFor('game', {
+      phase: PHASE.UNITE,
+      players: [{ playerId: 'p1' }, { playerId: 'p2' }, { playerId: 'ai_0', isBot: true }],
+    }), 'unite', 'a human teammate keeps the 联防 track even beside an AI seat');
     assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }] }, 1), 'unite:solo');
     // 开战 BGM: the round's own track (combatTrackFor) indexes the manifest's `bgm.combatAlts`
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }, 0), 'combat:0');

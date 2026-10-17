@@ -449,8 +449,9 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
              // `unite` = 联防's own track — the official escaped_single / escaped_multi levels declare
              // `bgmEvent = corrosion` (卡西米尔 act13d5d0), so the rescue phase does not reuse the 作战's track
              // (audio.js bgmKeyFor 'unite', falling back to `bgm.combat` for a manifest that lacks it);
-             // `uniteSolo` = the track a 联防 phase asks for when the match has one player ('unite:solo', falling
-             // back to `unite`): the installation ships none, so it is a cosmetic plugin's slot;
+             // `uniteSolo` = the track a 联防 phase asks for when the match has one human ('unite:solo', falling
+             // back to `unite`) — a 联机 room's AI teammates fill seats but are not a second player, so a room with
+             // one human beside them plays it too; the installation ships none, so it is a cosmetic plugin's slot;
              // `bossOvertime` = the track of a 最终攻势 / 隐秘核心 round once its level countdown ends
              // ('boss:<id>:overtime' / 'boss:overtime', audio.js bgmKeyFor / installAudio): the installation ships
              // none either, so it too is a plugin's slot, falling back to the boss track the round would have had
