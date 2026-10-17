@@ -109,7 +109,6 @@ import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
-import { DamageCounter } from '../ui/damageCounter.js';
 import { DebugConsole } from '../ui/debugConsole.js';
 import { CombatMetricsPanel } from '../ui/combatMetrics.js';
 import { SettingsModal, settingsStore, useSettings } from '../ui/settings.js';
@@ -288,9 +287,7 @@ function MatchScreen() {
   const buyPending = useRef(new Set());
   const [holdSeq, setHoldSeq] = useState(0);             // bumped when a held piece is released (re-apply the prep state)
   const [hud, setHud] = useState(null);
-  const [damageReport, setDamageReport] = useState(null);
-  // one corner panel at a time: 伤害统计 and the 开发控制台 are neighbours in .gm__corner, so two open panels would cover
-  // each other ('damage' | 'console' | null)
+  // the 开发控制台 (ui/debugConsole.js) is the corner row's only dev panel ('console' | null)
   const [devPanel, setDevPanel] = useState(null);
   const [drawn, setDrawn] = useState(null);              // the battle slice the drawn picture shows (gameLogic pickDrawn)
   const [banner, setBanner] = useState(null);
@@ -310,17 +307,6 @@ function MatchScreen() {
   const phase = pub?.phase;
   const mode = phaseMode(phase);
   const combat = isCombatPhase(phase);
-  useEffect(() => {
-    if (!cc || !combat || !field?.local) {
-      setDamageReport(null);
-      setDevPanel((p) => (p === 'damage' ? null : p));
-      return;
-    }
-    const report = battleRunner?.damageReport?.() ?? null;
-    setDamageReport(report?.fieldId === field.fieldId ? report : null);
-  }, [cc, combat, field?.local, field?.fieldId]);
-  // a new battle closes the damage report; the console (its log is useful across battles) stays open
-  useEffect(() => { setDevPanel((p) => (p === 'damage' ? null : p)); }, [damageReport?.battleId]);
   const solo = roomSolo || String(pub?.modeId || '').includes('single');
   const players = sortedPlayers(pub);
   const meP = players.find((p) => p.playerId === myId) || null;
@@ -805,9 +791,8 @@ function MatchScreen() {
       const L = live.current;
       sayResult(msg.battleId, L.myId, L.pub?.difficulty, L.shownCharId);
     };
-    const onDamageReport = (report) => setDamageReport(report);
     const offs = [net.on('m.field', onFieldMeta), net.on('b.snap', onSnap), net.on('b.ev', onEv)];
-    if (battleRunner) offs.push(battleRunner.on('field', onFieldMeta), battleRunner.on('snap', onSnap), battleRunner.on('ev', onEv), battleRunner.on('state', onState), battleRunner.on('ownDone', onOwnDone), battleRunner.on('result', onResult), battleRunner.on('damageReport', onDamageReport));
+    if (battleRunner) offs.push(battleRunner.on('field', onFieldMeta), battleRunner.on('snap', onSnap), battleRunner.on('ev', onEv), battleRunner.on('state', onState), battleRunner.on('ownDone', onOwnDone), battleRunner.on('result', onResult));
     if (engine) offs.push(view.on('battleEvents', (evs) => audio.handleBattleEvents(evs)));
     // Metadata must include enemies/tokens spawned before this renderer existed, not only events buffered during loading.
     if (view && !showPrep && field?.fieldId) {
@@ -1861,11 +1846,6 @@ function MatchScreen() {
         <button type="button" class="gm__gear" aria-label=${t('设置')} title=${t('设置')} onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
         <button type="button" class="gm__gear gm__guide" aria-label=${t('玩法说明')} title=${t('玩法说明')} onClick=${() => openGuide(0)}><${Icon} name="book" /></button>
         <${FullscreenButton} class="gm__gear gm__fs" />
-        ${cc && combat && field?.local ? html`<${DamageCounter}
-          report=${damageReport?.fieldId === field.fieldId ? damageReport : null}
-          playerName=${meP?.name || ''}
-          open=${devPanel === 'damage'}
-          onToggle=${(o) => setDevPanel(o ? 'damage' : null)} />` : null}
         ${debugSeat ? html`<${DebugConsole}
           open=${devPanel === 'console'}
           onToggle=${(o) => setDevPanel(o ? 'console' : null)} />` : null}

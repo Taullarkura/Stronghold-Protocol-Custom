@@ -78,11 +78,9 @@
 // measured as before).
 //
 //   import { battleRunner } from './battle/runner.js'     (browser singleton wired to net.js + store.js; null in Node)
-//   battleRunner.on('snap' | 'ev' | 'field' | 'state' | 'damageReport' | 'ownDone', fn) → off
+//   battleRunner.on('snap' | 'ev' | 'field' | 'state' | 'ownDone', fn) → off
 //     'ev' { t: 'b.ev', fieldId, gt, ev, handOver? }: `handOver` true on a batch of a catch-up frame or of the hidden-tab
 //               backlog (the span the view did not see: state-bearing tuples only, see above)
-//     'damageReport' { battleId, fieldId, round, done, total, rows: [{ key, kind, defId, name, golden, damage }] }:
-//               actual allied damage grouped by operator (summons under their owner), refreshed every 500 ms.
 //     'ownDone' { battleId, fieldId, late }: one of the player's own battles (an entry that is no display replica of
 //               someone else's field — authoritative or not) just finished here, once per entry, whichever field is on
 //               screen. `late`: it was already over when it reached this client (it finished in the silent catch-up
@@ -428,58 +426,6 @@ export function createBattleRunner(deps) {
     return out;
   }
 
-  /** Actual damage dealt by allied units, grouped under their owning operator where possible. */
-  function damageReportOf(e) {
-    if (!e?.battle) return null;
-    const units = Array.isArray(e.battle.allyUnits) ? e.battle.allyUnits : [];
-    const rows = new Map();
-    const rowFor = (key, unit) => {
-      if (!rows.has(key)) rows.set(key, {
-        key, kind: 'chess', defId: unit.defId, name: unit.name, golden: !!unit.def?.golden,
-        damage: 0, order: unit.id,
-      });
-      return rows.get(key);
-    };
-    for (const unit of units) {
-      if (unit?.kind === 'op' && unit.side === 'ally') rowFor(`op:${unit.id}`, unit);
-    }
-    for (const unit of units) {
-      if (!unit || unit.side !== 'ally') continue;
-      const damage = Math.max(0, Number(unit.stats?.dmg) || 0);
-      if (!(damage > 0)) continue;
-      let owner = unit;
-      const seen = new Set();
-      while (owner && owner.kind !== 'op' && !seen.has(owner)) {
-        seen.add(owner);
-        owner = owner.ownerUnit;
-      }
-      const operator = owner?.kind === 'op' && owner.side === 'ally' ? owner : null;
-      const row = operator
-        ? rowFor(`op:${operator.id}`, operator)
-        : (rows.get('other') || rows.set('other', {
-          key: 'other', kind: 'other', defId: null, name: null, golden: false, damage: 0, order: Number.MAX_SAFE_INTEGER,
-        }).get('other'));
-      row.damage += damage;
-    }
-    const sorted = [...rows.values()].sort((a, b) => b.damage - a.damage || a.order - b.order)
-      .map(({ order, ...row }) => row);
-    return {
-      battleId: e.battleId, fieldId: e.fieldId, round: Number(e.spec?.round ?? e.battle.round) || 0,
-      done: !!e.battle.finished,
-      total: sorted.reduce((sum, row) => sum + row.damage, 0),
-      rows: sorted,
-    };
-  }
-
-  /** Publish every 500 ms of wall time; show() and finished() force an initial / final value. */
-  function publishDamage(e, force = false) {
-    const at = now();
-    if (!force && at - (e.damagePublishedAt ?? -Infinity) < 500) return;
-    e.damagePublishedAt = at;
-    e.damageReport = damageReportOf(e);
-    if (e === cur && e.damageReport) emit('damageReport', e.damageReport);
-  }
-
   /**
    * The 联防 field on screen (never an older round's kept entry, nor while a new battle is being prepared): each
    * leaker's enemies still standing { [playerId]: n } (absent = none left), else null.
@@ -592,7 +538,6 @@ export function createBattleRunner(deps) {
           accept(value);
           stats.ticks += k;
           stats.stepMs += now() - t;
-          if (e === cur && (b.finished || now() - (e.damagePublishedAt ?? -Infinity) >= 500)) publishDamage(e, true);
         }, (err) => failWorker(e, err)).finally(() => { e.stepping = false; schedule(); });
         return n;
       }
@@ -615,7 +560,6 @@ export function createBattleRunner(deps) {
     }
     stats.ticks += k;
     stats.stepMs += now() - t;
-    if (e === cur && (b.finished || now() - (e.damagePublishedAt ?? -Infinity) >= 500)) publishDamage(e, true);
     return k;
   }
 
@@ -741,7 +685,6 @@ export function createBattleRunner(deps) {
   function finished(e) {
     if (e.done) return;
     e.done = true;
-    publishDamage(e, true);
     noteLeaks(e);
     if (e.authoritative && !e.resultSent && net) {
       e.resultSent = true;
@@ -1028,7 +971,6 @@ export function createBattleRunner(deps) {
     emit('field', field);
     try { store.patch('match', { field }); } catch { /* ignore */ }
     publishState();
-    publishDamage(e, true);
     try { e.battle.drainEvents(); } catch { /* the view starts from the meta + this frame */ }
     emit('snap', frameOf(e));
     schedule();
@@ -1425,8 +1367,6 @@ export function createBattleRunner(deps) {
       const time = e.battle && Number.isFinite(e.battle.time) ? e.battle.time : null;
       return { battleId: e.battleId, fieldId: e.fieldId, kind: e.kind, spec: e.spec, time };
     },
-    /** The current battle's actual damage report, or null when no field is on screen. */
-    damageReport() { return cur ? damageReportOf(cur) : null; },
     stats() {
       return { ...stats, avgTickMs: stats.ticks ? stats.stepMs / stats.ticks : 0, entries: entries.size, loadingSim: !!simP };
     },

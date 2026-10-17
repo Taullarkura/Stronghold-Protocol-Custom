@@ -623,63 +623,28 @@
 .chud__layers.is-observing { gap: .1rem; padding-right: .08rem; border-color: rgba(246, 163, 41, .55); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- in-match dev panels (ui/damageCounter.js, ui/debugConsole.js) ---------------------------------------------- */
-/* Both are buttons of the game screen's corner row (.gm__corner) whose panels open upwards from their own button —
-   the same shape as the emote wheel, so a panel never covers the buttons beside it. game.js opens one at a time. */
-.dmgcounter, .dbgconsole { position: relative; }
-.dmgcounter__toggle, .dbgconsole__toggle {
+/* ---- in-match dev panel (ui/debugConsole.js) --------------------------------------------------------------------- */
+/* A button of the game screen's corner row (.gm__corner) whose panel opens upwards from its own button — the same
+   shape as the emote wheel, so a panel never covers the buttons beside it. */
+.dbgconsole { position: relative; }
+.dbgconsole__toggle {
   display: inline-flex; align-items: center; justify-content: center; gap: .07rem; min-width: .6rem; height: .42rem; padding: 0 .12rem;
   color: var(--mint-400); background: rgba(8, 15, 13, .95); border: 1px solid var(--mint-700);
   box-shadow: 0 .04rem .16rem rgba(0, 0, 0, .4); font-size: calc(.16 * var(--t)); font-weight: 700;
 }
-.dmgcounter__toggle .icon, .dbgconsole__toggle .icon { width: .2rem; height: .2rem; }
-.dmgcounter__toggle:hover, .dmgcounter__toggle.is-open,
+.dbgconsole__toggle .icon { width: .2rem; height: .2rem; }
 .dbgconsole__toggle:hover, .dbgconsole__toggle.is-open { color: #e4fff5; background: rgba(22, 48, 40, .98); border-color: var(--mint-500); }
-.dmgcounter__panel, .dbgconsole__panel {
+.dbgconsole__panel {
   position: absolute; left: 0; bottom: calc(100% + .12rem); display: flex; flex-direction: column;
   width: min(4.45rem, calc(100vw - .24rem)); max-height: min(6.2rem, calc(100dvh - .82rem)); overflow: hidden; color: #d7e4df;
   background: linear-gradient(145deg, rgba(10, 24, 20, .98), rgba(8, 15, 13, .98));
   border: 1px solid rgba(78, 216, 175, .48); box-shadow: 0 .12rem .45rem rgba(0, 0, 0, .62);
   animation: pop-in var(--t-slow) var(--ease-out);
 }
-.dmgcounter__head, .dbgconsole__head {
+.dbgconsole__head {
   display: flex; flex: none; align-items: center; gap: .12rem; min-height: .56rem; padding: .08rem .12rem;
   border-bottom: 1px solid rgba(78, 216, 175, .16);
 }
-.dmgcounter__title { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: .02rem; }
-.dmgcounter__eyebrow { color: #91aaa0; font-family: var(--font-num); font-size: calc(.1 * var(--t)); letter-spacing: .13em; }
-.dmgcounter__title b { overflow: hidden; color: #e8f3ee; font-size: calc(.19 * var(--t)); text-overflow: ellipsis; white-space: nowrap; }
-.dmgcounter__status { flex: none; padding: .04rem .08rem; color: var(--mint-400); font-size: calc(.14 * var(--t)); font-weight: 700; }
-.dmgcounter__status.is-done { color: #b8c9c2; }
-.dmgcounter__close { flex: none; display: grid; place-items: center; width: .34rem; height: .34rem; padding: 0; background: none; border: 0; color: #d7e4df; }
-.dmgcounter__close:hover { color: #fff; background: rgba(255, 255, 255, .08); }
-.dmgcounter__close .icon { width: .22rem; height: .22rem; }
-.dmgcounter__summary { display: flex; flex: none; flex-direction: column; gap: .02rem; padding: .08rem .16rem .1rem; }
-.dmgcounter__summary > span { color: #a9c0b7; font-size: calc(.16 * var(--t)); font-weight: 700; }
-.dmgcounter__summary strong { color: #e1eee8; font-family: var(--font-num); font-size: calc(.42 * var(--t)); font-weight: 500; line-height: 1.12; }
-.dmgcounter__summary small { color: #a9c0b7; font-size: calc(.14 * var(--t)); }
-.dmgcounter__rows {
-  flex: 1 1 auto; min-height: .3rem; max-height: min(3.45rem, 44dvh); overflow-y: auto; margin: 0; padding: 0 .08rem;
-  list-style: none; scrollbar-color: rgba(172, 200, 188, .55) rgba(255, 255, 255, .04); scrollbar-width: thin;
-}
-.dmgcounter__row {
-  display: grid; grid-template-columns: .18rem .52rem minmax(0, 1fr) auto; align-items: center; gap: .08rem;
-  min-height: .62rem; padding: .04rem .06rem; border-bottom: 1px solid rgba(133, 172, 157, .13);
-}
-.dmgcounter__rank { color: #a9c0b7; font-family: var(--font-num); font-size: calc(.14 * var(--t)); text-align: center; }
-.dmgcounter__thumb { --ut: .48rem; outline: 1px solid rgba(255, 198, 0, .72); outline-offset: 1px; }
-.dmgcounter__operator { min-width: 0; display: flex; flex-direction: column; gap: .07rem; }
-.dmgcounter__operator > b { overflow: hidden; color: #d8e7e0; font-size: calc(.16 * var(--t)); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.dmgcounter__bar { height: .055rem; overflow: hidden; background: rgba(121, 170, 149, .22); }
-.dmgcounter__bar i { display: block; width: var(--damage-share); height: 100%; background: linear-gradient(90deg, #4ed8af, #7be8c3); }
-.dmgcounter__value { display: flex; flex-direction: column; align-items: flex-end; gap: .02rem; min-width: .78rem; }
-.dmgcounter__value b { color: #e0ece6; font-family: var(--font-num); font-size: calc(.17 * var(--t)); font-weight: 500; white-space: nowrap; }
-.dmgcounter__value span { color: #9eb5ab; font-family: var(--font-num); font-size: calc(.14 * var(--t)); }
-.dmgcounter__other { display: grid; place-items: center; width: .48rem; height: .48rem; color: var(--mint-400); background: rgba(78, 216, 175, .08); border: 1px solid var(--line-2); font-weight: 900; }
-.dmgcounter__empty { padding: .2rem .12rem; color: var(--text-lo); font-size: calc(.16 * var(--t)); text-align: center; }
-.dmgcounter__criteria { flex: none; margin-top: .04rem; border-top: 1px solid rgba(78, 216, 175, .16); }
-.dmgcounter__criteria summary { padding: .1rem .14rem; color: #a9c0b7; cursor: pointer; font-size: calc(.16 * var(--t)); font-weight: 700; }
-.dmgcounter__criteria p { margin: 0; padding: 0 .14rem .12rem; color: #9eb5ab; font-size: calc(.13 * var(--t)); line-height: 1.45; }
 
 /* 开发控制台 (ui/debugConsole.js): a wider panel — a scrollback and a prompt line */
 .dbgconsole__panel { width: min(5.4rem, calc(100vw - .24rem)); }
