@@ -42,9 +42,11 @@
 import {
   num, buffsOf, bandRecord, isOp, onField, isElite, tierOf, unitBonds, activeBondIds, playerOps, passiveBuff, fxOn,
   matchBands, gainLayers, alliesAround, N4, baseChessId, isGroundOp, directMods,
+  bondLayers, bondActive, topActiveBond,
 } from '../support/index.js';
 import { weaknessRetype, addShieldLayer, PRIO_RESPAWN, reviveNow } from '../items/battle.js';
 import { spawnMapChar } from '../tokens.js';
+import { buffKeyInstaller } from '../buffKeys.js';
 
 export const AMEDIC_BAND = 'band_amedic';
 /**
@@ -264,14 +266,36 @@ export function hasBattlePart(bandId) {
   return buffsOf(bandRecord(bandId)).some((b) => (b.bbKey && BY_KEY[b.bbKey]) || b.key === 'auto_chess_change_map');
 }
 
+/**
+ * The rule layer a plugin band installer may use (docs/PLUGINS.md §13). Caps, 禁增 and 联防 suppression stay
+ * in support/index.js, so a plugin adds layers through the same rules an official band does.
+ */
+function bandRuleApi(battle) {
+  return Object.freeze({
+    bandId: (pid) => battle.getPlayer(pid)?.bandId ?? null,
+    bonds: (pid) => Object.freeze(activeBondIds(battle, pid)),
+    layers: (pid, bondId) => bondLayers(battle, pid, bondId),
+    active: (pid, bondId, minTier = 1) => bondActive(battle, pid, bondId, minTier),
+    topActive: (pid) => topActiveBond(battle, pid),
+    gain: (opts) => gainLayers(battle, opts),
+  });
+}
+
 export function install(battle) {
+  let ruleApi = null;
   for (const ps of battle.players) {
     const band = ps.bandId ? bandRecord(ps.bandId) : null;
     if (!band) continue;
     for (const b of buffsOf(band)) {
-      const f = b.bbKey ? BY_KEY[b.bbKey] : null;
-      if (!f) continue;
-      try { f(battle, ps, b.p, ps.bandId); } catch (e) { battle._handlerError?.(`band:${ps.bandId}`, null, e); }
+      const official = b.bbKey ? BY_KEY[b.bbKey] : null;
+      const plugin = b.bbKey && !official ? buffKeyInstaller(b.bbKey) : null;
+      if (!official && !plugin) continue;
+      try {
+        if (plugin) {
+          ruleApi = ruleApi || bandRuleApi(battle);
+          plugin(battle, ps, b.p, ps.bandId, ruleApi);
+        } else official(battle, ps, b.p, ps.bandId);
+      } catch (e) { battle._handlerError?.(`band:${ps.bandId}`, null, e); }
     }
   }
   installMapChars(battle);

@@ -472,6 +472,7 @@ This project does not host plugins and does not run a market. A catalogue (`sche
 | `catalog.entry.app` | stable | 0.3.0 | `shared/plugins/catalog.js#CATALOG_ENTRY_FIELDS` |
 | `sdk.sp:sdk@1` | experimental | 0.3.0 | `shared/plugins/sdk.js#SDK_ID` |
 | `sdk.SDK_MEMBERS` | internal | 0.3.0 | `shared/plugins/sdk.js#SDK_MEMBERS` |
+| `sdk.sp:sdk@1.band.register` | experimental | 0.3.0 | `shared/plugins/sdk.js#SDK_MEMBERS` |
 | `sdk.sp:sdk@1.constants` | experimental | 0.3.0 | `shared/plugins/sdk.js#SDK_MEMBERS` |
 | `sdk.sp:sdk@1.content.register` | experimental | 0.3.0 | `shared/plugins/sdk.js#SDK_MEMBERS` |
 | `sdk.sp:sdk@1.enemies.register` | experimental | 0.3.0 | `shared/plugins/sdk.js#SDK_MEMBERS` |

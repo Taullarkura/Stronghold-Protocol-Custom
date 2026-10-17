@@ -793,12 +793,50 @@ empty. Only plugin `char_x_…` ids add a shop charId lookup; official dispatch 
 | `sp.kits.register(id, builder)` | `(bb, chess, def) => Kit`, SIM §7; `sim.code` |
 | `sp.enemies.register(id, builder)` | `(def) => { install(battle, enemy) }`; install on enemySpawn before ordinary enemy handlers; `sim.code` |
 | `sp.content.register({ id?, install?, registerMeta? })` | One module id (defaults to plugin id); install per battle; registerMeta receives `{ register(key, handler) }` during setup; permissions for each half |
+| `sp.band.register(key, installer)` | Bind a strategy's battle buff key (`buffs[].bbStr.key`) to `(battle, ps, params, bandId, api)`; `api` is the rule layer below; `sim.code` |
 | `sp.meta.register(key, handler)` | META §2 keys and hook contracts; `meta.code` |
 | `sp.kit` / imported `kit` | `num`, `talentBb`, `talentGrid`, `moduleBb`, `traitBb`, `moduleOn`, `up`, `cheb`, `isMainHit`, `byEnemyAttack`, `skillBusy`, `giveSp`, `onHitBy`, `onHitOn`, `onDamagedOn`, `enemiesInGrid`, `alliesInGridOf`, `enemyInRange`, `statBuff`, `toggleBuff`, `instantKind`, `skillRec`, `skillBbOf`, `batMod` — tier1 signatures |
 | `sp.math` / imported `math` | The exports of `server/sim/detmath.js` |
 | `sp.constants` / imported `constants` | Frozen simulation constants |
 | `sp.settings` | A frozen copy of the manifest's normalized settings, included in cs |
 | `sp.log(...values)` | At most 20 lines per setup, each value truncated to 500 characters [ASSUMED] |
+
+### Strategies (bands) from a script
+
+A strategy (策略, band) is data: one record in `data/bands.json`. A plugin adds one with a `bands` record
+(`docs/PLUGINS.md` §10) whose `buffs[].bbStr.key` names the behaviour. Official keys dispatch to
+`server/sim/content/bands/battle.js`; a key no official behaviour claims dispatches to the plugin that bound it:
+
+```js
+export default function setup(sp) {
+  // Param names come from the record: buffs[].bb (numbers) + buffs[].bbStr (strings), merged into `params`.
+  sp.band.register('band_x_example_faction_buff', (battle, ps, params, bandId, api) => {
+    const every = Math.max(1, params.count | 0);
+    let killed = 0;
+    battle.on('kill', ({ killer, victim }) => {
+      if (killer?.owner !== ps.playerId || victim.defId !== params.target) return;
+      if (++killed % every) return;
+      api.gain({ playerId: ps.playerId, bonds: api.bonds(ps.playerId), n: 1, reason: 'band:example' });
+    }, { owner: ps.playerId });
+  });
+}
+```
+
+`api` is the rule layer, so a plugin never re-implements a rule:
+
+| Call | Meaning |
+|---|---|
+| `api.layers(pid, bondId)` | Live layers, also while the bond is inactive |
+| `api.active(pid, bondId, minTier = 1)` | Bond reached a tier |
+| `api.bonds(pid)` | Ids of the active bonds, frozen |
+| `api.topActive(pid)` | Active bond with the most layers (ties → data order), or `null` |
+| `api.bandId(pid)` | The player's strategy |
+| `api.gain({ playerId, bonds, n, requireActive = true, source, reason, cap, capKey })` | Adds layers and returns how many; `BOND_LAYER_CAP`, 禁增 and 联防 (no layers in the 联防 battle) stay in force |
+
+The installer runs once per battle for every player holding that strategy, like an official battle part. An official key
+always wins over a plugin binding, and a plugin key nothing binds is inert. Record ids must stay in the plugin's
+namespace (`band_x_<plugin_id>_`), and breaking a strategy's numbers is a balance change, not a bug fix: mark it
+`[ASSUMED]` unless an official table or PRTS settles it.
 
 The facade supplies no fetch, dynamic import, storage, clock or unseeded randomness. Hooks and engine helpers follow
 SIM §5–7. Use `battle.rng`, `after` and `every`. `tools/plugin.mjs check` and the registry use the same lexical scan

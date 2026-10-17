@@ -70,6 +70,7 @@ function scriptGuard(pluginId, limit) {
 
 // C2, API v1. One registry per content realm; vanilla is empty. Setup registration is transactional.
 import { KITS } from './kits/index.js';
+import { registerBuffKeyInstaller, clearBuffKeyInstallers } from './buffKeys.js';
 
 export const EXTENSIONS = Object.create(null);
 const enemies = new Map(), content = new Map(), meta = new Map(), owners = new Map();
@@ -109,6 +110,16 @@ export function registerMeta(plugin, id, handler) {
   const h = typeof handler === 'function' ? {run:handler} : {...handler};
   metaOwners.set(h,plugin.id); meta.set(id,{ plugin, handler:h });
 }
+/** Band buff key → battle installer: `fn(battle, ps, params, bandId, api)` (docs/PLUGINS.md §13).
+ *  `api` carries the rule layer (layers / topActive / gain) so a plugin adds layers through the same caps,
+ *  禁增 and 联防 suppression an official band uses, instead of calling `battle.addLayers` raw. */
+export function registerBuffKey(plugin, key, installer) {
+  if (typeof installer !== 'function') fail('PLUGIN_SCRIPT_CONFLICT', 'buff key installer must be a function');
+  reserve('buffkey', plugin, key);
+  const guard = scriptGuard(plugin.id, plugin.budget);
+  registerBuffKeyInstaller(key, (battle, ps, params, bandId, api) =>
+    guard.invoke(installer, battle, null, undefined, [battle, ps, params, bandId, api]));
+}
 export function registerContent(plugin, module) {
   const id = module?.id || plugin.id;
   reserve('content',plugin,id);
@@ -131,7 +142,7 @@ export function registerExtensionMeta(registry) {
 }
 export function resetExtensions() {
   for (const k of Object.keys(EXTENSIONS)) delete EXTENSIONS[k];
-  enemies.clear(); content.clear(); meta.clear(); owners.clear(); sealed = false;
+  enemies.clear(); content.clear(); meta.clear(); owners.clear(); clearBuffKeyInstallers(); sealed = false;
 }
 export function sealExtensions() { sealed = true; }
 export function extensionRegistrations() { return [...owners].map(([key,pluginId]) => ({key,pluginId})); }
