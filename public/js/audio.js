@@ -153,9 +153,9 @@ export function bgmKeyFor(route, pub, combatTrack = null, { levelOver = false } 
     case PHASE.UNITE:
       // 联防 has its own track: the official `escaped_single` / `escaped_multi` levels declare
       // `bgmEvent = corrosion` (level_act1autochess_escaped_*.json), so the rescue phase is not the 作战's track.
-      // resolveBgm falls back to `bgm.combat` when a manifest predates it. A match with one human asks for
-      // `unite:solo` instead (AI teammates do not count), so a cosmetic plugin can give the lone player another
-      // track (resolveBgm falls back to `bgm.unite` when the installation's manifest has none).
+      // resolveBgm falls back to `bgm.combat` when a manifest predates it. A 联防 the plan hands to a single
+      // defender asks for `unite:solo` instead (`m.public.unite.helpers`), so a cosmetic plugin can give that lone
+      // defender another track (resolveBgm falls back to `bgm.unite` when the installation's manifest has none).
       return soloMatch(pub) ? 'unite:solo' : 'unite';
     case PHASE.COMBAT:
       // 开战 BGM: the round's own track — 骑士之日 / 无畏者 are fixed per round, not drawn (combatTrackFor)
@@ -172,7 +172,7 @@ export function bgmKeyFor(route, pub, combatTrack = null, { levelOver = false } 
 /**
  * Resolve a BGM key to { intro?, loop } URLs from the manifest: `boss:<id>` falls back to the generic boss track,
  * `combat:<i>` to the i-th `bgm.combatAlts` entry (and to `bgm.combat` when the manifest has none), `unite:solo`
- * (联防 with one human in the match) to `bgm.uniteSolo`, and `unite` (联防's own track) to `bgm.unite` — each
+ * (a 联防 with a single defender) to `bgm.uniteSolo`, and `unite` (联防's own track) to `bgm.unite` — each
  * falling back to `bgm.combat` / `bgm.unite` for a manifest that predates it. A `…:overtime` key (a boss round past
  * its level countdown) resolves `bgm.bossOvertime` — a cosmetic plugin's slot — and falls back to the boss track the
  * round would have played, so an installation without the slot sounds exactly as before.
@@ -196,11 +196,14 @@ export function resolveBgm(manifest, key) {
 }
 
 /**
- * One human in the match (`m.public.players[].isBot`): a 联机 room's AI teammates fill seats but are not a second
- * player, so a match with a single human beside them is 单人联防 too and asks for `unite:solo`.
+ * A 联防 the plan hands to a single defender — `m.public.unite.helpers` (human or AI, seats do not matter): that
+ * phase asks for `unite:solo`, so a cosmetic plugin can give the lone defender another track. A plan that splits
+ * into several 联防 fields (>4 alive, views.js) counts all its helpers, so each field holding one defender still
+ * means two.
  */
 function soloMatch(pub) {
-  return Array.isArray(pub?.players) && pub.players.filter((p) => p && !p.isBot).length === 1;
+  const helpers = pub?.unite?.helpers;
+  return Array.isArray(helpers) && helpers.length === 1;
 }
 
 /** Suffix `bgmKeyFor` adds once a boss round's level countdown ran out (`bgm.bossOvertime`; resolveBgm handles it). */

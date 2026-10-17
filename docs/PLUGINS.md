@@ -316,10 +316,10 @@ also takes away that entry's local-client model (`spineLocal`, which the client 
 that model: a model write the browser leaves out, or whose file fails to load, leaves the local model too. The split
 battle music `audio.bgm.combatAlts` (the mode's own 开战 tracks, 骑士之日 / 无畏者, fixed per round) is not something a
 plugin changes: the client plays it instead of `combat` in the rounds it covers, so a plugin's `combat` is heard only
-where no such track plays. `audio.bgm.uniteSolo` is the 联防 track of a match with one human: `audio.js` asks for
-`unite:solo` then and falls back to `unite` (the installation ships no `uniteSolo`, so writing it is `assets.add`) —
-a 联机 room's AI teammates fill seats but are not a second player (`m.public.players[].isBot`), so a lone human's
-联防 phase hears the plugin's track while a match with two humans keeps `unite`. `audio.bgm.bossOvertime` is
+where no such track plays. `audio.bgm.uniteSolo` is the 联防 track of a phase defended by one player: `audio.js` asks for
+`unite:solo` when the plan lists a single helper (`m.public.unite.helpers`, human or AI — the seats do not decide
+it) and falls back to `unite` (the installation ships no `uniteSolo`, so writing it is `assets.add`), so a lone
+defender's 联防 hears the plugin's track while one with two defenders keeps `unite`. `audio.bgm.bossOvertime` is
 the track of a 最终攻势 / 隐秘核心 round **after its level countdown ends** (`m.public.deadline`, the level's `maxPlayTime`):
 the client asks for `boss:<bossId>:overtime` then and falls back to the boss track the round would have had — the
 installation ships no `bossOvertime`, so writing it is `assets.add` too, and a client books the switch with a timer at

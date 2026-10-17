@@ -33,20 +33,25 @@ describe('bgm selection', () => {
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }), 'combat');
     // 联防 has its own track: the official escaped_single / escaped_multi levels declare bgmEvent = corrosion
     assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE }), 'unite');
-    // a match with one human asks for the plugin-able `unite:solo`: a 联机 room's AI teammates fill seats but are
-    // not a second player (单人联防); two humans keep `unite`
-    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }] }), 'unite:solo');
-    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'ai_0', isBot: true }] }), 'unite:solo');
+    // a 联防 the plan hands to ONE defender asks for the plugin-able `unite:solo` (`m.public.unite.helpers`) —
+    // the roster does not decide it: it is the defenders the plan lists, human or AI
+    assert.equal(bgmKeyFor('game', {
+      phase: PHASE.UNITE, unite: { helpers: ['p1'], leakers: ['p2'] },
+    }), 'unite:solo');
+    assert.equal(bgmKeyFor('game', {
+      phase: PHASE.UNITE, unite: { helpers: ['p1', 'p2'], leakers: ['p3'] },
+    }), 'unite', 'two defenders keep 联防’s own track');
     assert.equal(bgmKeyFor('game', {
       phase: PHASE.UNITE,
-      players: [{ playerId: 'p1' }, { playerId: 'ai_0', isBot: true }, { playerId: 'ai_1', isBot: true }],
-    }), 'unite:solo', 'three AI teammates still leave one human');
-    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'p2' }] }), 'unite');
+      players: [{ playerId: 'p1' }, { playerId: 'ai_0', isBot: true }],
+      unite: { helpers: ['p1', 'ai_0'], leakers: ['p2', 'p3'] },
+    }), 'unite', 'a second defender keeps the track, whether human or AI');
     assert.equal(bgmKeyFor('game', {
       phase: PHASE.UNITE,
-      players: [{ playerId: 'p1' }, { playerId: 'p2' }, { playerId: 'ai_0', isBot: true }],
-    }), 'unite', 'a human teammate keeps the 联防 track even beside an AI seat');
-    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, players: [{ playerId: 'p1' }] }, 1), 'unite:solo');
+      players: [{ playerId: 'p1' }, { playerId: 'p2' }],
+      unite: { helpers: ['p1'], leakers: ['p2'] },
+    }), 'unite:solo', 'one defender in a two-human room is 单人联防 too');
+    assert.equal(bgmKeyFor('game', { phase: PHASE.UNITE, unite: { helpers: ['p1'] } }, 1), 'unite:solo');
     // 开战 BGM: the round's own track (combatTrackFor) indexes the manifest's `bgm.combatAlts`
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }, 0), 'combat:0');
     assert.equal(bgmKeyFor('game', { phase: PHASE.COMBAT }, 1), 'combat:1');
@@ -151,11 +156,11 @@ describe('bgm selection', () => {
       // a re-render / teammate view inside the same battle never moves
       fire(state, {}); assert.equal(calls.at(-1), 'combat:1');
       // 联防 has its OWN track (#110, the official escaped levels' `bgmEvent = corrosion`) — it does not inherit the
-      // round's 开战 track; this match has one player, so it asks for the plugin-able `unite:solo` first
-      state.match.public = pub({ phase: PHASE.UNITE });
+      // round's 开战 track; this 联防 has one defender, so it asks for the plugin-able `unite:solo` first
+      state.match.public = pub({ phase: PHASE.UNITE, unite: { helpers: ['p1'], leakers: ['p2'] } });
       fire(state, {}); assert.equal(calls.at(-1), 'unite:solo');
-      // …while a match with two players keeps 联防's own `unite`
-      state.match.public = pub({ phase: PHASE.UNITE, players: [{ playerId: 'p1' }, { playerId: 'p2' }] });
+      // …while a 联防 with two defenders keeps 联防's own `unite`
+      state.match.public = pub({ phase: PHASE.UNITE, unite: { helpers: ['p1', 'p2'], leakers: ['p3'] } });
       fire(state, {}); assert.equal(calls.at(-1), 'unite');
       // …and back to the round's own track in the 作战
       state.match.public = pub({ phase: PHASE.COMBAT });
