@@ -519,3 +519,16 @@ restarts (a new match / a rewound round); a new round's prep clears only 当前�
 enters b.progress / b.result, and a tracked battle's result and rendered events are byte-identical to an untracked one
 (test/match/combat-metrics.test.js, test/match/runner.test.js). Ported from [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol)
 (其公开部署分支，作者 @临夏俨然) with thanks.
+
+### Update notice (更新公告) — the fork's title-screen release notice
+
+`UPDATE_NOTICE_VERSION` (screens/title.js) is the release the notice describes and is drawn beside the heading;
+`UPDATE_NOTICE_CONTENT` holds the groups (a faction title, its lines, an optional detail line) and
+`UPDATE_NOTICE_HEADING` the heading above them (调整). The text is the maintainer's own simplified-Chinese prose marked
+`i18n-ignore`: it is not an interface string, so no language pack translates it.
+
+`UPDATE_NOTICE_ID` is that version plus an FNV-1a fingerprint of the text (`updateNoticeId`), and the title screen opens
+the dialog only while the id is missing from the local `updateNoticeSeen` preference (which keeps the newest 20 ids).
+Editing a line — or bumping the version — changes the id and shows the notice to every client again, while the footer's
+更新公告 button reopens it by hand at any time. The version is not echoed from `APP_VERSION`: the notice can be reworded
+on a release that ships no new client build (test/ui/update-notice.test.js).

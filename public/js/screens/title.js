@@ -48,7 +48,8 @@ import { installedCount } from '../content.js';
 import { sanitizeName, isValidName } from '../ui/playerName.js';
 import { presenceLabel, presenceHint, usePresencePoll } from '../ui/presence.js';
 
-export const UPDATE_NOTICE_ID = 'merge-upstream-0.2.6';
+/** The release the notice describes (drawn on the notice; editing the notice re-shows it, see updateNoticeId). */
+export const UPDATE_NOTICE_VERSION = '0.2.6';
 export const UPDATE_NOTICE_TITLE = '更新公告'; // i18n-ignore (simplified-Chinese notice)
 const UPDATE_NOTICE_HEADING = '调整'; // i18n-ignore (simplified-Chinese notice)
 export const UPDATE_NOTICE_CONTENT = [
@@ -93,6 +94,22 @@ export const UPDATE_NOTICE_CONTENT = [
     ],
   },
 ];
+
+/**
+ * FNV-1a over the notice's own text: editing the version, the heading or a line makes a new id, so the notice shows
+ * again to every client that saw the old one (the title screen's 更新公告 button reopens it by hand at any time).
+ */
+export function updateNoticeId(version = UPDATE_NOTICE_VERSION, heading = UPDATE_NOTICE_HEADING, content = UPDATE_NOTICE_CONTENT) {
+  const text = JSON.stringify([version, heading, content]);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${version}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+export const UPDATE_NOTICE_ID = updateNoticeId();
 
 export function hasSeenUpdateNotice(seen) {
   return Array.isArray(seen) && seen.includes(UPDATE_NOTICE_ID);
@@ -374,7 +391,7 @@ export function TitleScreen() {
     <${Modal} open=${announcementOpen} onClose=${closeAnnouncement} title=${t(UPDATE_NOTICE_TITLE)}
       width="6.4rem" actions=${html`<${Button} variant="primary" icon="check" onClick=${closeAnnouncement}>${t('知道了')}<//>`}>
       <div class="update-notice modal__text">
-        <h3 class="update-notice__heading">${t(UPDATE_NOTICE_HEADING)}</h3>
+        <h3 class="update-notice__heading">${t(UPDATE_NOTICE_HEADING)}<span class="update-notice__version">v${UPDATE_NOTICE_VERSION}</span></h3>
         ${UPDATE_NOTICE_CONTENT.map(({ title, items, detail }) => html`
           <section class="update-notice__group">
             <h4 class="update-notice__group-title">${t(title)}</h4>

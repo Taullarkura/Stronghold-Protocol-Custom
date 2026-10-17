@@ -476,6 +476,7 @@
 .modal__body { padding: .14rem .3rem .26rem; color: var(--text-md); overflow: auto; }
 .modal__text { font-size: calc(.18 * var(--t)); line-height: 1.7; }
 .update-notice__heading { margin: 0 0 .08rem; color: var(--text-hi); font-size: calc(.2 * var(--t)); }
+.update-notice__version { margin-left: .1rem; color: var(--mint-500); font-family: var(--font-num); font-size: calc(.15 * var(--t)); font-weight: 400; letter-spacing: .06em; }
 .update-notice__group + .update-notice__group { margin-top: .12rem; }
 .update-notice__group-title { margin: 0; color: var(--mint-500); font-size: calc(.18 * var(--t)); }
 .update-notice__items { margin: .04rem 0 0; padding-left: .28rem; }
