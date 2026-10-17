@@ -8,7 +8,6 @@ import { Zip, ZipPassThrough, zipSync, unzipSync } from 'fflate';
 import { buildResourceManifest, validateManifest, writeResourcePack } from '../../tools/resource-pack.mjs';
 import { DownloadError, ResourceStore } from '../../public/js/resources/store.js';
 import { exportResourceZip, importResourceZip } from '../../public/js/resources/zip.js';
-import { cachedResponse, resourceKeys } from '../../public/js/resources/service.js';
 
 const zipjs = await import('@zip.js/zip.js');
 const ORIGIN = 'https://game.test';
@@ -504,47 +503,90 @@ test('a pack of another deployment imports the files that match and skips the re
   await assert.rejects(importResourceZip(new Blob([pack]), other, { zipjs }), /清单/);
 });
 
-test('the service worker maps same-origin GETs of resource files, and /media/ audio to the cached audio file', async () => {
-  const keys = (url, init) => resourceKeys(new Request(url, init), ORIGIN);
-  assert.deepEqual(keys(`${ORIGIN}/assets/char/a.png?v=2`), ['/assets/char/a.png']);
-  assert.deepEqual(keys(`${ORIGIN}/fonts/fonts.css`), ['/fonts/fonts.css']);
-  for (const url of ['https://evil.test/assets/a.mp3', `${ORIGIN}/js/main.js`, `${ORIGIN}/api/rooms`, `${ORIGIN}/resource-manifest.json`]) {
-    assert.equal(keys(url), null, url);
-  }
-  assert.equal(keys(`${ORIGIN}/assets/a.mp3`, { method: 'POST' }), null);
-  const caches = new MemoryCaches();
-  const store = storeOf(manifest([{ ...entry('/assets/audio/bgm/b.ogg', 'ogg'), type: 'audio/ogg' }, entry('/assets/audio/bgm/a.mp3', 'mp3'),
-    { ...entry('/assets/audio/bgm/a.ogg', 'ogg'), type: 'audio/ogg' }]), caches);
-  await store.reconcile();
-  for (const file of store.manifest.files) await store.put(file, bytes(file.url.endsWith('.mp3') ? 'mp3' : 'ogg'));
-  const media = async path => (await cachedResponse(keys(`${ORIGIN}${path}`), caches))?.text();
-  assert.equal(await media('/media/bgm/a'), 'mp3', 'extension order of shared/media.js: mp3 first');
-  assert.equal(await media('/media/bgm/b'), 'ogg');
-  assert.equal(await media('/media/bgm/none'), undefined);
-});
+// The site's one service worker (public/sw.js) is loaded for real: fake worker globals, the Cache Storage in memory.
+let workerLoads = 0;
+async function loadWorker(caches) {
+  const listeners = {};
+  const network = [];
+  const saved = { self: globalThis.self, caches: globalThis.caches, fetch: globalThis.fetch };
+  globalThis.self = {
+    location: new URL(ORIGIN),
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    skipWaiting: async () => { listeners.waiting = true; },
+    clients: { claim: async () => { listeners.claimed = true; } },
+  };
+  globalThis.caches = caches;
+  globalThis.fetch = async request => { network.push(new URL(request.url).pathname); return new Response('network'); };
+  // A fresh specifier per load: the module body registers its listeners once per URL.
+  await import(`../../public/sw.js?load=${++workerLoads}`);
+  const request = async (path, init) => {
+    let answer = null;
+    listeners.fetch({ request: new Request(path, init), respondWith: promise => { answer = promise; } });
+    return answer && (await answer).text();
+  };
+  return { listeners, network, request, restore: () => Object.assign(globalThis, saved) };
+}
 
-test('the service worker answers cached files without any manifest, and everything else from the network', async t => {
+test('the worker answers a resource cache file under the content-hash URL the page asks for, and leaves everything else alone', async t => {
   const caches = new MemoryCaches();
   const a = entry('/assets/a.mp3', 'abc');
   const store = storeOf(manifest([a]), caches);
   await store.reconcile();
   await store.put(a, bytes('abc'));
-  const listeners = {};
-  const network = [];
-  const saved = { self: globalThis.self, caches: globalThis.caches, fetch: globalThis.fetch };
-  t.after(() => Object.assign(globalThis, saved));
-  globalThis.self = { location: new URL(ORIGIN), addEventListener: (type, fn) => { listeners[type] = fn; } };
-  globalThis.caches = caches;
-  globalThis.fetch = async request => { network.push(new URL(request.url).pathname); return new Response('network'); };
-  await import('../../public/resource-sw.js');
-  const request = async path => {
-    let answer = null;
-    listeners.fetch({ request: new Request(ORIGIN + path), respondWith: promise => { answer = promise; } });
-    return answer && (await answer).text();
-  };
-  assert.equal(await request('/assets/a.mp3'), 'abc');
-  assert.equal(await request('/assets/other.png'), 'network');
-  assert.equal(await request('/media/bgm/other'), 'network');
-  assert.equal(await request('/js/main.js'), null, 'not answered by the worker');
-  assert.deepEqual(network, ['/assets/other.png', '/media/bgm/other'], 'only the uncached files, no manifest request');
+  const worker = await loadWorker(caches);
+  t.after(worker.restore);
+  assert.equal(await worker.request(`${ORIGIN}/assets/a.mp3`), 'abc');
+  assert.equal(await worker.request(`${ORIGIN}/assets/~0123456789abcdef/a.mp3`), 'abc', 'the served manifests name the hashed URL');
+  assert.equal(await worker.request(`${ORIGIN}/assets/a.mp3?v=2`), 'abc', 'the query string is ignored');
+  assert.equal(await worker.request(`${ORIGIN}/assets/other.png`), 'network');
+  assert.equal(await worker.request(`${ORIGIN}/media/bgm/other`), 'network');
+  for (const [url, init] of [[`${ORIGIN}/js/main.js`], [`${ORIGIN}/api/rooms`], [`${ORIGIN}/resource-manifest.json`],
+    [`https://evil.test/assets/a.mp3`], [`${ORIGIN}/assets/a.mp3`, { method: 'POST' }],
+    [`${ORIGIN}/assets/a.mp3`, { headers: { range: 'bytes=0-1' } }]]) {
+    assert.equal(await worker.request(url, init), null, `${url} ${JSON.stringify(init ?? {})}`);
+  }
+  assert.deepEqual(worker.network, ['/assets/other.png', '/media/bgm/other'], 'only the uncached files, no manifest request');
+});
+
+test('the worker maps /media/ audio to the audio file it cached, in shared/media.js extension order, hashed or not', async t => {
+  const caches = new MemoryCaches();
+  const store = storeOf(manifest([{ ...entry('/assets/audio/bgm/b.ogg', 'ogg'), type: 'audio/ogg' }, entry('/assets/audio/bgm/a.mp3', 'mp3'),
+    { ...entry('/assets/audio/bgm/a.ogg', 'ogg'), type: 'audio/ogg' }]), caches);
+  await store.reconcile();
+  for (const file of store.manifest.files) await store.put(file, bytes(file.url.endsWith('.mp3') ? 'mp3' : 'ogg'));
+  const worker = await loadWorker(caches);
+  t.after(worker.restore);
+  assert.equal(await worker.request(`${ORIGIN}/media/bgm/a`), 'mp3', 'extension order of shared/media.js: mp3 first');
+  assert.equal(await worker.request(`${ORIGIN}/media/bgm/b`), 'ogg');
+  assert.equal(await worker.request(`${ORIGIN}/media/~0123456789abcdef/bgm/a`), 'mp3', 'the hashed media URL of the served manifests');
+  assert.equal(await worker.request(`${ORIGIN}/media/bgm/none`), 'network');
+});
+
+test('the worker answers from the imported asset pack too, and activating it drops old packs but keeps the resource caches', async t => {
+  const caches = new MemoryCaches();
+  const b = entry('/assets/b.png', 'plain');
+  const store = storeOf(manifest([b]), caches);
+  await store.reconcile();
+  await store.put(b, bytes('plain'));
+  const resourceCache = (await caches.keys()).find(name => name.startsWith('stronghold-resources'));
+  const imported = await caches.open('sp-imported-assets-v1');
+  await imported.put(`${ORIGIN}/assets/~0123456789abcdef/char/a.png`, new Response('imported'));
+  const stale = await caches.open('sp-imported-assets-v0');
+  await stale.put(`${ORIGIN}/assets/a.png`, new Response('old'));
+  const worker = await loadWorker(caches);
+  t.after(worker.restore);
+  assert.equal(await worker.request(`${ORIGIN}/assets/~0123456789abcdef/char/a.png`), 'imported');
+  assert.equal(await worker.request(`${ORIGIN}/assets/b.png`), 'plain');
+  const waits = [];
+  worker.listeners.install({ waitUntil: promise => waits.push(promise) });
+  await Promise.all(waits);
+  assert.equal(worker.listeners.waiting, true, 'install takes over at once');
+  worker.listeners.message({ data: 'claim', waitUntil: promise => waits.push(promise) });
+  await Promise.all(waits);
+  assert.equal(worker.listeners.claimed, true);
+  worker.listeners.activate({ waitUntil: promise => waits.push(promise) });
+  await Promise.all(waits);
+  const names = await caches.keys();
+  assert.deepEqual(names.filter(name => name.startsWith('sp-imported-assets-')), ['sp-imported-assets-v1']);
+  assert.ok(names.includes(resourceCache), 'the resource cache belongs to store.js, not to this worker');
 });

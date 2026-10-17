@@ -15,6 +15,8 @@ import {
   cacheUrlsFor, crc32, createAssetImport, detectAssetPrefix, modelHashOf, normalizePackPath,
   openZip, plainRel, planFromManifests, sha256Hex16,
 } from '../../public/js/assetPack.js';
+import { CACHE_PREFIX } from '../../public/js/resources/common.js';
+import { AUDIO_EXTS, MEDIA_PREFIX } from '../../shared/media.js';
 
 const enc = new TextEncoder();
 const bytesOf = (text) => enc.encode(text);
@@ -508,11 +510,13 @@ test('the download queue does not request a URL the import cache already has', a
   assert.equal(calls.includes('/media/~1234567890abcdef/bgm/a'), false);
 });
 
-test('the worker answers only hashed asset GET, and its copy matches the module', async () => {
+test('the worker answers resource GETs (the imported pack first, then the resource cache) and its constants match the modules', async () => {
   const sw = fs.readFileSync(path.resolve('public/sw.js'), 'utf8');
   assert.ok(sw.includes(`const IMPORTED_ASSET_CACHE = '${IMPORTED_ASSET_CACHE}';`));
   assert.ok(sw.includes(`const IMPORTED_ASSET_CACHE_PREFIX = '${IMPORTED_ASSET_CACHE_PREFIX}';`));
-  assert.ok(sw.includes(`const IMPORTED_ASSET_PATH = ${IMPORTED_ASSET_PATH};`));
+  assert.ok(sw.includes(`const RESOURCE_CACHE_PREFIX = '${CACHE_PREFIX}';`), 'public/js/resources/common.js');
+  assert.ok(sw.includes(`const MEDIA_PREFIX = '${MEDIA_PREFIX}';`), 'shared/media.js');
+  assert.ok(sw.includes(`const AUDIO_EXTS = ${JSON.stringify(AUDIO_EXTS)};`), 'shared/media.js');
   assert.equal(sw.includes('.put('), false);
 
   const origin = 'http://127.0.0.1:9';
@@ -550,6 +554,7 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
       return new Response('from-network');
     },
     URL: globalThis.URL,
+    Request: globalThis.Request,
     Response: globalThis.Response,
     Promise: globalThis.Promise,
   };
@@ -565,31 +570,37 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
   assert.equal(claimed, 1);
 
   const cases = [
-    ['GET', `${origin}/assets/~0123456789abcdef/a.png`],
-    ['GET', `${origin}/fonts/~0123456789abcdef/a.woff2`],
-    ['GET', `${origin}/media/~0123456789abcdef/bgm/a`],
-    ['GET', `${origin}/`],
-    ['GET', `${origin}/index.html`],
-    ['GET', `${origin}/js/main.js`],
-    ['GET', `${origin}/data/assets.json`],
-    ['GET', `${origin}/sim/worker.js`],
-    ['GET', `${origin}/ws`],
-    ['GET', `${origin}/assets/plain.png`],
-    ['POST', `${origin}/assets/~0123456789abcdef/a.png`],
-    ['GET', `http://evil.test/assets/~0123456789abcdef/a.png`],
-    ['GET', `${origin}/assets/~0123456789abcdef/../secret`],
+    // a resource file, under its content-hash URL or its plain one, and /media/ audio: answered (a cache or the network)
+    ['GET', `${origin}/assets/~0123456789abcdef/a.png`, true],
+    ['GET', `${origin}/fonts/~0123456789abcdef/a.woff2`, true],
+    ['GET', `${origin}/media/~0123456789abcdef/bgm/a`, true],
+    ['GET', `${origin}/assets/plain.png`, true],
+    // everything else is left to the browser
+    ['GET', `${origin}/`, false],
+    ['GET', `${origin}/index.html`, false],
+    ['GET', `${origin}/js/main.js`, false],
+    ['GET', `${origin}/data/assets.json`, false],
+    ['GET', `${origin}/sim/worker.js`, false],
+    ['GET', `${origin}/ws`, false],
+    ['POST', `${origin}/assets/~0123456789abcdef/a.png`, false],
+    ['GET', `http://evil.test/assets/~0123456789abcdef/a.png`, false],
+    // the URL parser resolves `..` before the worker sees the request: this one is an ordinary /assets/ file request,
+    // and the file it names (were there one) is the server's business, not the worker's
+    ['GET', `${origin}/assets/~0123456789abcdef/../secret`, true],
   ];
   // The three in-scope URLs are cache misses. respondWith starts the fetch
   // immediately, so drain those promises before counting later requests.
   const pending = [];
-  for (const [method, url] of cases) {
+  for (const [method, url, served] of cases) {
     const request = new Request(url, { method });
     let responded = null;
     listeners.fetch({ request, respondWith(p) { responded = p; } });
-    assert.equal(responded != null, shouldServeImportedAsset(request, origin), url);
+    assert.equal(responded != null, served, url);
     if (responded) pending.push(responded);
   }
   await Promise.all(pending);
+  // The imported pack still names hashed URLs only; the plain path is the resource cache's layer of the same worker.
+  assert.equal(shouldServeImportedAsset(new Request(`${origin}/assets/plain.png`), origin), false);
   const ranged = new Request(`${origin}/assets/~0123456789abcdef/a.png`, { headers: { Range: 'bytes=0-1' } });
   let rangedResponse = null;
   listeners.fetch({ request: ranged, respondWith(p) { rangedResponse = p; } });

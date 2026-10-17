@@ -1,4 +1,4 @@
-// The local resource cache as the page manages it. The service worker (public/resource-sw.js) only reads it.
+// The local resource cache as the page manages it. The service worker (public/sw.js) only reads it.
 //
 // One Cache Storage cache holds every resource file, keyed by URL. An entry belongs to the current site version when
 // its X-Resource-SHA256 and size match the manifest; reconcile() removes the others. A status entry in the same cache

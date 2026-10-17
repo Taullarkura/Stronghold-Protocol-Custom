@@ -45,10 +45,11 @@ function supported() {
 /**
  * Register the worker and have it serve this page. Resolves at once when the worker is registered already; a page
  * loaded past it (a hard reload bypasses the worker) asks it to take over. Rejects where the browser cannot run the
- * (module) service worker: then nothing would serve stored files.
+ * service worker: then nothing would serve stored files. The worker is the site's one (public/sw.js): it answers from
+ * this cache before the imported asset pack, and registering it here is the same call public/js/assetCache.js makes.
  */
 async function registerWorker() {
-  const registration = await navigator.serviceWorker.register('/resource-sw.js', { type: 'module', scope: '/' });
+  const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
   if (!navigator.serviceWorker.controller) registration.active?.postMessage('claim');
 }
 

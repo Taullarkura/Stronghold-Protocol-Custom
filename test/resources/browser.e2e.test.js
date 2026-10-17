@@ -174,7 +174,7 @@ test('resource cache in a real browser', { skip: !enabled, timeout: 240000 }, as
     await page.goto(`${base}/blank`);
     await page.evaluate(async () => {
       localStorage.setItem('stronghold-resource-mode', 'ondemand');
-      await navigator.serviceWorker.register('/resource-sw.js', { type: 'module', scope: '/' });
+      await navigator.serviceWorker.register('/sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
     });
   }

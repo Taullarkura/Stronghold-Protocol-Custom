@@ -741,6 +741,31 @@ bandwidth, layer 1) the server hands out a view of each (`server/http/assetIndex
   and are laid over whatever the page draws. Neither committed manifest, nor the views above, ever change with a plugin:
   without one a page loads exactly what it loaded before.
 
+## The local resource cache (`/resource-manifest.json`)
+
+The title screen's **资源管理** dialog (`public/js/resources/`, view in `public/js/resources/view.js`) keeps the whole art
+and font tree in Cache Storage, so a player downloads it once and the game reads it from disk. The file list is
+`GET /resource-manifest.json` — the same document the Cloudflare build publishes with `tools/resource-pack.mjs`
+(`format: 1`, one `{ url, size, sha256, type }` per file under `public/assets/` and `public/fonts/`, a `version` that is
+the SHA-256 of the list, `totalBytes`). A Node install builds it itself: `server/http/resourceManifest.js` walks the
+same two folders, remembers each file's SHA-256 by path + size + mtime in `.cache/resource-hashes.json` (a boot after
+an art change hashes only what changed), and answers from memory in the background once listening — nothing is written
+into `public/`. `SP_RESOURCE_MANIFEST=0`, or the `resources: false` option, turns the route off (404); a Cloudflare
+deployment does not need it.
+
+Accepted bytes go into `stronghold-resources-v<version>` under their plain `/assets/…` URL — the URL the list names, not
+the `~<hash>` one the page requests — with `Content-Type`, `Content-Length` and an `X-Resource-SHA256` header the cache
+reads back to check a file before trusting it (`public/js/resources/common.js`). `public/js/resources/store.js` reads
+the list and one status entry per cache (`/resource-cache-status.json`), so an unchanged installation costs one cache
+read instead of a scan, adopts files from an older cache of the same site, and deletes the ones the list no longer
+matches. Downloads run six at a time, verify the SHA-256 before storing, retry twice and stop after 20 failures; a ZIP
+export/import moves an installation between machines (checked file by file). The `/media/` alias is fetched for audio
+and stored under the real `/assets/audio/…` file.
+
+`public/sw.js` serves both caches (see below): a request for `/assets/plain.png` or `/assets/~<hash>/plain.png` is
+answered from either name, so a cache written by a page and a cache written by an import both answer the page's
+hashed URLs.
+
 ## Player-initiated predownload
 
 The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js`, queue in
@@ -764,7 +789,9 @@ The title screen's **导入素材包** button (`public/js/ui/assetImport.js`), b
 
 Verification uses the served manifests (`GET /data/assets.json`, and `GET /data/local-assets.json` and `GET /data/local-fx.json` when the server has them). A hashed URL maps back to a plain `assets/…` or `fonts/…` path. A file is stored only when the first 16 hex digits of its SHA-256 equal the hash in that URL. A Spine model is accepted only as a whole group, with the same model hash the server uses: SHA-256 of the members' file hashes joined by newlines (skeleton, atlas, then pages — the default `<skel>.png` when the manifest lists no textures). A mismatch, or a file the manifest does not list, is not stored. A path with no hash segment cannot be checked, so it is not imported; the download queue can still fetch it.
 
-Accepted bytes go into Cache Storage under the name `sp-imported-assets-v1`, at the hashed `/assets/` or `/fonts/` URL and, for audio, also at the `/media/~<hash>/…` URL playback requests. As an import ends, the pathnames it stored are added to one JSON entry of that cache, `/sp-imported-index.json`, which the dialog's count and the download queue read: Chrome refuses `Cache.keys()` for a cache of more than about 15,000 entries ("Operation too large"), and a whole pack stores some 43,000. `public/sw.js` is a classic service worker (not a module, so the browsers this project already supports can register it). `public/js/main.js` registers it on a secure context only (`updateViaCache: 'none'`, scope `/`). It intercepts same-origin GET whose path matches `/assets/~<16 hex>/`, `/fonts/~<16 hex>/` or `/media/~<16 hex>/`. A cache hit is returned. A miss is fetched from the network and is not written into this cache. A request with a `Range` header is not intercepted. HTML, scripts, `/data/`, `/sim/` and `/ws` are never handled.
+Accepted bytes go into Cache Storage under the name `sp-imported-assets-v1`, at the hashed `/assets/` or `/fonts/` URL and, for audio, also at the `/media/~<hash>/…` URL playback requests. As an import ends, the pathnames it stored are added to one JSON entry of that cache, `/sp-imported-index.json`, which the dialog's count and the download queue read: Chrome refuses `Cache.keys()` for a cache of more than about 15,000 entries ("Operation too large"), and a whole pack stores some 43,000.
+
+`public/sw.js` is the site's one service worker, a classic script (not a module, so the browsers this project already supports can register it), registered by `public/js/assetCache.js` and `public/js/resources/index.js`, scope `/`, `updateViaCache: 'none'`. It answers same-origin GETs of `/assets/…`, `/fonts/…` and the `/media/…` audio alias from two caches: the imported pack above (hashed URLs, checked first) and the local resource caches `stronghold-resources-*` (plain URLs, see the section above). A path with a `~<16 hex>` segment is looked up both as asked and without the segment, and `/media/<stem>` becomes `/assets/audio/<stem><ext>` in `shared/media.js` order, so either cache answers either URL form. A hit is returned; a miss is fetched from the network and is not written by the worker. A request with a `Range` header is not intercepted. HTML, scripts, `/data/`, `/sim/`, `/ws` and `POST` are never handled. Its four constants (`MEDIA_PREFIX`, `AUDIO_EXTS`, `stronghold-resources` and the imported names) are repeated from the modules because a classic worker cannot import them, and `test/ui/asset-import.test.js` asserts they still match.
 
 `worker-src 'self' blob:` was already the site policy (`server/http/csp.js`). `'self'` is what `/sw.js` needs. `blob:` stays for the simulation worker the page already starts. No remote worker origin is added, and `SIM_WORKER_CSP` does not gain this worker.
 

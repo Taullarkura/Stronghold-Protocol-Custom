@@ -57,7 +57,7 @@ test('Workers static assets (_headers): each path gets one Cache-Control; resour
   // workerd holds the asset directory open until disposed
   t.after(async () => { await mf?.dispose(); await rm(root, { recursive: true, force: true }); });
   const files = ['public/index.html', 'public/js/main.js', 'public/css/theme.css', 'public/vendor/preact.module.js',
-    'public/resource-sw.js', 'public/resource-manifest.json', 'public/assets/char/a.png', 'public/assets/spine/a.atlas',
+    'public/sw.js', 'public/resource-manifest.json', 'public/assets/char/a.png', 'public/assets/spine/a.atlas',
     'public/assets/spine/a.skel', 'public/fonts/fonts.css', 'data/config.json'];
   for (const name of files) {
     await mkdir(path.dirname(path.join(root, name)), { recursive: true });
@@ -80,7 +80,7 @@ test('Workers static assets (_headers): each path gets one Cache-Control; resour
   const day = 'public, max-age=86400';
   const expected = {
     '/': revalidate, '/js/main.js': revalidate, '/css/theme.css': revalidate, '/vendor/preact.module.js': revalidate,
-    '/data/config.json': revalidate, '/resource-sw.js': revalidate, '/resource-manifest.json': revalidate,
+    '/data/config.json': revalidate, '/sw.js': revalidate, '/resource-manifest.json': revalidate,
     '/assets/char/a.png': day, '/assets/spine/a.atlas': day, '/assets/spine/a.skel': day, '/fonts/fonts.css': day,
     '/pack/abc/part-000.bin': 'public, max-age=31536000, immutable',
   };
