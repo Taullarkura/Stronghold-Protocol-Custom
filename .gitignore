@@ -4,7 +4,9 @@ node_modules/
 .npm-cache/
 # copied from node_modules by tools/vendor.mjs (postinstall); never commit third-party builds
 public/vendor/
-
+# the maintainer's private notes (计划 drafts, 更新公告 drafts): kept on this machine only, never in the repo — and
+# so not in the resource pack, the release zips or the docker image (docs/DEPLOY.md)
+todoList/
 # --- game assets: (c) Hypergryph / Yostar, fetched or extracted locally, NEVER committed ----------
 # tools/fetch-assets.mjs → public/assets/** (~270 MB) and public/fonts/** (+ fonts.css)
 public/assets/
