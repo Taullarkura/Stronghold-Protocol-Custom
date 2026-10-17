@@ -248,7 +248,9 @@ https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://�
 - 只有 **HTTPS** 或 **localhost** 能导入。浏览器只在安全上下文里提供 Service Worker 和可用的 Cache Storage。`http://局域网IP:3000` 可以正常玩游戏，也可以用「下载完整素材」，但不能导入；按钮下面和导入窗口里都会说明原因，而不是报错。
 - 玩家导入的是自己已经有的文件：维护者另外提供的素材包 `Stronghold-Protocol-v<版本>-assets.zip`（见第 7 节，不在 GitHub Releases 里），setup 得到的 `public/assets`，或完整发布包 zip。校验通过的文件存在这台浏览器里，并且按地址分开：换了域名或端口就要重新导入。整套素材包约 3.1 万个文件，桌面版 Chrome 导入约 1–2 分钟；zip 分段读取，不会整个读进内存。
 - 和服务器清单里 SHA-256 一致的文件不再向这台服务器请求。整套美术大约 1 GB（下载的约 720 MB，加本地提取的场景和官方战斗特效）；玩家第一局真正用到的通常约 20–50 MB。导入能省下的，是这些本来会从你的机器发出去的字节。哈希对不上的旧版本文件会被拒绝，仍走下载。
-- 导入不经过服务器，服务器日志里看不到这些文件。Service Worker 只回答带内容哈希的 `/assets/`、`/fonts/`、`/media/`。页面、脚本、`/data/`、`/sim/` 和 `/ws` 仍每次走网络。
+- 导入不经过服务器，服务器日志里看不到这些文件。Service Worker 只回答 `/assets/`、`/fonts/`、`/media/` 下的文件请求（带内容哈希的地址和不带哈希的地址都认：前者来自导入的素材包，后者来自「资源管理」的本地缓存）。页面、脚本、`/data/`、`/sim/` 和 `/ws` 仍每次走网络。
+
+标题页与房间顶部的「资源管理」是另一层缓存：按 `/resource-manifest.json` 的清单把整套素材存进浏览器的 Cache Storage，逐个核对大小与 SHA-256，服务器素材变了就只补缺的部分，也可以导出或导入 ZIP。这份清单由这台服务器自己生成——第一次请求时遍历 `public/assets` 与 `public/fonts`，之后把每个文件的 SHA-256 按路径 + 大小 + 修改时间记在 `.cache/resource-hashes.json`，素材没变就不重算；清单只留在内存里，不会写进 `public/`。素材特别多、想让启动更轻时可以设 `SP_RESOURCE_MANIFEST=0` 关掉它（`/resource-manifest.json` 返回 404，「资源管理」不可用；按需加载和「下载完整素材」不受影响）。Cloudflare 部署不需要这项：`npm run build:worker` 已经把清单作为构建产物发布。
 
 ## 3. Docker
 

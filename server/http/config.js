@@ -94,6 +94,27 @@ export function assetIndexOptionsFrom(opts, publicDir) {
   return { cacheFile, ...(Number.isFinite(o.delayMs) ? { delayMs: o.delayMs } : {}) };
 }
 
+/**
+ * The /resource-manifest.json options out of the startServer() options and the environment, or null for none:
+ * `resources: false` or SP_RESOURCE_MANIFEST=0 / off / false / no switches it off (a Cloudflare deployment publishes
+ * the file as a build artifact and does not run this server). The hashes persist in .cache/resource-hashes.json only
+ * for the repository's own public/ (a test's temporary folder keeps them in memory).
+ * @param {{ resources?: boolean | { delayMs?: number } }} opts
+ * @param {string} publicDir
+ * @returns {{ cacheFile: string | null, delayMs?: number } | null}
+ */
+export function resourceManifestOptionsFrom(opts, publicDir) {
+  if (opts.resources === false) return null;
+  const env = String(process.env.SP_RESOURCE_MANIFEST ?? '').trim().toLowerCase();
+  if (opts.resources == null && ['0', 'off', 'false', 'no'].includes(env)) return null;
+  const o = typeof opts.resources === 'object' && opts.resources ? opts.resources : {};
+  const own = path.resolve(publicDir) === path.join(ROOT, 'public');
+  return {
+    cacheFile: own ? path.join(ROOT, '.cache', 'resource-hashes.json') : null,
+    ...(Number.isFinite(o.delayMs) ? { delayMs: o.delayMs } : {}),
+  };
+}
+
 /** net.js Network options out of the startServer() options; `trustProxy` falls back to TRUST_PROXY. */
 export function netOptionsFrom(opts) {
   const netOptions = {};

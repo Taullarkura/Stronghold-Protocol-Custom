@@ -64,6 +64,7 @@ import { ROOT, noopLog } from './config.js';
 import { sendError, sendJson } from './common.js';
 import { MIME, CompressCache, IMMUTABLE_CACHE, isNotModified, serveFile, serveBuffer } from './files.js';
 import { ASSET_INDEX_ROOTS, hashedFileOpts } from './assetIndex.js';
+import { RESOURCE_MANIFEST_URL } from './resourceManifest.js';
 import { serveMedia } from './media.js';
 import { createPluginRegistry, sameIdentity, statIdentity } from '../plugins/registry.js';
 import { computeVanillaContent } from '../plugins/identity.js';
@@ -113,7 +114,8 @@ const CS_FILE = /^\/cs\/([0-9a-f]{16})\/([A-Za-z0-9._\/-]{1,200})$/;
  *   assetIndex?: ReturnType<typeof import('./assetIndex.js').createAssetIndex> | null,
  *   views?: ReturnType<typeof import('./assetViews.js').createManifestViews> | null,
  *   visual?: ReturnType<typeof createVisualSets> | null,
- *   contents?: ReturnType<typeof import('../plugins/contentSets.js').createContentSets> | null }} dirs
+ *   contents?: ReturnType<typeof import('../plugins/contentSets.js').createContentSets> | null,
+ *   resources?: ReturnType<typeof import('./resourceManifest.js').createResourceManifest> | null }} dirs
  *   packs: the server's plugin registry (default: one over publicDir, dataDir, packsDir and pluginsDir — ROOT/packs, and
  *   the plugins/ folder beside packsDir); content: the vanilla content (default: computed from simDir, sharedDir and
  *   dataDir on first use); assetIndex / views: the content hashes and the served manifests (none: plain URLs,
@@ -124,7 +126,7 @@ const CS_FILE = /^\/cs\/([0-9a-f]{16})\/([A-Za-z0-9._\/-]{1,200})$/;
  */
 export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = path.join(ROOT, 'server', 'sim'), packsDir = path.join(ROOT, 'packs'),
   pluginsDir = path.join(path.dirname(path.resolve(packsDir)), 'plugins'), packs = null, content = null, log = noopLog,
-  assetIndex = null, views = null, visual = null, contents = null }) {
+  assetIndex = null, views = null, visual = null, contents = null, resources = null }) {
   const registry = packs || createPluginRegistry({ publicDir, dataDir, packsDir, pluginsDir }, { log: /** @type {any} */ (log) });
   const sets = visual || (typeof registry.pluginFile === 'function' ? createVisualSets({ registry, log }) : null);
   let vanilla = content;
@@ -248,6 +250,21 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     // Extension-less audio (download-manager avoidance): /media/bgm/act1 → /assets/audio/bgm/act1.mp3
     if (decoded.startsWith(MEDIA_PREFIX)) {
       await serveMedia(req, res, decoded.slice(MEDIA_PREFIX.length), query, publicDir, gzipCache, log, { urlHash, assetIndex });
+      return;
+    }
+    // The local resource cache's file list (server/http/resourceManifest.js): the Cloudflare build publishes this file,
+    // a Node install builds it here. Revalidated (ETag = the manifest version): a player's dialog fetches it on open.
+    if (resources && decoded === RESOURCE_MANIFEST_URL) {
+      let built;
+      try {
+        built = await resources.request();
+      } catch (e) {
+        log.error('[http] resource manifest failed', e);
+        sendError(req, res, 503, '资源清单暂不可用 · Resource manifest unavailable');
+        return;
+      }
+      await serveBuffer(req, res, { body: Buffer.from(built.body), hash: `res-${built.version.slice(0, 16)}`, type: MIME['.json'],
+        cacheControl: 'no-cache', key: 'resource-manifest', cache: gzipCache });
       return;
     }
     // The served manifests: every art URL with its content hash (assetViews.js), once the index is ready
