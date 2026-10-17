@@ -1,3 +1,5 @@
+#server resources pak
+*.shpak
 # --- dependencies & generated client libs -------------------------------------------------------
 node_modules/
 # a local npm cache (npm_config_cache=./.npm-cache, npm ci --cache .npm-cache — GitHub #258)
