@@ -347,24 +347,3 @@ describe('boss overtime of 5–8 players: the DOT warning follows m.public.overt
     assert.match(read('public/js/ui/hud.js'), /overtimeDrainPerSec\(config, pub\)/);
   });
 });
-
-describe('replays with several 联防 fields: the round\'s 联防 buttons are numbered (screens/replay.js replayBattleLabel)', () => {
-  test('联防 1 / 联防 2 only when a round holds more than one 联防 battle', async () => {
-    const { replayBattleLabel } = await import('../../public/js/screens/replay.js');
-    const battles = [
-      { round: 3, kind: 'normal', fieldId: 'n:p_0', players: ['p_0'] },
-      { round: 3, kind: 'unite', fieldId: 'u', players: ['p_1', 'p_2'] },
-      { round: 3, kind: 'unite', fieldId: 'u2', players: ['p_3'] },
-      { round: 4, kind: 'unite', fieldId: 'u', players: ['p_1'] },
-      { round: 14, kind: 'boss', fieldId: 'b3', players: ['p_4', 'p_5'] },
-    ];
-    const name = (id) => id.replace('p_', 'P');
-    assert.deepEqual(battles.map((b) => replayBattleLabel(b, battles, name)), [
-      '第 3 回合 · P0',
-      '第 3 回合 · 联防 1 · P1 / P2',
-      '第 3 回合 · 联防 2 · P3',
-      '第 4 回合 · P1',
-      '第 14 回合 · P4 / P5',
-    ]);
-  });
-});

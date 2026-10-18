@@ -6,9 +6,8 @@
 //   * the `presence` frame { online, inRoom } (shared/protocol.js; server/lobby.js presence): the Node server sends it
 //     right after every `welcome` and again whenever the numbers change, so a page with a session needs no polling;
 //   * GET /healthz, whose body carries the same two numbers: the path of a page without a session — the title screen
-//     (its socket says hello only on entering), and the account mode's menu (room-net.js: no socket outside a room;
-//     the Cloudflare Worker may answer only /healthz). startPresencePoll reads it every PRESENCE_POLL_MS while such a
-//     screen is up, and stops asking while the frames reach this page (a frame arrived and the session is online).
+//     (its socket says hello only on entering). startPresencePoll reads it every PRESENCE_POLL_MS while such a screen
+//     is up, and stops asking while the frames reach this page (a frame arrived and the session is online).
 // `online` counts the pages with the game open (the live sockets), `inRoom` the humans holding a seat plus the
 // spectators. A number that is not known (no frame and no answer yet, a server that does not report it, a failed read)
 // shows as — (em dash).
@@ -17,7 +16,7 @@ import { useEffect } from '../../vendor/hooks.module.js';
 import { t } from '../../../shared/i18n.js';
 import { store } from '../store.js';
 
-/** How often a page without a pushed feed (the title screen, the account menu) re-reads the counters from /healthz. */
+/** How often a page without a pushed feed (the title screen) re-reads the counters from /healthz. */
 export const PRESENCE_POLL_MS = 10_000;
 
 /** Give up on a /healthz that does not answer: a hanging request must not pile up on the next poll. */

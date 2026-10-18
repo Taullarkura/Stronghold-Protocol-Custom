@@ -310,10 +310,9 @@ test('the 0.2.0 seat inputs travel with the recorded seats: a restore keeps 补�
   restored.dispose();
 });
 
-test('account history (usedOperators): a fielded 自选 piece counts as its operator, not as its slot (甄选干员)', { timeout: 120000 }, () => {
-  // server/match/player/round.js battleInput keeps the slot id as the unit's chessId and carries the pick in `diy`; the
-  // Worker archives usedOperators as the player's `operators` (worker/room-runtime.js), shared/history.js counts them and
-  // the history screen names them (public/js/screens/history.js operatorName)
+test('recorded matches (usedOperators): a fielded 自选 piece counts as its operator, not as its slot (甄选干员)', { timeout: 120000 }, () => {
+  // server/match/player/round.js battleInput keeps the slot id as the unit's chessId and carries the pick in `diy`; a
+  // recorded match lists the operators each player fielded (RecordedMatch.usedOperators)
   const T5A = 'chess_char_5_diy1_a';
   const SHARP = 'char_609_acguad';
   const seats = [

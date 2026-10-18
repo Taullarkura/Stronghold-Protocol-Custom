@@ -1,5 +1,5 @@
 // Names players type, cleaned the way the server cleans them (server/net.js normalizeName / sanitizeName): the title
-// screen's 博士代号 (Node mode) and an account's nickname (the account forms, ui/accountForms.js).
+// screen's 博士代号 (the socket's hello name).
 
 import { NAME_MAX_LEN } from '../../shared/constants.js';
 

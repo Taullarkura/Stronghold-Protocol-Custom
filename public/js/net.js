@@ -47,38 +47,6 @@ export const CLIENT_ERR_TEXT = Object.freeze({
   CLOSED: N_('连接已关闭'),
   REPLACED: N_('该身份已在其他页面登录'),
   VERSION: N_('客户端版本与服务器不一致，请刷新页面'),
-  // Account mode: the room client (room-net.js) and the account API (account.js accountRequest).
-  ALREADY_IN_ROOM: N_('请先离开当前房间'),
-  BUSY: N_('正在进入房间，请稍候'),
-  ROOM_GONE: N_('房间已关闭或已过期'),
-  NO_ACTIVE_MATCH: N_('对局已结束或恢复时间已过'),
-  UNAVAILABLE: N_('服务器暂时不可用，请稍后重试'),
-  LOGIN_REQUIRED: N_('登录已失效，请重新登录'),
-  // Sign-in and the account's name and password (the title screen's account card, the account menu's dialogs).
-  INVALID_USERNAME: N_('用户名为 3–20 位字母、数字或下划线'),
-  USERNAME_TAKEN: N_('用户名已被使用'),
-  INVALID_PASSWORD: N_('密码长度为 8–128 位'),
-  PASSWORD_MISMATCH: N_('两次输入的密码不一致'),
-  INVALID_NICKNAME: N_('代号为 1–12 个字，不能包含 #'),
-  NICKNAME_FULL: N_('这个代号已被太多人使用，请换一个'),
-  BAD_CREDENTIALS: N_('用户名或密码错误'),
-  WRONG_PASSWORD: N_('当前密码不正确'),
-  RATE_LIMITED: N_('尝试次数过多，请稍后再试'),
-  GITHUB_UNAVAILABLE: N_('GitHub 登录暂不可用'),
-  ACCOUNT_UNAVAILABLE: N_('账户服务暂时不可用，请稍后重试'),
-  ALREADY_SEATED: N_('你已有一个房间，请先继续对局或离开'),
-  APPLICATION_PENDING: N_('已有一个加入申请，请先取消或等待处理'),
-  APPLICATION_EXPIRED: N_('申请已过期，请重新申请'),
-  APPLICATION_NOT_FOUND: N_('该申请已失效'),
-  ALREADY_JOINED: N_('已加入该同盟'),
-  TOO_MANY_APPLICATIONS: N_('该同盟待处理的申请过多，请稍后再试'),
-  APPLICATION_FAILED: N_('申请处理失败，请重试'),
-  APPLICANT_BUSY: N_('对方已在其他房间，申请已失效'),
-  LOBBY_UNAVAILABLE: N_('在线大厅暂时不可用，请稍后重试'),
-  HISTORY_UNAVAILABLE: N_('对局记录暂时不可用，请重试'),
-  ARCHIVE_NOT_READY: N_('对局记录尚未生成，请稍后再试'),
-  REPLAY_INCOMPLETE: N_('回放记录不完整，暂时无法播放'),
-  FORBIDDEN: N_('无权查看该内容'),
 });
 
 /** Server close code: the session was taken over by another socket (server/net.js CLOSE.REPLACED). */
@@ -997,11 +965,4 @@ export function createIdentity(deps = {}) {
 export const identity = createIdentity({ onYield: () => net.reconnectNow(net.helloName || net.name) });
 
 /** Browser connection singleton (created lazily-safe: nothing touches the network until connect()). */
-export let net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim() });
-
-/** Select a hosting-specific transport before main.js starts the connection. */
-export function configureTransport(factory) {
-  if (net.ws) throw new Error('The transport must be configured before connecting');
-  net = factory({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim() });
-  return net;
-}
+export const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim() });

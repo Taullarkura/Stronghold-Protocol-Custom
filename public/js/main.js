@@ -8,14 +8,11 @@
 //   otherwise              → Lobby
 // Deep link `?room=CODE`: remembered at boot, auto-joined once the player has entered and the
 // session is online (after a short grace period in case the server restores a room on resume).
-// Account mode (Workers, room-net.js): the join is an application sent from the menu; a logged-out
-// player keeps the invite, and the login brings it back (account.js returnPath, githubLoginUrl).
 // Reloading a tab that already passed the title re-enters automatically (sessionStorage flag) and
 // resumes the server session with the saved token; stale room/match state is dropped if the
 // server does not re-push it within RESTORE_GRACE_MS after `welcome`. Boot waits for
 // `identity.init()` (which token this tab may use without stealing another live tab's session)
-// before the first connect; a page restored from the back/forward cache reloads. In account mode
-// the token resumes the account's seat (RoomNet.restore), and the menu forgets it.
+// before the first connect; a page restored from the back/forward cache reloads.
 // A `welcome` with a NEW playerId (the server restarted / the session expired) while a room or match was on screen:
 // toast 「服务器会话已重置，上一局模拟已结束」 (store.js sessionResetNotice) and return to the lobby with nothing stale.
 //
@@ -37,13 +34,12 @@
 
 // Polyfills first (older Safari / Firefox ESR): every module evaluated after this one sees them.
 import './ui/compat.js';
-import { preferences } from './preferences.js';
 import { render } from '../vendor/preact.module.js';
 import { useErrorBoundary } from '../vendor/hooks.module.js';
 import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/components.js';
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
-import { net, identity, NetError, CLIENT_ERR_TEXT } from './net.js';
+import { net, identity, NetError } from './net.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectator, serverNow } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
@@ -62,10 +58,6 @@ import { StatsHost } from './screens/stats.js';
 import { installRehearsal } from './battle/rehearsal.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync } from './ui/loadoutSync.js';
-import { account, loadAccount } from './account.js';
-import { applicationSent } from './ui/accountMenu.js';
-import { HistoryScreen } from './screens/history.js';
-import { ReplayScreen } from './screens/replay.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { presenceFacts } from './ui/presence.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
@@ -113,18 +105,16 @@ function clearPendingJoin() {
   clearRoomParam();
 }
 
-/** The player has entered and the client can join a room: online, or (account mode) in the menu. */
-const joinReady = (s) => s.session.entered && (s.connection.status === 'online' || s.connection.status === 'menu');
+/** The player has entered and the session is online: a deep link can be joined. */
+const joinReady = (s) => s.session.entered && s.connection.status === 'online';
 
-/** Auto-join the deep-linked room once joinReady (idempotent). */
+/** Auto-join the deep-linked room once entered + online (idempotent). */
 function schedulePendingJoin() {
   clearTimeout(joinTimer);
   joinTimer = setTimeout(async () => {
     const s = store.get();
     const code = s.ui.pendingJoin;
     if (!code || joinInFlight || !joinReady(s)) return;
-    // Logged out (account mode): the invite waits for the login, which brings it back.
-    if (account.enabled && !account.user) return;
     if (s.room) {
       if (s.room.code !== code) toast(t('你已在其他同盟中，请先离开当前同盟'), 'warn');
       clearPendingJoin();
@@ -132,8 +122,7 @@ function schedulePendingJoin() {
     }
     joinInFlight = true;
     try {
-      const reply = await joinKnown('room.join', code);
-      if (reply?.application) applicationSent(code);
+      await joinKnown('room.join', code);
     } catch (err) {
       toastError(err);
     } finally {
@@ -173,9 +162,7 @@ function backToLobby() {
 const pluginCount = (content) => (content && Number.isInteger(content.plugins) && content.plugins > 0 ? content.plugins : 0);
 
 function onWelcome(msg) {
-  // Only an online session's token is worth resuming: a welcome RoomNet turned away (its room is over) left it in the menu.
-  if (net.status === 'online') identity.saveToken(msg.token);
-  // a fresh welcome is a fresh session: nothing is left to re-enter
+  identity.saveToken(msg.token);
   identity.rememberMatch(null);
   const prev = store.get();
   const prevId = prev.me.playerId;
@@ -219,8 +206,7 @@ function onRoomState(msg) {
   const myId = store.get().me.playerId;
   const seats = Array.isArray(room.seats) ? room.seats : [];
   if (myId != null && seats.length && !seats.some((s) => s && s.playerId === myId) && !isSpectator(room, myId)) {
-    // We are no longer seated (kicked / left elsewhere) — neither in a player seat nor a spectator (a spectator seat,
-    // or a public match's spectator: it has no seat).
+    // We are no longer seated (kicked / left elsewhere) — neither in a player seat nor a spectator seat.
     if (store.get().room) toast(t('你已不在该同盟中'), 'warn');
     store.set({ room: null, match: emptyMatch() });
     return;
@@ -239,21 +225,11 @@ const CLOSE_REASON = {
   // 'timeout' = this player was removed after staying disconnected past the lobby grace (server/lobby.js)
   host_left: N_('创建者已离开，同盟已解散'), timeout: N_('由于长时间断开连接，你已离开同盟'), empty: N_('同盟已解散'),
   kicked: N_('你已被移出同盟'), ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
-  restart: N_('服务器已更新或重启，本局已结束，请重新创建房间'),
-  // account mode: the page was reloaded before its room was created; creating again finishes the reserved room
-  unfinished: N_('房间尚未创建完成，请重新创建'),
-  // account mode (room-net.js): 继续对局 on another page or device took this seat over
-  replaced: N_('已在其他页面或设备继续对局'),
-  // account mode: the room Worker cannot restore a match recorded by a newer deployment (a rollback)
-  rollback: N_('服务器版本已回退，本局无法继续'),
 };
 
 function wireNet() {
   net.on('status', (snap) => {
     const cur = store.get().connection;
-    // Account mode: back in the menu the tab is in no room, so its room token goes (a reload must not resume a room
-    // the player left).
-    if (snap.status === 'menu' && cur.status !== 'menu') identity.clearToken();
     store.set({
       connection: {
         status: snap.status, ping: snap.ping, attempt: snap.attempt, retryAt: snap.retryAt,
@@ -273,20 +249,18 @@ function wireNet() {
   // 匹配 (matchmaking queue): the queue the player waits in, and the room the server put it in
   net.on('queue.status', (msg) => {
     store.set({ queue: { ...payload(msg), matched: null } });
-    // the account Worker's queue could not open its group's room (room-net.js; the Node server sends an error frame)
+    // the queue could not open its group's room (the server sends an error frame)
     if (msg.error) toastError(msg.error);
   });
   net.on('queue.matched', (msg) => {
-    // `expect`: the humans a matched host waits for before AI teammates take the free seats (account mode only)
-    store.patch('queue', { matched: { code: msg.code, difficulty: msg.difficulty, seated: !!msg.seated,
-      expect: Number.isInteger(msg.expect) ? msg.expect : 0 } });
+    store.patch('queue', { matched: { code: msg.code, difficulty: msg.difficulty, seated: !!msg.seated } });
   });
   // 在线人数 (ui/presence.js): the live counters next to the version (title footer / lobby top bar). The server pushes
   // them once after `welcome` and again whenever they change; a page without the frames polls /healthz instead.
   net.on('presence', (msg) => store.set({ presence: { ...presenceFacts(msg), via: 'frame' } }));
   net.on('room.closed', (msg) => {
-    // A match that ended with a result to show (spectators get it after room.closed: worker/rooms/spectators.js) stays on
-    // screen for its final view and result; the result screen leads back to the lobby. Anything else leaves at once.
+    // A match that ended with a result to show stays on screen for its final view and result; the result screen leads back
+    // to the lobby. Anything else leaves at once.
     if (msg.reason === 'ended' && msg.result && store.get().match.public) store.set({ room: null });
     else backToLobby();
     const known = Object.hasOwn(CLOSE_REASON, String(msg.reason)) ? CLOSE_REASON[msg.reason] : null;
@@ -333,8 +307,6 @@ function wireNet() {
     if (joinReady(s) && !joinReady(prev)) schedulePendingJoin();
     // in a room (co-op or solo, also a resumed one) a match is near: its data starts downloading
     if (s.room && !prev.room) warmGameData();
-    // an approved join application enters the room from any page: the account pages give way to it
-    if (s.room && !prev.room && s.ui.accountPage) store.patch('ui', { accountPage: null });
     // 匹配: the queue put this player in a room — join it like a deep link would (once, while not already inside)
     if (s.queue.matched && s.queue.matched !== (prev.queue && prev.queue.matched) && s.queue.matched.seated) {
       const code = s.queue.matched.code;
@@ -384,13 +356,12 @@ function ScreenCrashed({ error, reset }) {
 
 function App() {
   const route = useStore(selectRoute);
-  const accountPage = useStore(s => s.ui.accountPage);
   useLang(); // a language switch re-renders the whole tree in place
   const [error, resetError] = useErrorBoundary((err) => console.error('[ui] screen crashed', err));
-  const Screen = accountPage === 'replay' ? ReplayScreen : accountPage ? HistoryScreen : SCREENS[route] || LobbyScreen;
+  const Screen = SCREENS[route] || LobbyScreen;
   return html`<div class="app-root">
     <div class="app-bg" aria-hidden="true"></div>
-    ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${accountPage || route} statistics=${accountPage === 'statistics'} />`}
+    ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${TrustedNotice} />
     <${ConnectionBanner} />
     <${ToastHost} />
@@ -441,28 +412,16 @@ async function boot() {
   installDeviceSupport();
   // Hashed art a player imported. HTTPS or localhost only; a failure here must not stop boot.
   void registerImportedAssetWorker();
-  // the language (and its UI translations) before the first render: no Chinese flash for an English player — and before
-  // the Cloudflare page's first-visit resource dialog, which shows ahead of the App
+  // the language (and its UI translations) before the first render: no Chinese flash for an English player
   const langReady = initLang().catch((err) => console.warn('[app] language setup failed', err));
-  if (document.documentElement.dataset.spRuntime === 'cloudflare') {
-    await loadAccount();
-    if (account.enabled) await preferences.start(account.user?.accountId);
-    net.followAccount(account);
-    const resources = await import('./resources/index.js');
-    await langReady;
-    await resources.prepareResources();
-    resources.installResourceManager();
-  }
   // A page restored from the back/forward cache has a dead socket and a stale token choice: start over.
   window.addEventListener('pageshow', (ev) => { if (ev.persisted) location.reload(); });
   // Pick this tab's reconnect token (asks other live tabs; ≤150 ms) while fonts load.
   const identityReady = identity.init();
 
   const pendingJoin = parseRoomParam(location.search);
-  // Account mode: the page shows the account's display name (昵称#NNNN, up to 17 characters); the room names the session
-  // after the account, so the hello's name (at most NAME_MAX_LEN) is not used there.
-  const savedName = account.user ? account.user.name : sanitizeName(identity.loadName());
-  const entered = !!account.user || identity.wasEntered() && !!savedName;
+  const savedName = sanitizeName(identity.loadName());
+  const entered = identity.wasEntered() && !!savedName;
   store.set((s) => ({
     me: { ...s.me, name: savedName },
     session: { entered },
@@ -500,23 +459,12 @@ async function boot() {
   data.load('local').catch(() => {});
 
   const connectWhenReady = identityReady.then(() => {
-    // Account mode: a reload, or a tab the browser discarded, mid-match resumes this tab's seat. That room's socket is
-    // the first connection; without one the client starts in the menu (which forgets the token, see wireNet).
-    if (account.enabled) net.restore(identity.getToken(), account.activeSeat).catch((err) => toastError(err));
-    if (entered) net.setName(sanitizeName(savedName));
+    if (entered) net.setName(savedName);
     else net.connect();
   });
   await Promise.all([waitForFonts(1200), connectWhenReady, langReady]);
   const root = document.getElementById('app');
   render(html`<${App} />`, root);
-  // A GitHub login that did not complete came back with the code of what went wrong (worker/accounts/github.js).
-  const authError = new URLSearchParams(location.search).get('authError');
-  if (authError !== null) {
-    toast(authError === 'GITHUB_UNAVAILABLE' ? t(CLIENT_ERR_TEXT.GITHUB_UNAVAILABLE) : t('GitHub 登录未完成，请重试'), 'warn');
-    const url = new URL(location.href);
-    url.searchParams.delete('authError');
-    history.replaceState(null, '', url.pathname + url.search);
-  }
 
   const splash = document.getElementById('boot');
   if (splash) {

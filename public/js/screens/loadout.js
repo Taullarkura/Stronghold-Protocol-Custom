@@ -15,9 +15,7 @@
 // card's own block and pure functions, GitHub issue #64) and the elite's modules (不装备 / X / Y … with the stat bonus,
 // the trait upgrade and the talent changes), 恢复默认; 全部恢复默认 in the top bar. The detail's 普通 / 精锐 skill toggle is one
 // preview for the skills, the 特质 and the rows' skill details (display only: never stored).
-// The loadout lives in ui/loadoutSync.js (account preferences in account mode, and room.loadout; outside an account the
-// Node server keeps them in this browser); the model is ui/loadoutModel.js. The three settings follow the account in
-// account mode (preferenceSchema.js): the top bar says how the account copy is.
+// The loadout lives in ui/loadoutSync.js (localStorage + room.loadout); the model is ui/loadoutModel.js.
 // The second tab, 干员持有 (0.2.0 补位, screens/ownership.js): which NORMAL chess the player owns — a chess marked 未持有 is
 // deployed as its official stand-in (room.ownership; ui/ownershipModel.js) — with its own 导出 / 导入 / 全部持有.
 // The third tab, 自选编队 (0.2.0 DIY, screens/diy.js): the operators of the four DIY slots (room.diy; ui/diyModel.js) —
@@ -30,7 +28,7 @@ import { Img, RichText, UnitThumb } from '../ui/gameComponents.js';
 import { chessAvatarUrl, chessPortraitUrl, subProfIconUrl, bondIconUrl, moduleTypeIconUrl } from '../ui/assetUrls.js';
 import { GarrisonBlock } from '../ui/detailPanel.js';
 import { data, useData, localAsset, DATA_FILES } from '../data.js';
-import { useStore, usePrefStatus } from '../store.js';
+import { useStore } from '../store.js';
 import { PHASE } from '../../../shared/constants.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import {
@@ -430,15 +428,9 @@ function Filters({ m, filters, onFilters, bonds }) {
 
 // ---- screen -------------------------------------------------------------------------------------------------------------
 
-// the room's copy ('pending' / 'synced' say so: the account's copy has its own line, ACCOUNT_SYNC_TEXT)
 const SYNC_TEXT = {
-  idle: ['', ''], pending: [N_('应用中…'), 'is-busy'], sending: [N_('同步中…'), 'is-busy'], synced: [N_('已同步到对局'), 'is-ok'],
+  idle: ['', ''], pending: [N_('保存中…'), 'is-busy'], sending: [N_('同步中…'), 'is-busy'], synced: [N_('已同步'), 'is-ok'],
   locked: [N_('本局已锁定 · 下一局生效'), 'is-warn'], error: [N_('同步失败'), 'is-bad'],
-};
-/** The account's copy of the three settings (store.js usePrefStatus; nothing for a guest, 'local'). */
-const ACCOUNT_SYNC_TEXT = {
-  loading: [N_('读取账号配置…'), 'is-busy'], pending: [N_('账号保存中…'), 'is-busy'], saving: [N_('账号保存中…'), 'is-busy'],
-  synced: [N_('已保存到账号'), 'is-ok'], error: [N_('账号尚未同步'), 'is-warn'],
 };
 /** The 干员持有 tab's status line: the setting never applies to a running match. */
 const OWN_SYNC_TEXT = { ...SYNC_TEXT, locked: [N_('下一局生效'), 'is-warn'] };
@@ -498,9 +490,6 @@ export function DataMissing({ files }) {
 
 /** The overlay screen. */
 function LoadoutScreen({ st }) {
-  const accountSync = usePrefStatus();
-  const [accountSyncText, accountSyncClass] = ACCOUNT_SYNC_TEXT[accountSync] || ['', ''];
-  const accountChip = accountSyncText ? html`<span class=${cx('lo-sync', accountSyncClass)} role="status" data-testid="account-sync">${t(accountSyncText)}</span>` : null;
   const ready = useData('chess', 'bonds', 'assets', 'local', 'backups', 'garrisons', 'effects');
   const phase = useStore((s) => s.match?.public?.phase || null);
   const inMatch = useStore((s) => !!s.room?.inMatch);
@@ -706,14 +695,12 @@ function LoadoutScreen({ st }) {
         </div>
       </div>
       ${tab === 'diy' ? html`<div class="lo-top__right">
-        ${accountChip}
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="diy-sync">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('已选')} <b class="num">${nDiy}</b><span class="num t-dim">/4</span></span>
         <${Button} variant="ghost" size="sm" data-testid="diy-export" disabled=${!nDiy} onClick=${openExport} title=${t('导出自选编队（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="diy-import" disabled=${!ready} onClick=${openImport} title=${t('导入自选编队（粘贴或选择文件）')}>${t('导入')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="diy-reset" disabled=${!nDiy} onClick=${clearDiy}>${t('全部清空')}<//>
       </div>` : tab === 'ownership' ? html`<div class="lo-top__right">
-        ${accountChip}
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="ownership-sync">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('未持有')} <b class="num">${nNotOwned}</b><span class="num t-dim">/${ownRoster.length}</span></span>
         <${Button} variant="ghost" size="sm" data-testid="ownership-export" disabled=${!nNotOwned} onClick=${openExport} title=${t('导出干员持有（可复制或下载）')}>${t('导出')}<//>
@@ -721,7 +708,6 @@ function LoadoutScreen({ st }) {
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="ownership-reset" disabled=${!nNotOwned} onClick=${ownAll}>${t('全部持有')}<//>
       </div>` : html`<div class="lo-top__right">
         ${inMatch && hasDeadline(infoDeadline) ? html`<${Countdown} deadline=${infoDeadline} size="sm" gauge=${false} label=${t('调配截止')} class="lo-deadline" />` : null}
-        ${accountChip}
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('已调整')} <b class="num">${nChanged}</b><span class="num t-dim">/${roster.length}</span></span>
         <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged && !Object.keys(st.ops || {}).length} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>

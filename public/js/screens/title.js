@@ -5,8 +5,6 @@
 // Pressing 开始 validates the nickname (1..NAME_MAX_LEN chars, no control characters), stores it,
 // marks this tab as "entered" (so reloads skip the title) and hands the name to net.js, which
 // sends `hello` (now, or as soon as the socket is open). The router then shows the lobby.
-// Account mode (Workers): the signed-in account and 进入大厅, or, signed out, the account card (ui/accountForms.js:
-// 登录 / 注册, GitHub when offered, 浏览在线大厅), whose forms take the emblem's room.
 //
 // Backdrop art: if data/assets.json lists a UI backdrop (`ui.titleBackdrop`, or one of the
 // entry/loading illustration names) it is layered under the CSS art; otherwise the screen is
@@ -26,15 +24,12 @@ import { AssetDownloadButton } from '../ui/assetDownload.js';
 import { AssetImportButton } from '../ui/assetImport.js';
 import { useEffect, useMemo, useState } from '../../vendor/hooks.module.js';
 import { NAME_MAX_LEN, APP_VERSION, DEV_BUILD } from '../../../shared/constants.js';
-import { html, Button, Icon, MicroLabel, Modal, TextField, PingPill, AvatarFrame, PlayerName } from '../ui/components.js';
-import { LogoutButton } from '../ui/accountMenu.js';
-import { AccountCard } from '../ui/accountForms.js';
+import { html, Button, Icon, MicroLabel, Modal, TextField, PingPill } from '../ui/components.js';
 import { GuideButton } from '../ui/guide.js';
 import { InstallButton } from '../ui/install.js';
 import { openStats } from './stats.js';
 import { toast } from '../ui/toasts.js';
 import { net, identity } from '../net.js';
-import { account } from '../account.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, useData } from '../data.js';
 import { FullscreenButton, PwaInstallButton, detectFeatures } from '../ui/device.js';
@@ -150,7 +145,7 @@ export function rememberUpdateNotice(seen) {
 }
 
 // The three name helpers live in ui/playerName.js now (public/js/names.js keeps the same exports for the
-// fork's other callers: main.js, ui/accountForms.js); the title screen re-exports them as it always did.
+// fork's other callers: main.js); the title screen re-exports them as it always did.
 export { stripLoneSurrogates, sanitizeName, isValidName } from '../ui/playerName.js';
 
 /**
@@ -268,8 +263,6 @@ function Ridges() {
 const STATUS_TEXT = {
   idle: N_('准备连接'), connecting: N_('正在连接服务器'), connected: N_('已连接服务器'), handshaking: N_('正在验证身份'),
   online: N_('已连接服务器'), reconnecting: N_('连接中断，正在重连'), closed: N_('连接已关闭'),
-  // account mode (room-net.js): no room and no socket, the lobby works over HTTP
-  menu: N_('已连接服务器'),
 };
 
 /** Title screen component. */
@@ -314,28 +307,20 @@ export function TitleScreen() {
     if (!valid) { toast(t('请输入博士代号'), 'warn'); return; }
     enterSession(name);
   };
-  const enterAccount = () => {
-    identity.setEntered(true);
-    store.patch('session', {entered: true});
-  };
   const closeAnnouncement = () => {
     savePref('updateNoticeSeen', rememberUpdateNotice(loadPref('updateNoticeSeen', [])));
     setAnnouncementOpen(false);
   };
 
-  const online = conn.status === 'online' || conn.status === 'connected' || conn.status === 'menu';
-  // Account mode: a login that became invalid (重新登录 leads here) is no lost connection; the account card is the remedy.
-  const loginLost = conn.status === 'closed' && conn.lastError?.code === 'LOGIN_REQUIRED';
-  const dotClass = online ? 'is-on'
-    : loginLost || conn.status === 'reconnecting' || conn.status === 'connecting' || conn.status === 'handshaking' ? 'is-warn' : 'is-bad';
+  const online = conn.status === 'online' || conn.status === 'connected';
+  const dotClass = online ? 'is-on' : conn.status === 'reconnecting' || conn.status === 'connecting' || conn.status === 'handshaking' ? 'is-warn' : 'is-bad';
 
   // touch screens: no autofocus (it would pop the on-screen keyboard over a landscape phone's whole view)
   const touchUi = useMemo(() => detectFeatures().coarse, []);
-  const signIn = account.enabled && !account.user;
   // a title in an alphabetic script (English, French …) is the big one in the display face and the wordmark above it
   // hides; a CJK / kana / Hangul title keeps the Chinese layout (shared/i18nPacks.js scriptOf — a pack needs no flag)
   const alphabetic = scriptOf(t('卫戍协议')) === 'alphabetic';
-  return html`<div class=${`screen title-screen${signIn ? ' title-screen--sign-in' : ''}`}>
+  return html`<div class="screen title-screen">
     <div class=${`title-bg${bgLoaded ? ' has-art' : ''}${ridgesLoaded ? ' has-ridges' : ''}`} aria-hidden="true">
       ${backdrop ? html`<img class="title-bg__art" src=${backdrop} alt="" draggable=${false}
         onLoad=${() => setBgLoadedUrl(backdrop)} />` : null}
@@ -381,24 +366,16 @@ export function TitleScreen() {
       <div class="title-login">
         ${pendingJoin ? html`<div class="title-invite">
           <${Icon} name="key" />
-          <span>${t('收到同盟邀请')}</span><b class="num">${pendingJoin}</b><span class="t-lo">${account.enabled ? (account.user ? t('· 进入大厅后申请加入') : t('· 登录后申请加入')) : t('· 输入代号后将自动加入')}</span>
+          <span>${t('收到同盟邀请')}</span><b class="num">${pendingJoin}</b><span class="t-lo">${t('· 输入代号后将自动加入')}</span>
         </div>` : null}
-        ${account.enabled && account.user ? html`
-          <div class="title-login__account">
-            <${AvatarFrame} size="sm" name=${account.user.name} src=${account.user.avatarUrl} />
-            <div class="title-login__identity"><span>${t('当前登录账号')}</span><strong title=${account.user.name}><${PlayerName} name=${account.user.name} /></strong></div>
-            <${LogoutButton} />
-          </div>
-          <${Button} class="title-login__enter" variant="primary" size="xl" block=${true} onClick=${enterAccount}>${t('进入大厅')}<//>
-        ` : signIn ? html`<${AccountCard} pendingJoin=${pendingJoin} autoFocus=${!touchUi} />` : html`
         <${TextField} label=${t('博士代号')} micro="CALLSIGN" size="lg" icon="user" value=${name} maxLength=${NAME_MAX_LEN}
-          placeholder=${t('输入你的代号（最多 {NAME_MAX_LEN} 字）', { NAME_MAX_LEN })} autoFocus=${!touchUi} enterKeyHint="go"
+          placeholder=${t('输入你的代号（最多 {NAME_MAX_LEN} 字）', { NAME_MAX_LEN })} autoFocus=${!touchUi}
           onInput=${setName} onEnter=${start} />
-        <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" disabled=${!valid} onClick=${start}>${t('开始')}<//>`}
+        <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" disabled=${!valid} onClick=${start}>${t('开始')}<//>
         <div class="title-conn">
           <span class="title-conn__state">
             <span class=${`status-dot ${dotClass}`}></span>
-            <span>${loginLost ? t(conn.lastError.text) : STATUS_TEXT[conn.status] ? t(STATUS_TEXT[conn.status]) : conn.status}</span>
+            <span>${STATUS_TEXT[conn.status] ? t(STATUS_TEXT[conn.status]) : conn.status}</span>
             ${conn.status === 'online' ? html`<${PingPill} ms=${conn.ping} />` : null}
           </span>
           <span class="title-conn__tools">

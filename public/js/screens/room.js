@@ -31,14 +31,11 @@ import { useWakeLock } from '../ui/device.js';
 import { openStats } from './stats.js';
 import { SettingsButton } from '../ui/settings.js';
 import { LoadoutButton } from './loadout.js';
-import { loadoutStore, roomPrefsSettled } from '../ui/loadoutSync.js';
 import { PluginTag, isModdedRoom } from '../ui/pluginTag.js';
 import { hasScriptConsent, rememberScriptConsent } from '../content.js';
 import { net } from '../net.js';
-import { account } from '../account.js';
 import { data, useData } from '../data.js';
 import { chessAvatarUrl, bandIconUrl } from '../ui/assetUrls.js';
-import { Applications } from '../ui/accountMenu.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
 import { t, tc } from '../../../shared/i18n.js';
@@ -158,7 +155,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   // a bot's name is the server's (Chinese) record name: matched against the files as downloaded, whatever the language
   const botCharacter = seat.isBot && Object.values(data.getRaw('chess') || {}).find(c => !c.isGolden && c.name === seat.name.replace(/^AI[·・\s]*/, ''));
   const botBand = seat.isBot && Object.values(data.getRaw('bands') || {}).find(b => b.name === seat.name.replace(/^AI[·・\s]*/, ''));
-  const avatar = seat.isBot ? chessAvatarUrl(data.get('assets'), botCharacter) || bandIconUrl(data.get('assets'), botBand?.bandId) : seat.avatarUrl || (isMe ? account.user?.avatarUrl : null);
+  const avatar = seat.isBot ? chessAvatarUrl(data.get('assets'), botCharacter) || bandIconUrl(data.get('assets'), botBand?.bandId) : seat.avatarUrl;
   const isHostSeat = seat.playerId === room.hostId;
   const offline = seat.connected === false && !seat.isBot;
   // The host never needs to toggle ready: starting the match readies them (server rule).
@@ -180,7 +177,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       <span class="seat__name" title=${seat.name || t('博士')}><${PlayerName} name=${seat.name || t('博士')} /></span>
       ${isMe ? html`<span class="seat__you">${t('你')}</span>` : null}
     </div>
-    <${MicroLabel}>${seat.isBot ? 'AUTONOMOUS UNIT' : account.enabled ? 'DOCTOR' : `DOCTOR #${doctorNo(seat.playerId)}`}<//>
+    <${MicroLabel}>${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}<//>
     ${facts.modded && !seat.isBot ? html`<span class=${`seat__content is-${seat.content || 'loading'}`} data-testid="seat-content">
       ${seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}
     </span>` : null}
@@ -285,13 +282,10 @@ export function RoomScreen() {
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
   const queue = useStore((s) => s.queue, shallowEqual);
-  // this session's room.ownership / room.diy have their replies (the 匹配 member's ready waits for them)
-  const prefsSettled = useStore(roomPrefsSettled, Object.is, loadoutStore);
   const [busy, setBusy] = useState(null);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   const queuedRun = useRef(null); // 匹配: the auto-fill / auto-start sequence already started for this room
-  const readiedRun = useRef(null); // 匹配: the room this matched member already said ready in
   useEffect(() => () => { alive.current = false; }, []);
   useWakeLock();   // waiting for the others with the phone in hand: no lock screen while the room is open
 
@@ -353,18 +347,6 @@ export function RoomScreen() {
       queuedRun.current = code;
       // a short beat so the matched players' own room.join frames land before the seats are counted
       await sleep(400);
-      // account mode (room-net.js, DESIGN §F4.2): the matched members come in through join applications this page
-      // approves, after the room opened — wait for them (≤ 30 s) before their seats could go to AI teammates. The Node
-      // server seats a group at once (`expect` absent).
-      const expect = queue.matched.expect || 0;
-      for (let i = 0; i < 120 && !cancelled; i++) {
-        const cur = store.get().room;
-        if (!cur || cur.code !== code || cur.inMatch) return;
-        const f = roomFacts(cur, me.playerId);
-        if (!f.isHost) return;
-        if (f.humans.length >= expect) break;
-        await sleep(250);
-      }
       for (let i = 0; i < 6 && !cancelled; i++) {
         const cur = store.get().room;
         if (!cur || cur.code !== code || cur.inMatch) return;
@@ -395,20 +377,6 @@ export function RoomScreen() {
     // deliberately not every value the effect reads: re-running on every room.state would restart the sequence
   }, [queue.matched, room && room.code, me.playerId]);
 
-  // 匹配: a matched member is ready on arrival. The Node server marks it so; in a room Worker the member came in through
-  // a join application (DESIGN §F4.2) and says so itself, once per room — once this room's room.ownership / room.diy
-  // have their replies (loadoutSync.js roomPrefsSettled): the host starts as soon as everyone is ready, and the match
-  // takes the 自选 picks and the not-owned list the seat has at that moment.
-  useEffect(() => {
-    const code = queue.matched && queue.matched.seated ? queue.matched.code : null;
-    if (!online || !code || !room || room.code !== code || room.inMatch || facts.isHost || !facts.mine || facts.mine.ready) return;
-    if (!prefsSettled || readiedRun.current === code) return;
-    readiedRun.current = code;
-    net.request('room.ready', { ready: true }).catch((err) => {
-      console.warn('[room] matched ready failed', err);
-      if (readiedRun.current === code) readiedRun.current = null; // said again once the room is back online
-    });
-  }, [queue.matched, room && room.code, facts.isHost, facts.mine && facts.mine.ready, online, prefsSettled]);
   // spectator seats: the host frees one; a spectator takes a free player seat with room.join of this room
   const removeSpectator = (playerId) => run(`rs${playerId}`, () => net.request('room.removeSpectator', { playerId }));
   const sit = () => run('sit', () => net.request('room.join', { code: room.code, ...(room.test ? { testAck: true } : {}) }));
@@ -491,7 +459,6 @@ export function RoomScreen() {
     </main>
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
 
-    ${account.enabled && coop && facts.isHost?html`<${Applications} code=${room.code} />`:null}
     <footer class="room-bar">
       <div class=${`room-bar__left${coop && facts.isHost ? ' has-seats' : ''}`}>
         <span class="room-bar__label">${t('模拟难度')}<${MicroLabel}>DIFFICULTY<//></span>

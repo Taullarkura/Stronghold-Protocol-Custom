@@ -1,10 +1,9 @@
 // Operator loadout + ownership + 自选编队 + 干员皮肤 state and server sync (DESIGN §16; 干员持有 — 0.2.0 补位; 自选编队 —
 // 0.2.0 DIY; 干员皮肤 — docs/SKINS.md).
 //
-// `loadoutStore` holds the loadout (`entries`, persisted through store.js savePref: the active account's preferences in
-// account mode, else this browser's localStorage), the not-owned list of the 干员持有 tab (`notOwned`, likewise), the
-// 自选编队 picks (`diy`, likewise; with `diyKitted` = the operators the server lets a DIY slot field, from every
-// `welcome`) and the overlay's screen state
+// `loadoutStore` holds the per-browser loadout (`entries`, persisted in localStorage through store.js savePref), the
+// per-browser not-owned list of the 干员持有 tab (`notOwned`, likewise), the 自选编队 picks (`diy`, likewise; with
+// `diyKitted` = the operators the server lets a DIY slot field, from every `welcome`) and the overlay's screen state
 // (open / origin / tab / selection / filters). `installLoadoutSync()` / `installOwnershipSync()` / `installDiySync()` /
 // `installSkinsSync()` (called once by main.js) keep the server's copies current — one sync engine (installPrefSync),
 // four settings: after every `welcome` (new or resumed
@@ -25,7 +24,7 @@
 // only left out of what is sent, never deleted. Whenever the room's content set arrives or goes (content.js contentSet)
 // the three settings are sent again, and the 自选 picker's list (`diyKitted`) is the set's own (else welcome's).
 
-import { createStore, loadPref, savePref, subscribePrefs, store } from '../store.js';
+import { createStore, loadPref, savePref, store } from '../store.js';
 import { data } from '../data.js';
 import { contentSet as appContentSet } from '../content.js';
 import { LOADOUT_PREF, parseStored, parseStoredOps, toStored, sanitizeEntries, sanitizeOps } from './loadoutModel.js';
@@ -70,18 +69,6 @@ export const loadoutStore = createStore({
   sync: 'idle',
   ownSync: 'idle',
   diySync: 'idle',
-});
-
-// Cloud hydration happens after module evaluation and can also recover after a failed initial fetch. The loadout, the
-// 自选编队 picks and the 干员持有 list follow the account (preferenceSchema.js PREFERENCE_KEYS) in account mode; the Node
-// server keeps them in this browser (sp.pref.*). A store change is what the syncs below send, so a hydrated setting
-// reaches the room too.
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-subscribePrefs((key) => {
-  const s = loadoutStore.get();
-  if (key === LOADOUT_PREF) { const entries = readStored(); if (!same(entries, s.entries)) loadoutStore.set({ entries }); }
-  if (key === OWNERSHIP_PREF) { const notOwned = readStoredOwnership(); if (!same(notOwned, s.notOwned)) loadoutStore.set({ notOwned }); }
-  if (key === DIY_PREF) { const diy = readStoredDiy(); if (!same(diy, s.diy)) loadoutStore.set({ diy }); }
 });
 
 /** Replace the stored entries (persisted at once with the settings; the sync picks the change up). */
@@ -334,20 +321,6 @@ export function installLoadoutSync({ net, getChessReady, getBackupsReady, lookup
       return { entries, ops: cleanOps };
     },
   });
-}
-
-/**
- * Whether the two settings a match takes from the seat at room.start — 干员持有 (`room.ownership`, `ownSync`) and 自选编队
- * (`room.diy`, `diySync`) — have no send of this session waiting to go out or awaiting its reply ('pending' /
- * 'sending'). A 匹配 member says room.ready only then (screens/room.js): on a room Worker every room is a new session and
- * both go out ~50 ms after its welcome, so a ready on arrival could reach the room first and the host's automatic
- * room.start open the match without the member's picks and not-owned list (the late frames only stored for the next
- * match). Once both replies are in, the seat holds them, and the ready (same socket) comes after.
- * @param {{ ownSync?: string, diySync?: string }} [s] the loadout store's state
- */
-export function roomPrefsSettled(s = loadoutStore.get()) {
-  const busy = (x) => x === 'pending' || x === 'sending';
-  return !busy(s?.ownSync) && !busy(s?.diySync);
 }
 
 /**
