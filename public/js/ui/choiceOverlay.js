@@ -175,6 +175,22 @@ export function ChoiceOverlay(props) {
 }
 
 /**
+ * Who has picked and who is deciding, as the team panel shows it during a shared draft (the official 悬赏决策: ✓
+ * beside who has picked, ••• beside who is deciding): playerId → 'done' | 'turn'. Empty for solo and personal picks.
+ * @param {any} sp normalizeSp(...) @param {{ solo: boolean }} o
+ * @returns {Map<string, 'done'|'turn'>}
+ */
+export function spMarks(sp, { solo }) {
+  const out = new Map();
+  if (!sp || solo || !Array.isArray(sp.order)) return out;
+  for (const pid of sp.order) {
+    if (sp.pickOf.has(pid)) out.set(pid, 'done');
+    else if (sp.turnPid === pid) out.set(pid, 'turn');
+  }
+  return out;
+}
+
+/**
  * The overlay's view (pure: no hooks — test/ui renders it as a function).
  * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, busyIdx?:number|null, total?:number|null, armed?:number|null,
  *   onTap?:(idx:number)=>void, onConfirm?:()=>void, onDisarm?:()=>void }} props

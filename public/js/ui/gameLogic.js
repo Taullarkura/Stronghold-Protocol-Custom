@@ -26,6 +26,8 @@
 
 export { clamp, tileKey } from './gameLogic/shared.js';
 export { phaseMode, isCombatPhase, bondStripFolded, showDeadPill, isBossPhase } from './gameLogic/phases.js';
+export { defaultQuality } from './gameLogic/settings.js';
+export { createHudDelay } from './gameLogic/format.js';
 export { prepCamera, prepCameraFor, foldCamera, deployFoldsShop, deployZoomStep, deployZoomRemember, prepDeployCamera, deployFieldOf, fieldTile, boardTileOf, ownerBandId, teamFrameIds } from './gameLogic/camera.js';
 export { phaseBanner, prepCapsuleLabel, countdownState, phaseTotalSeconds, deployOrder, roundStartReplay } from './gameLogic/phases.js';
 export { RESULT_BOX_MS, ownRoundLoss, battleOverSfx, roundResultBox, uniteResultBox, battleResultBox } from './gameLogic/phases.js';
@@ -46,3 +48,9 @@ export { chessLoadout, unitLoadout, unitCultivation } from './gameLogic/loadout.
 export { standInIds, fieldsStandIn, standInOf, ownStandIn, cardStandIn, memberStandIn, standInGetter, standInLoadout, deployedRecord, deployedModuleId, standInLabel, standInForText, standInTip } from './gameLogic/standIn.js';
 export { diyPicks, ownDiyPick, diyRecordFor, ownDiyRecord, cardDiy, unitPick, diyGetter, pickGetter, isDiyRecord, diyBannedPieces } from './gameLogic/diy.js';
 export { panelSide, panelSlots, PANEL_RIGHT_GAP, PANEL_RIGHT_BOTTOM, PANEL_RIGHT_BOTTOM_SHOP, BPOP, bondPopupPlace } from './gameLogic/panel.js';
+export { pickDrawn } from './gameLogic/format.js';
+export { drawnChanged } from './gameLogic/format.js';
+export { hudChanged } from './gameLogic/format.js';
+export { drawnOf } from './gameLogic/format.js';
+export { ownFieldGate } from './gameLogic/format.js';
+export { snapUnits } from './gameLogic/format.js';
