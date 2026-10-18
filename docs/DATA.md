@@ -110,7 +110,6 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `itemSellable`, `itemDestroyRefund` | `false`, `0` | items can only be destroyed |
 | `benchSize`, `tempSize`, `deployCap`, `storeCntMax` | `10`, `5`, `8`, `6` | |
 | `equipPerChess`, `maxArtsPerRound` | `2`, `2` | |
-| `poolCopies[tier]` + `poolCopiesOverrides` | 12/14/18/16/8/5 plus measured identity overrides (DESIGN §29.8) | shared pool copies per base chess; `coopPoolMultiplier: 2` doubles co-op stock, then 5–8 seats scale it by `ceil(copies × seats / 4)` (`largeRoom`, `GameData.poolCopies`; private DIY stock is unchanged) |
 | `poolCopies[tier]` + `poolCopiesOverrides` | 12/14/18/16/8/5 plus measured low-tier identity exceptions (DESIGN §29.8) | single-player copies; `coopPoolMultiplier: 2` doubles them in co-op: the shared operators and each player's private 自选 stock alike (the maintainer's decision of 2026-10-15, GitHub #650, DESIGN §32.14.31; before 0.3.0 the 自选 stock stayed 8 / 5) |
 | `itemPoolCopies[tier]` + `itemPoolCopiesOverrides` | 4/6/7/8/7/3 plus eight measured exceptions (DESIGN §29.8) | shared shop-equipment ownership: normal 1, upgraded 2; non-shop effect-only equipment unlimited |
 | `goldenCopies`, `mergeCount`, `mergeCountOverrides`, `itemMergeCount` | `3`, `3`, `{"chess_char_2_11_a":2}` (风丸), `2` | |
@@ -124,17 +123,13 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | Key | Example | Meaning |
 |---|---|---|
 | `lpCapPerRound` | `10` | max LP lost per player per normal round |
-| `bossOvertimeAfter`, `bossOvertimeDrainPerSec` | `150`, `1` | official `bossTurnHpReduceTime`: from 150 **real** s of a boss round the merged team LP loses 1 per whole real second (`gamedata.js bossOvertimeDue`; first point at 151 s); above 4 alive at the boss phase's start × alive / 4, the total floored to whole LP (`largeRoom`, DESIGN §F1) |
-| `bossHpScale` | `{"formula":"one pool for every boss field …","perPlayer":true,"coop":1,"solo":1,"aliveFull":4,"aliveScaling":false,"aliveAssumed":true,…}` | the leader pool (one for every boss field) = `bosses[id].bloodPoint[difficulty]` × share: `perPlayer` true (the owner's decision of 2026-10-06, adopting PR #209 — it replaces the fixed pool of 「保持固定血量」) — co-op share = `coop` × the players alive when the fight starts (bots and AI 托管 seats count, eliminated and departed seats do not; at most `aliveFull`), solo share = `solo` (1). Above 4 alive (co-op rooms of 5–8, a remake extension not in the data — `largeRoom` below) the share is × alive / 4 on top, so the pool stays bloodPoint per player alive up to 8 (DESIGN §F1.5). `perPlayer: false` with `solo: 0.25` restores the fixed pool of 0.1.x (co-op × `coop` whatever the count; `aliveScaling: true` would make it × alive / `aliveFull`, the proportion [ASSUMED, flagged `aliveAssumed`]). `GameData.bossPoolHp(bossId, aliveCount)` / `bossPoolShare` implement it (DESIGN §20.10, §25.13.4) |
-| `hiddenCore` | `{"single":350,"multi":1200,"minTeamLpExclusive":1,"difficulties":["NORMAL","HARD","ABYSS"],"checkedAfterRound":14}` | Σ activated layers must be **>** threshold and LP **>** 1; co-op with more than 4 players' layers summed: `multi` × players / 4 (1500 … 2400; `gamedata.js hiddenThreshold`, `largeRoom`, DESIGN §F1) |
 | `bossOvertimeAfter`, `bossOvertimeDrainPerSec` | `150`, `1` | official `bossTurnHpReduceTime`: from 150 **real** s of a boss round the merged team LP loses 1 per whole real second (`gamedata.js bossOvertimeDue`; first point at 151 s) |
 | `bossHpScale` | `{"formula":"one pool for every boss field …","perPlayer":true,"coop":1,"solo":1,"aliveFull":4,"aliveScaling":false,"aliveAssumed":true,…}` | the leader pool (one for every boss field) = `bosses[id].bloodPoint[difficulty]` × share: `perPlayer` true (the owner's decision of 2026-10-06, adopting PR #209 — it replaces the fixed pool of 「保持固定血量」) — co-op share = `coop` × the players alive when the fight starts (bots and AI 托管 seats count, eliminated and departed seats do not; at most `aliveFull`), solo share = `solo` (1). `perPlayer: false` with `solo: 0.25` restores the fixed pool of 0.1.x (co-op × `coop` whatever the count; `aliveScaling: true` would make it × alive / `aliveFull`, the proportion [ASSUMED, flagged `aliveAssumed`]). `GameData.bossPoolHp(bossId, aliveCount)` / `bossPoolShare` implement it (DESIGN §20.10, §25.13.4) |
 | `hiddenCore` | `{"single":350,"multi":1200,"minTeamLpExclusive":1,"difficulties":["NORMAL","HARD","ABYSS"],"checkedAfterRound":14}` | Σ activated layers must be **>** threshold and LP **>** 1 (PRTS; the community's measurement 路标月报#2, GitHub #645) |
 | `dp` | `{"init":10,"perSec":1,"max":99}` | |
-| `unite` | `{"maxHelpers":2,"helperOrder":"unitsOnField>activeBond>undownedUnits; pair: unitsOnField>activeBond>activeLayers>undownedUnits, first = right field (PRTS 帮助)","layerGainsEnabled":false,"templates":{"1":"act1autochess_escaped_single","2":"act1autochess_escaped_multi"},…}` | 联防; `helperOrder` documents the rule `server/match/unite.js helperOrder` implements (research 08 §5; ties → seat). `maxHelpers` 2 is the official rule (1–4 players); above 4 alive the code takes 2 × ⌈alive / 4⌉ helpers on several fields `'u'`, `'u2'` … (a remake extension, DESIGN §F1) |
-| `finalAssault` | `{"pairing":"seatOrderPairs","oddPlayerAlone":true,"movableBossPerAlivePlayerSide":true,"layerGainsEnabled":false}` | seat pairs: 1–2 fields for 1–4 players, 3–4 (`b1` … `b4`) for 5–8 |
-| `timers` | `{"infoCheck":25,"infoCheckHint":5,"bandDraft":50,"bandDraftHint":15,"bandTurn":50,"battleCheck":3,"spFirst":30,"spTurn":16,"soloPrepTimeData":300,"soloSpTimeData":150,"chatCd":1,"chatBubble":3,"broadcastDelay":1,"enterSteps":[…]}` | seconds; a match of more than 4 seats takes 20 s strategy turns and, with more than 4 alive, 12 s later 机变 picks instead of `bandTurn` / `spTurn` (`largeRoom` below) |
-| `largeRoom` | not generated (absent); `gamedata.js DEFAULTS.largeRoom` = `{"players":4,"spCardsPlus":2,"bandTurn":20,"spTurn":12}`, a hand-added `largeRoom` object overrides any key | co-op rooms of 5–8 players, a remake extension (DESIGN §F1): with n > `players` the pool copies (n = seats at the start), the leader pool (on top of `bossHpScale`'s per-player share, so bloodPoint × n), the overtime drain (n = alive at the boss phase's start) and the Hidden Core threshold (n = players summed) scale × n / `players`; 机变 cards = max(cards, alive + `spCardsPlus`); `bandTurn` / `spTurn` the draft timers above; result titles get a second pass. 1–4 players: nothing changes |
+| `unite` | `{"maxHelpers":2,"helperOrder":"unitsOnField>activeBond>undownedUnits; pair: unitsOnField>activeBond>activeLayers>undownedUnits, first = right field (PRTS 帮助)","layerGainsEnabled":false,"templates":{"1":"act1autochess_escaped_single","2":"act1autochess_escaped_multi"},…}` | 联防; `helperOrder` documents the rule `server/match/unite.js helperOrder` implements (research 08 §5; ties → seat) |
+| `finalAssault` | `{"pairing":"seatOrderPairs","oddPlayerAlone":true,"movableBossPerAlivePlayerSide":true,"layerGainsEnabled":false}` | |
+| `timers` | `{"infoCheck":25,"infoCheckHint":5,"bandDraft":50,"bandDraftHint":15,"bandTurn":30,"battleCheck":3,"spFirst":30,"spTurn":16,"soloPrepTimeData":300,"soloSpTimeData":150,"chatCd":1,"chatBubble":3,"broadcastDelay":1,"enterSteps":[…]}` | seconds |
 | `bans[difficulty]` | `{"core":3,"addon":4}` (FUNNY `{0,1}`) + `rule` | per-match disabled-bond draw (research 01 A2) |
 | `bandDraft` | `{"skipsPerPlayer":1,"order":"random","duplicatesAllowed":true,"timeoutBandId":"band_bldsk"}` | |
 | `titles[]` | `{"id":"comment_1","picId":"comment_icon_1","name":"卫戍之星","stat":"bossDamage","rule":"max","onlyOnWin":true,"text":"…"}` | 评语 + [ASSUMED] criteria; `titleRule` explains assignment |
@@ -142,17 +137,15 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `broadcasts[]` | `{"id":"comment_boss_hit_1","type":"BOSS_HIT","priority":30,"text":"{0}博士对敌方领袖造成的伤害超过20%!","textRaw":"<@ba.vup>{0}博士</>…","params":["0.2"]}` | `{0}` player, `{1}` operator/level, `{2}` amount |
 | `trophies` | `{"byRoundsPassed":[{"maxRound":4,"FUNNY":0,…},…],"hiddenCore":{…},"multiOnly":true,"medals":[{"count":0,"iconId":"trophy_level1_icon"},…]}` | |
 | `roundScores[]` | `{"round":4,"score":50}` | |
-| `rewards` | `{"itemId":"act2autochess_token_chess","baseByRoundsPassed":[{"round":1,"count":10,"dailyPoint":10},…],"formula":"…","difficultyFactor":{…},"modeFactor":{…}}` | 卫戍认证 |
+| `rewards` | `{"itemId":"act2autochess_token_chess","baseByRoundsPassed":[{"round":1,"count":10,"dailyPoint":10},…],"formula":"…","difficultyFactor":{…},"modeFactor":{…},"milestones":[{"level":1,"tokens":100},…],"daily":{"name":"每日防卫目标","need":200,"bonus":300,"resetHour":4,"rule":"…"}}` | 卫戍认证; `milestones`: the 60 levels of the settlement's LV (milestoneList, cumulative tokens); `daily`: 每日防卫目标 (constData dailyMission*; the bonus and the reset hour read from its rule text) |
 | `constants` | `{"maxLevelCnt":15,"bossTrailerStartRound":3,"singleReconnectTime":86400,…,"pingConds":[…]}` | misc official constData; `singleReconnectTime` (s) = how long a dropped **solo** run stays resumable (server/lobby.js; co-op keeps the 10-minute window) |
 
 ---
 
-## 2. `chess.json` — `{ [chessId]: Chess }` (268 = 134 normal + 134 golden)
+## 2. `chess.json` — `{ [chessId]: Chess }` (266 = 133 normal + 133 golden)
 
-114 are `visible` (non-hidden, non-DIY) normal chess: per tier 16/18/19/21/22/18. 16 are `isHidden` (the two halves of the
-season share the `chess_char_<tier>_<n>` ids and the 下半 shop hides 17 of its rows — the retired 上半 operators or
-effect-only entries such as `chess_char_1_15_a` 盟约·辅助干员 from band Pith; the fork un-hid 协律, `FORK_VISIBLE_CHESS`,
-§F7); 4 are DIY (甄选) slots.
+112 are `visible` (non-hidden, non-DIY) normal chess: per tier 16/17/19/22/19/19. 17 are `isHidden` (retired
+上半 entries or effect-only such as `chess_char_1_15_a` 盟约·辅助干员 from band Pith); 4 are DIY (甄选) slots.
 
 | Field | Example | Meaning |
 |---|---|---|
@@ -166,7 +159,7 @@ effect-only entries such as `chess_char_1_15_a` 盟约·辅助干员 from band P
 | `name`, `appellation` | `"隐现"`, `"Insider"` | |
 | `rarity` | `5` | stars 1–6 |
 | `profession`, `subProfessionId`, `subProfessionName`, `position` | `"SNIPER"`, `"fastshot"`, `"速射手"`, `"RANGED"` | |
-| `placement` | | not stored. A MELEE chess may also stand on a 高台 when its trait without a module (`traitBase`, else `trait`) reads 「可以放置于远程位」 — the 钩索师 / 推击手 branch trait: 歌蕾蒂娅, 崖心, 见行者, normal and elite; the module does not matter (every module of the three keeps the line). Read at place time (`shared/highGround.js meleeOnHighGround`, `board.js positionClass`); the owner's decision of 2026-10-05, following PRTS (it reverses the 2026-10-04 one: elite 歌蕾蒂娅 with HOK-Y only). `position` stays MELEE for the battle |
+| `placeOnRanged` | `true` (present only then) | a MELEE chess whose Chinese trait without a module (`traitBase`, else `trait`) contains 「可以放置于远程位」 — the 钩索师 / 推击手 branch trait: 歌蕾蒂娅, 崖心, 见行者, normal and elite; the module does not matter (every module of the three keeps the line). Stored at build time so a localized record still places: the overlay replaces the trait text, and en / ja / ko / zh-TW (於) no longer contain the Simplified line (GitHub #676). Read at place time (`shared/highGround.js meleeOnHighGround`, which also matches that line when the flag is absent — a Chinese or plugin record — `board.js positionClass`); the owner's decision of 2026-10-05, following PRTS (it reverses the 2026-10-04 one: elite 歌蕾蒂娅 with HOK-Y only). A compact MELEE plugin form may set the same boolean [ASSUMED]; `expandRecords` copies only `true` onto the chess and the 自选 form (`shared/plugins/records.js`). `position` stays MELEE for the battle. The old `placement` string is not stored |
 | `nationId` | `"laterano"` | |
 | `bonds[]` | `["lateranoShip","swiftShip"]` | bondIds (→ `bonds.json`) |
 | `garrisonIds[]` | `["garrison_16_b"]` | 特质 (→ `garrisons.json`); first = displayed trait |
@@ -181,7 +174,7 @@ effect-only entries such as `chess_char_1_15_a` 盟约·辅助干员 from band P
 | `projectile` | `"arrow"` | `arrow` (phys ranged) / `bolt` (arts ranged) / `orb` (heal) / `none` |
 | `canHitFly` | `true` | |
 | `targetPriority` | `"fly"` | from trait text: `fly` (优先攻击空中单位), `lowestDef` (防御力最低), else `null` |
-| `trait` | `{"desc":"优先攻击空中单位","descRaw":"…","bb":{"atk_scale":1.1},"bbStr":{},"rangeGrid":null,"moduleDesc":"攻击空中单位时攻击力提升至110%","moduleDescRaw":"…"}` | profession trait (+ golden module trait upgrade merged into `bb`; `rangeGrid` = trait-effect area, e.g. 散射手 front row — **not** the attack range). `desc` = the class trait, or the module's rewrite of it (official `overrideDescripton`); `moduleDesc` = the module's added line (official `additionalDescription`, PRTS 「特性追加」), which the client shows after `desc`, never alone (0.2.0, community report item 16.2). A module part that only adds a display line (official target `DISPLAY`, no rewrite) fills that line with its blackboard and leaves `desc` at the class trait's numbers — 圣约送葬人 REA-Y: `desc` heals 50, `moduleDesc` 攻击速度+12 (0.2.2, GitHub #400); `bb` still merges every part (what the kits read) |
+| `trait` | `{"desc":"优先攻击空中单位","descRaw":"…","bb":{"atk_scale":1.1},"bbStr":{},"rangeGrid":null,"moduleDesc":"攻击空中单位时攻击力提升至110%","moduleDescRaw":"…"}` | profession trait (+ golden module trait upgrade merged into `bb`; `rangeGrid` = trait-effect area, e.g. 散射手 front row — **not** the attack range). `desc` = the class trait, or the module's rewrite of it (official `overrideDescripton`); `moduleDesc` = the module's added line (official `additionalDescription`, PRTS 「特性追加」), which the client shows after `desc`, never alone (0.2.0, community report item 16.2). A module part that only adds a display line (official target `DISPLAY`, no rewrite) fills that line with its blackboard and leaves `desc` at the class trait's numbers — 圣约送葬人 REA-Y: `desc` heals 50, `moduleDesc` 攻击速度+12 (0.2.2, GitHub #400); `bb` still merges every part (what the kits read). `rangeExpand` (present only then) is the Chinese `moduleDesc` matching 「攻击范围扩大」; `modeOnly` (present only then) matches 「集成战略」. The preview reads those booleans (`shared/loadoutRecord.js`, GitHub #700) and still matches the Simplified line when the flag is absent. The battle kits still read the Chinese text |
 | `skill` | see below | default skill at `status.skillLevel` (normal 4, golden 7) |
 | `skills[]` | `[{…skill record…, "index":0, "isDefault":false}, {…, "index":1, "isDefault":true}]` | **loadout choices** (DESIGN §16): every skill unlocked at `status` (E1 ⇒ S1–S2, E2 ⇒ S1–S3; the default is always listed), same shape as `skill` + `isDefault`, at the chess skill level, `trigger` resolved **for that skill index** (§2.2). The `isDefault` entry equals `skill` |
 | `modules[]`, `statsBase`, `traitBase`, `talentsBase` | see §2.2 | golden chess with `equipLevel > 0` only: selectable modules + the no-module base they apply to |
@@ -205,6 +198,7 @@ effect-only entries such as `chess_char_1_15_a` 盟约·辅助干员 from band P
 | `spCost`, `initSp`, `maxChargeTime`, `increment` | `20`, `10`, `1`, `1` | `maxChargeTime > 1` ⇒ charges |
 | `bb`, `bbStr` | `{"atk":1,"base_attack_time":-0.3,"attack@trigger_time":14}` | kit input (DESIGN §5.6) |
 | `rangeId`, `rangeGrid` | `null` | skill range override |
+| `passiveRange` | `true` (present only then) | the Chinese `desc` matches 「被动效果：攻击范围扩大」 and `rangeGrid` is non-empty (引星棘刺 S3). The preview uses this skill's grid (GitHub #700). Absent: the same Simplified line still selects it. A localized `desc` does not |
 | `prefabId`, `overrideTokenKey` | | |
 | `trigger` | `{"rule":"DEFAULT","rawRule":"DEFAULT","customRangeGrid":null}` | auto-cast rule (the official 技能策略, PRTS 卫戍协议/帮助 §作战阶段 技能操作; §2.2). `rule` ∈ `DEFAULT` (basic strategy), `SKILL_RANGE` (a MANUAL skill with a 技能范围 of its own: `customRangeGrid` = its `rangeGrid`, `rawRule` `DEFAULT` — no official row), `ACTIVE_RANGE` (the owner's deliberate deviation of 2026-10-05: a MANUAL skill on the basic strategy — 深巡 S2's deviation included — or on the `SEARCH` row whose attack range while it runs strictly contains the operator's own range: `customRangeGrid` = that running range, `rawRule` the official row, `DEFAULT` / `SEARCH` / 深巡's `TAKE_DAMAGE`), `TAKE_DAMAGE` (every MANUAL 重装 skill but seven: 深巡 / 雷蛇 S2, 号角 S2 / S3 and 灰毫 S1 / S2 are `DEFAULT` with `rawRule` `TAKE_DAMAGE` — a deliberate deviation, `tools/build-data.mjs TRIGGER_DEVIATIONS`, DESIGN §21.29; 深巡 S2 then `ACTIVE_RANGE` on its 3-2 — and 余 S2 is `SKILL_RANGE` with `rawRule` `TAKE_DAMAGE` and `customRangeGrid` its x-1, DESIGN §22.10), `SP_FULL` (official `ALWAYS`: 执旗手 / 战术家 / 吟游者 MANUAL skills), `CUSTOM_RANGE` (official `CUSTOM_RANGE_SEARCH_ENEMY`, uses `customRangeGrid`), `SEARCH` (解放者 / 阵法术师 MANUAL skills, 安洁莉娜 S2/S3 — but those whose running range is larger, `ACTIVE_RANGE`: 薄绿 S1, 蜜蜡 S1, 卡涅利安 S3, 玛恩纳 S2, 安洁莉娜 S3), `MLYSS_WTRMAN` (缪尔赛思), `GDGLOW_SKILL_2` (荒芜拉普兰德, 纯烬艾雅法拉 S3: "全场存在可选目标时释放技能"). `allies: true` (only then present): an ally row the engine plays as one of its rules on an injured, healable ally of `customRangeGrid` — 黍 S3 (data/backups.json): official `TRY_SEARCH_ALLY_SKILL` ("技能范围内存在可治疗的我方单位时释放技能") → `SKILL_RANGE` on its x-2 (`tools/build-data.mjs TRIGGER_ALLY_RULES`). |
 
@@ -298,14 +292,14 @@ full-rank build from the others; the build fails unless `atRank` rebuilds every 
 | `layerMilestones[]` | `[{"layer":25,"mode":"every","effect":"bond_layer_added_reward_equip"}]` | layer-based powers: `reach` (while L ≥ layer), `every` (each multiple), `first` (latched once) |
 | `desc`, `descRaw` | | bond panel text |
 | `effectId`, `effectName`, `effectDesc`, `effectDescRaw` | `"bondeffect_deput"`, …, `"所有干员防御力+{0:0%}（受层数影响）…"` | in-battle text with **positional** placeholders |
-| `effectDescParams[]` | `[{"index":0,"format":"0%","base":"base_def","perStack":"def_per_stack"}]` | `{i:fmt}` = `bb[base] + bb[perStack] × layers`; optional `round:"floor"` floors the computed value (拉特兰's ASPD bonus). Layers never exceed 999 (the official `MAX_GARRISON_STACK`, not in any table: shared/constants.js `BOND_LAYER_CAP`, research 11) |
+| `effectDescParams[]` | `[{"index":0,"format":"0%","base":"base_def","perStack":"def_per_stack"}]` | `{i:fmt}` = `bb[base] + bb[perStack] × layers` — layers never exceed 999 (the official `MAX_GARRISON_STACK`, not in any table: shared/constants.js `BOND_LAYER_CAP`, research 11) |
 | `bb`, `bbStr` | `{"base_def":0.15,"def_per_stack":0.012,"respawn_time":-0.3,"layer":2,"count":3,"more_layer":4}` | all buffs merged (first wins) |
 | `buffs[]` | `[{"key":"env_gbuff_new","bb":{…},"bbStr":{"key":"act1autochess_bond_eff_deput"}}, …]` | exact official buffs (e.g. 萨尔贡 has a second buff valid only with `band_narant`) |
 | `baseParams`, `perStackParams` | `["base_def"]`, `["def_per_stack"]` | official descParamBaseList / descParamPerStackList |
 | `members[]`, `visibleMembers[]` | `["chess_char_1_06_a",…]` | base (normal) chessIds incl. hidden / only visible |
 | `spec` | `{"tiers":[{"need":"…","effect":"…"}],"formulas":{…},"layerGain":"…",…}` | research 02 implementer spec (null without research) |
 
-## 4. `garrisons.json` — `{ [garrisonId]: Garrison }` (261; 46 distinct `effectKey`s)
+## 4. `garrisons.json` — `{ [garrisonId]: Garrison }` (249; 43 distinct `effectKey`s)
 
 | Field | Example | Meaning |
 |---|---|---|
@@ -317,37 +311,6 @@ full-rank build from the others; the build fails unless `atRank` rebuilds every 
 | `battleRuneKey`, `charLevel` | `null`, `0` | |
 | `bb`, `bbStr` | `{"multi":1}`, `{"add_method":"shoplv","bond":"yanShip"}` | |
 | `owners[]` | `["chess_char_1_03_a"]` | chess carrying it (includes garrisons referenced by other garrisons, which may have no owner) |
-
-Every record is the official `garrisonDataDict` verbatim, except the ones `tools/build-data.mjs` re-authors:
-**`FORK_GARRISON_OVERRIDES`** — official records this fork deviates from (now `garrison_12_a` / `_b`, 乌尔比安's 特质: 作战能力
-"【阿戈尔】每叠加2层，本干员攻击力+1 %" → 持续叠加 "所有【阿戈尔】干员被击倒时，使已激活的【阿戈尔】层数+2（精锐 +4）", the fork-only handler
-`fork_gar_event_bonddead` in sim/content/garrisons/battle.js, the owner's decision of 2026-10-12) —
-**`CHESS_ADJUSTMENTS`** (shared/chessAdjust.js) re-authors the 特质 of an *official* 可用干员 the fork renumbers, through the
-same shape (安洁莉娜's `garrison_147_a` / `_b`: the official one-bond 叙拉古 "+4 / 至多12" (+8 / 24) → the two-bond
-"【叙拉古】+2、【奇迹】+1（每回合至多8层/4层）", 精锐 +4 / +2, 至多 16 / 8 — `bb.multiplier` / `bb.max_layer` then hold the
-comma lists `shared/forkTraits.js` writes; the owner's plan of 2026-10-12) — and
-**`PROMOTED_PIECES`** (shared/promoted.js), which authors the promoted pieces' own records (`garrison_fork_*`) in the shape
-of the official ones: one 作战能力 `garrison_fork_<name>_a` / `_b` per promotion (克莱门莎's 攻击力, 结城理's 攻击力和生命值), and
-— for a 特质 of two effects, as the official operators carry several 特质 records — a second pair named after the part
-(结城理's 持续叠加 `garrison_fork_makoto_swap_a` / `_b`: every <替身> switch adds layers, capped per battle; 予愿安洁莉娜's
-`garrison_fork_aglna2_a` / `_b` is a 持续叠加 one from the start: <休整期结束时> every refresh this round adds 叙拉古 layers,
-`shared/forkTraits.js`). A promotion whose ONLY 特质 is a 持续叠加 one takes the unsuffixed pair for it: 真言's
-`garrison_fork_mantra_a` / `_b` (<战斗中> every skill cast of an operator carrying 【萨尔贡】 or 【迅捷】, the piece included,
-adds 1 / 2 layers to the active listed bonds, capped 24 / 48 per battle) and 维伊's `garrison_fork_veen_a` / `_b`
-(<战斗中>自身每消耗6发弹药，使已激活的【拉特兰】层数+3 / +6（每场战斗至多触发6次） — the official
-`act1autochess_gar_event_consume_ammo` family, its self-only `range_id: '0-1'` scope and its `add × triggers` cap
-18 / 36, so no new effect code). The fork keys
-are visible in `effectKey`: no official table carries `fork_gar_event_bonddead`, `fork_gar_event_dollswap` or
-`fork_gar_event_bondskill`.
-**`DIY_ONLY_OPERATORS`** (shared/diyOnly.js) takes records the other way: a demoted operator's chess leaves the roster, so
-no chess references its `garrison_<n>_a` / `_b` any more and build-data no longer writes them (塑心's `garrison_90_a` /
-`_b`, 缄默德克萨斯's `garrison_114_a` / `_b` and 莫斯提马's `garrison_22_a` / `_b` — the last was the season's only 特质
-that pooled ANOTHER operator's bullets; every ammo 特质 left is self-only — are gone: a 自选 piece carries no 特质, §18).
-
-`FREEZE_TRAIT_ADJUSTMENTS` (`shared/forkTraits.js`) adds six fork records on the official freeze-event handler: 灵知 gets
-【灵巧】+1 / +2 at 50%; 银灰 gets 【谢拉格】+1 / +2 at 60%; 凛御银灰's grant gives a front 【谢拉格】 operator
-【谢拉格】【迅捷】+1 / +2 at 50%. The first two replace shared ids only on their own chess, leaving 雪猎's and 初雪's
-shared official traits unchanged; the granted pair is referenced by 凛御银灰's `garrison_126_a` / `_b`.
 
 ## 5. `items.json` — `{ [itemChessId]: Item }` (115 = 56 EQUIP × 2 + 3 MAGIC)
 
@@ -383,14 +346,6 @@ shared official traits unchanged; the granted pair is referenced by 凛御银灰
 | `victorCount`, `rewardModulus`, `unlockDesc` | `3`, `1`, `null` | |
 | `bondIds` | `["lateranoShip"]` (潘格尼尼) / `[]` | the bonds the strategy is built around (`shared/bandBonds.js`: the bond names in <…> of its text — the official note "在<X>部分干员缺席时体验可能不完整" among them — and the bond ids / bond pools of its blackboards, `pool` → choices.json `pools[pool].bond`); 9 bands are tied. The bot never picks, and the strategy draft marks 本局禁用, a band whose bond the mode switches off (DESIGN §21.26) |
 
-**`BAND_ADJUSTMENTS`** (shared/bandAdjust.js) replaces the effect of a strategy this fork re-authors: `tools/build-data.mjs`
-writes the adjustment's `buffs` and its `desc` / `descRaw` / `params` from the same numbers (so text and blackboard cannot
-drift) and leaves the 效果 name, icon, LP, sort order and unlock condition the official record's own. The buff key is an
-official one, so the sim needs no new code. Now 休露丝's `band_sciurus`: the official 雪域礼赠 (「每回合购买的首名<谢拉格>干员
-消耗资金为1」, `first_buy_in_round_char_price_change`) becomes 「每累计花费23资金，获得一名随机的<谢拉格>干员（等级不超过当前调度中心
-等级）」 — 绮良's `band_coin_cost_gain_random_char_by_shop_level` with `bbStr.bond` = kjeragShip, which the handler reads as
-an optional 盟约 filter on its pool draw (owner's plan of 2026-10-14).
-
 ## 7. `effects.json` — `{ [effectId]: Effect }` (361: every effect of the season)
 
 Types: `BAND_INITIAL` 41, `BOND` 23, `EQUIP` 115, `ENEMY_GAIN` 129 (悬赏), `BUFF_GAIN` 43 (战术决策), `ENEMY` 6 (`aceffect_enemy_*` global modifiers), `CHAR_MAP` 4 (角色练度映射 — the 自持有 练度 tiers `aceffect_char_1…4`, 未精英化 / 精英阶段1 / 精英阶段2 / 精英阶段2-60级, in `autoChessData.cultivateEffectList` order: their `char_attribute_mul` buff — `atk` / `def` / `max_hp` 1, 1.05, 1.1 — is the unit's 练度 multiplier, `shared/potential.js cultivateMul`, 0.2.2).
@@ -409,7 +364,7 @@ Types: `BAND_INITIAL` 41, `BOND` 23, `EQUIP` 115, `ENEMY_GAIN` 129 (悬赏), `BU
 |---|---|---|
 | `events[id]` | `{"id":"enemy_initial_1","choiceType":"BOUNTY_HUNT","effectType":"ENEMY_GAIN","name":"悬赏决策","desc":"…","color":"#35d8b4","family":"bounty","solo":false,"training":false}` | 109 official choice events; `_s` = solo copies; `usedBy` on events opened by items (`hunter_band_1` ← 教鞭 / “神秘顾客”) |
 | `families` | `{"bounty":{"name":"悬赏决策",…},"supply":{…},"shop":{…},"tactic":{…}}` | 悬赏决策 / 道具补给 / 机密商店 / 战术决策; `desc` = the overlay header after the name, the official event text (战术决策 "进行协同调整，做好迎战准备。", as on the official screens and in effectChoiceInfoDict `buff_select_*`) |
-| `format` | `{"multi":{"cards":6,"pickOrder":"random","firstPickSec":30,"otherPickSec":16,"onTimeout":"autoPickRandom","eachPlayerPicks":1},"solo":{"cards":3,"timer":null},"opensAfterIncome":true}` | `multi.cards` 6 is the official co-op count; with more than 4 alive the draft has max(6, alive + 2) cards (`choices.js spDraftCardCount`, `largeRoom`; DESIGN §F1) |
+| `format` | `{"multi":{"cards":6,"pickOrder":"random","firstPickSec":30,"otherPickSec":16,"onTimeout":"autoPickRandom","eachPlayerPicks":1},"solo":{"cards":3,"timer":null},"opensAfterIncome":true}` | |
 | `cards.bounty[]` | `{"effectId":"enemyeffect_10_4","name":"悬赏·飞行I","tier":1,"coin":1,"payout":"kill","rounds":2,"multiRound":false,"enemyKey":"enemy_1005_yokai","count":1,"adds":[…],"draft":true,"draftExcluded":null,"draftPool":"initial","series":10}` | `payout` `kill` (killer gets coins, 联防 helpers too) / `perfect` (chooser's own phase perfect); `rounds` = battles affected (99 = all remaining); `tier` from the I/II/III suffix (else coin value); `enemyKey` = the effect's `enemy_id` (fixed per card; the title only names category and tier); `draft` = offered by a 悬赏决策 draft (86 cards); else `draftExcluded` `perfect` (战术特训: "仅由法术教鞭生成" — the 教鞭 Art's cards; 20) / `hidden` (鸭爵 / 高普尼克 / 流泪小子 / 圆仔; 4) / `unseen` (in none of the 59 official bounty drafts of the user's 66 screenshots: the 7 multi-round cards, enemyeffect_3_*, the boss bounties of no seen R9 group; 19, [ASSUMED] not offered) — build-data `bountyDraftExclusion`, `server/match/choices.js draftBounty`, user playtest #6 item 4, player feedback after 0.1.0 report #2; `draftPool` = the kind of draft that offers it: `initial` (R3: the 42 "接下来两场作战" cards), `boss` (R9: 19 boss bounties + 源石虫·特训), `hunter` (R11: the faction _7 / _8 and 特异 series 16 "下场战斗" cards, 24), null when not drafted; `series` = N of `enemyeffect_N_M` (null otherwise) |
 | `cards.tactic[]` | `{"effectId":"map_m01_1","name":"模拟战场演变·模式一","kind":"terrain","stageId":"act1autochess_m01","team":false}` | `kind` `ally` / `enemyDebuff` / `terrain` (only for the match stage); `team` = also given to teammates. A 战术决策 draws each card on its own, with replacement, so the same card can be offered twice (official match 7 R11: 补给 ×2; `tacticDraft`) |
 | `bountyDrafts[kind]` | `{"initial":{"events":[…],"slots":10,"pick":"slot","groups":[{"cards":[…6],"seen":[1,3,5,9,17]},…],"rule":{"series":[10,…,15,20],"tiers":[1,1,1,2,2,3],"perSeries":2,"prefer":["enemyeffect_10_6","enemyeffect_20_6"]},"count":6},"boss":{"events":[…],"slots":6,"pick":"seen","groups":[{"cards":[…9],"seen":[7,…,21],"weights":[12,13,…]},…],"count":6},"hunter":{"events":[…],"slots":7,"pick":"slot","groups":[{"cards":[…7],"seen":[1,6,21,22],"weights":[…]},{"cards":[…6],"open":1,…},…],"rule":{"size":7,"onePerSeries":[10,…,15],"maxSeries16":2,"giants":[…],"cards":[…]},"count":6}}` | the official 悬赏决策 card lists, read from 66 screenshots of 22 official co-op 绝境 / 终极 matches (player feedback after 0.1.0 report #2; build-data `BOUNTY_INITIAL_SETS` / `BOUNTY_BOSS_GROUPS` / `BOUNTY_HUNTER_GROUPS`, readings in `test/fixtures/official-bounty-drafts.json`, `seen` = its match numbers). A draft = one group (`pick` `slot`: one of `slots` events, uniform — a seen group or, for an unseen event, a list built by `rule`; `seen`: a group by the matches it came in), then `count` different cards of its `cards` drawn one by one by `weights` (1 + the drafts of the group the card showed in; a rule-built card 1). `initial`: 9 seen sets of 6 (all six shown), the 10th by `rule` — tiers I I I II II III, ≤ `perSeries` a series, the III one of `prefer` (the two-battle cards no draft showed) [ASSUMED]; `boss`: the 6 groups of 9, 9, 9, 9, 8 and 6 cards (one per bossInitial event; 9 where three named bosses came; the three single-draft groups completed only with the base cards they lack [ASSUMED] — match 4's base-only group may instead be a draft of the 泥岩 group), the 鼠王 group in 14 of 22 matches — every one on the dark grey board — so picked by `seen` [ASSUMED: the per-match cause is open]; `hunter`: the 7 seen lists of 7, `slots` 7 so one of them uniform, so no list is built from nothing [ASSUMED] (which of the 15 events R11 fires is open: by the blocks of effectChoiceInfoDict it would be bounty_hunter_8..15, beside artifact_paid_4 / 5 and hardbuff_select; with 8 events an unseen list would come in about 1 R11 bounty draft in 8); `open` = cards still unseen, drawn by `rule`: a giant for a list without one, else tier I / II cards, one per `onePerSeries` series, ≤ `maxSeries16` of 16_9..12 [ASSUMED] — the only way 12_8 / 16_2 / 16_6 (in no draft) come, about 1 R11 bounty draft in 15 |
@@ -456,6 +411,7 @@ blackboards (transitively). Level = `randomEnemyAttributeDict[key].level` (0 for
 | `templateSlots` | `{"N":"enemy_1422_lrsldr","E":"enemy_1427_lrnazg","S":"enemy_1425_lrcmra","NF":"enemy_1005_yokai","EF":"enemy_1042_frostd","SF":"enemy_1040_bombd","T":"enemy_1000_gopro_2","TF":"enemy_1041_lazerd"}` | placeholder keys in wave templates |
 | `types[type]` | `{"type":"FLY","name":"特训敌人·飞行","desc":"…","icon":"fly_icon","sortId":2,"typeIdentifier":2,"involveRandom":true,"count":3,"weight":3,"pool":[…],"entries":[…]}` | 7 types |
 | `entries[key]` | `{"key":"enemy_1041_lazerd","type":"FLY","weight":10,"firstHalf":true,"fly":true,"N":[{"key":"enemy_10083_hlbird"}],"E":[{"key":"enemy_1005_yokai_2"}],"inactiveIn":[]}` | 67 entries (`specialEnemyInfoDict`); `fly` = the movement class shared by the special, normal and elite keys; `inactiveIn` = modes whose `inactiveEnemyKey` bans the SPECIAL key (attached keys are never filtered) |
+| `handbookLevels[]` | `{"level":"E","maxHp":[0,1000],"atk":[0,200],"def":[0,100],"res":[0,1],"moveSpeed":[0,0.3],"interval":[6.9,null],"elementRes":[0,1],"elementDmgRes":[0,1]}` | the enemy handbook's 10 letter grades, E … SS weakest first (`enemy_handbook_table.levelInfoList`): per stat the official `[min, max)` band (`null` = open-ended); `interval` is the attack interval in seconds (the table's `attackSpeed`: a shorter interval is the higher grade). Display only: the 敌方图鉴 grades each stat by its band (`screens/sweep.js enemyGrade`) |
 | `generation` | `{"specialEnemyNum":3,"maxLevelCnt":15,"fillType":"SPECIAL","typeSlots":{"FLY":3,…},"firstHalfMaxRound":7,"minReplacedEnemyCount":1,"maxReplacedEnemyCount":5,"minActionIntervalRatio":0.05,"beFactors":{…},"placeholders":{"enemy_1422_lrsldr":{"slot":"N","cls":"normal","fly":false},…},"powerFormula":"…","countFormula":"…","timingFormula":"…","notes":[…]}` | parameters of the **official** generator (client `RandomEnemyGenerater`, research 08 §2 — normative) |
 
 The official generator (implemented by `server/match/waves.js`):
@@ -553,10 +509,9 @@ Glyph legend (`rows`):
 | `parts[]` | `["enemy_9014_acstma","enemy_9015_acstmb"]` | boss parts (random local groups / unharmful); not leaders — 限伤 never applies to them |
 | `abilities[]` | handbook texts | |
 
-## 14. `tokens.json` — `{ [tokenId]: Token }` (23)
+## 14. `tokens.json` — `{ [tokenId]: Token }` (22)
 
-`kind`: `summon` (20 chess summons — 予愿安洁莉娜's 替身 “一会儿见！” joined them when the fork promoted her, §F8),
-`bondSummon` (`enemy_9012_acloon` 炎佑 for 炎 6/9), `mapChar` (`char_605_cmedic`
+`kind`: `summon` (19 chess summons), `bondSummon` (`enemy_9012_acloon` 炎佑 for 炎 6/9), `mapChar` (`char_605_cmedic`
 预备干员-医疗 / `char_613_acmedc` Touch placed by band `band_amedic`).
 
 | Field | Example (`token_10028_vigil_wolf`) | Meaning |
@@ -580,12 +535,6 @@ Glyph legend (`rows`):
 
 ---
 
-## 14b. `waiguan.json` — retired
-
-This fork's 外援 / 甄选 roster (`data/waiguan.json`: 87 candidates, their tier VI records and tier V overlays, built by
-`tools/build-data.mjs buildWaiguan`) was retired on 2026-10-08 with 外援 itself (DESIGN §F3, docs/design/fork.md): the
-自选编队 data is `backups.json diy` (§18).
-
 ## 15. Anomalies found while joining (also in `.cache/build-data-report.json`)
 
 1. **凛御银灰 container token** `token_10057_svash2_eagle` (talent tokenKey) is not in `character_table`: the talent's
@@ -607,10 +556,9 @@ This fork's 外援 / 甄选 roster (`data/waiguan.json`: 87 candidates, their ti
    `TAKE_DAMAGE` but the six of the deliberate deviation, DESIGN §21.29, which are `DEFAULT` with `rawRule` `TAKE_DAMAGE` (深巡 S2 then `ACTIVE_RANGE`), and 余 S2, `SKILL_RANGE` on its x-1 (DESIGN §22.10); 薄绿 / 卡涅利安 / 蜜蜡 S2 and 玛恩纳 S1 `SEARCH`; 伺夜 / 魔王 / 浊心斯卡蒂 S3 `SP_FULL`) and no AUTO skill (古米 /
    雷蛇 / 瑕光 / 塞雷娅 / 号角 / 信仰搅拌机 S1, 伺夜 S1/S2, 魔王 S1); 13 MANUAL skills (26 normal + elite records) with
    their own 技能范围 are `SKILL_RANGE` (德克萨斯 S2, 凛御银灰 S2, 锏 S2/S3, 异客 S3, 忍冬 S2, 焰尾 S2 …); 余 S2 joins them by the §22.10 deviation, 14 skills / 28 records in the data; 39 MANUAL skills (78 records) whose
-   running attack range strictly contains the operator's own are `ACTIVE_RANGE` (the owner's rule of 2026-10-05; 银灰 S3,
-   史尔特尔 S2 / S3 …; from the `SEARCH` row 薄绿 S1, 蜜蜡 S1, 卡涅利安 S3, 玛恩纳 S2, 安洁莉娜 S3, and 深巡 S2 over
-   its deviation), plus 预备干员 Touch S2 / S3 and Raidian S3 in `backups.json`. The fork's own builds count 41 skills /
-   82 records (§F8 / §F9 / §F10 move the roster); 莫斯提马 S3 was one of them until her demotion (§F10).
+   running attack range strictly contains the operator's own are `ACTIVE_RANGE` (the owner's rule of 2026-10-05; 莫斯提马 S3,
+   银灰 S3, 史尔特尔 S2 / S3 …; from the `SEARCH` row 薄绿 S1, 蜜蜡 S1, 卡涅利安 S3, 玛恩纳 S2, 安洁莉娜 S3, and 深巡 S2 over
+   its deviation), plus 预备干员 Touch S2 / S3 and Raidian S3 in `backups.json`.
 7. **Trait candidate `rangeId`** (送葬人, 松果 1-3; 风丸, 归溟幽灵鲨 x-4) is the trait-effect area, exposed as
    `trait.rangeGrid`, not the attack range.
 8. **Passive skills** use numeric `spType 8` in skill_table → normalized to `ON_DEPLOY`.
@@ -628,7 +576,7 @@ This fork's 外援 / 甄选 roster (`data/waiguan.json`: 87 candidates, their ti
 16. Research-only fields (null without `docs/research`): stage `name`, item `category/kind/family/implFormula/
     requiresBondId/rangeGrid/flavor`, bond `spec`, E2 art availability (falls back to "char has an E2 phase").
 17. [ASSUMED] content (flagged in data): 机变 family schedule and server pools, title criteria, income cap 12, per-turn
-    band-draft timer 50 s (`timers.bandTurn`, the step's only countdown — user playtest #4), the shop-only item list
+    band-draft timer 30 s (`timers.bandTurn`, the step's only countdown — user playtest #4), the shop-only item list
     (`SHOP_EXCLUDED_ITEMS`, from play), the alive / 4 proportion of the fixed pool's optional alive scaling
     (`bossHpScale.aliveAssumed`; `aliveScaling` off). The special-enemy generator, the leader table (`bloodPoint`, one
     pool for every field) and the 联防 timing are official; the pool's × players alive is the owner's decision of
@@ -656,10 +604,8 @@ This fork's 外援 / 甄选 roster (`data/waiguan.json`: 87 candidates, their ti
 
 ## 16. Counts (current build)
 
-`chess 268 (114 visible; 288 selectable skills over the visible chess, 180 module choices over 134 goldens; 79 PRESET / 51 NORMAL / 4 DIY base chess — 16 hidden records among them; 协律 chess_char_2_15 restored to the shop, §F7; 安洁莉娜 5→4, 缄默德克萨斯 demoted for 予愿安洁莉娜, §F8; 卡涅利安 demoted for 真言 and 佩佩 6→5, §F9; 莫斯提马 demoted for 维伊, §F10)`, `bonds 23`, `garrisons 255 (46 effect keys)`, `items 115`, `bands 40`, `effects 361`,
-`enemies 249`, `factions 67 entries`, `waves 38`, `stages 11 (8 active)`, `bosses 10`, `tokens 23`, `choice events 109`,
-`bounty cards 129`, `tactic cards 43`, `backups: 100 units (17 stand-ins, 78 owned-6★ 自选 picks — the demoted 塑心, 缄默德克萨斯, 卡涅利安 and 莫斯提马 among them — and the fork's 5 promoted pieces, 克莱门莎, 结城理, 予愿安洁莉娜, 真言 and 维伊; 287 forms), 38 自选 summons, 4 DIY slots, 15 / 9 prototype picks (tier 5 / 6), 78 owned-6★ picks (the 7 collab operators upstream excludes included, less the 5 the fork promoted: `FORK_INCLUDE_COLLAB_PICKS`, shared/promoted.js)`.
-
+`chess 266 (112 visible; 283 selectable skills over the visible chess, 185 module choices over 129 goldens; 74 PRESET / 55 NORMAL / 4 DIY base chess)`, `bonds 23`, `garrisons 249 (43 effect keys)`, `items 115`, `bands 40`, `effects 361`,
+`enemies 249`, `factions 67 entries`, `waves 38`, `stages 11 (8 active)`, `bosses 10`, `tokens 22`, `choice events 109`,
 `bounty cards 129`, `tactic cards 43`, `backups: 89 units (17 stand-ins, 72 owned-6★ picks; 259 forms), 38 自选 summons, 4 DIY slots, 15 / 9 prototype picks (tier 5 / 6), 72 owned-6★ picks (7 collab operators excluded)`, potential (§2.3): `256 chess records, 219 forms / variants with potDown; 442 + 401 + 19 chained talent entries (chess, backups, tokens)`.
 
 ## 17. Integrity guarantees (checked by the builder and `test/data.test.js`)
@@ -708,19 +654,13 @@ It has no stock when every bond of it is banned this match, and it is the operat
 server/match/player/diy.js, docs/META.md §3). The rules in the data (activity_table act2autochess `charShopChessDatas`; PRTS 卫戍协议, 卫戍协议：盟约
 下半/PRTS盟约记录):
 
-- PRESET (79 = 74 official rows — 16 of them hidden in this season's shop, 协律 un-hidden by the fork, §F7 — plus the
-  fork's promoted 克莱门莎, 结城理, 予愿安洁莉娜, 真言 and 维伊) always fields the real operator (`backup.charId` = itself);
-  NORMAL (51 — upstream's 55 less the demoted 塑心, 缄默德克萨斯, 卡涅利安 and 莫斯提马) names one of 17 stand-ins —
+- PRESET (74, 特许干员) always fields the real operator (`backup.charId` = itself); NORMAL (55) names one of 17 stand-ins —
   the 4★ 预备干员 `char_600–607`, the 6★ `char_608–615` and 领主·Sharp `char_617` (the "其它分支"); DIY (4) has none.
 - A stand-in keeps the chess's bonds, 特质, tier, price, merge and status (the elite form uses the same backup at the
   elite row) and fights as `backup.charId` at that status with skill `backup.skillIndex` (fixed by the chess: the same
   character takes S2 on one chess and S3 on another), module `backup.uniEquipId` (null at tiers 3–4 and for every 4★, so
-  even their elite form has none) and the row's potential (`potRank` 0 on all 53) — moot: the 17 原型干员 have no
+  even their elite form has none) and the row's potential (`potRank` 0 on all 55) — moot: the 17 原型干员 have no
   potential ranks, and a stand-in takes neither the player's potential nor the 自持有 练度 (0.2.2).
-
-`units[charId]` — first the 17 stand-ins, then the 78 owned-6★ 自选 picks (`diy.ownedPool`, the fork's demoted 塑心,
-缄默德克萨斯, 卡涅利安 and 莫斯提马 among them — §16) and the fork's promoted pieces (克莱门莎, 结城理, 予愿安洁莉娜, 真言,
-维伊 — `PROMOTED_PIECES`, each with its tier's two slot forms); no unit for a PRESET or DIY
 
 `units[charId]` — first the 17 stand-ins, then the 72 owned-6★ 自选 picks (`diy.ownedPool`); no unit for a PRESET or DIY
 chess:
@@ -728,15 +668,15 @@ chess:
 | Field | Example (`char_611_acnipe`) | Meaning |
 |---|---|---|
 | `charId`, `name`, `appellation`, `rarity`, `profession`, `subProfessionId`, `subProfessionName`, `position`, `nationId`, `isNotObtainable` | `"char_611_acnipe"`, `"Stormeye"`, `"Stormeye"`, `6`, `"SNIPER"`, `"fastshot"`, `"速射手"`, `"RANGED"`, `null`, `true` | as on a chess record (`isNotObtainable` false for the owned picks) |
-| `assets` | `{"avatar":"char_611_acnipe","avatarGolden":"char_611_acnipe","portrait":"char_611_acnipe_1","portraitGolden":"char_611_acnipe_1","spine":"char_611_acnipe","subProfIcon":"sub_fastshot_icon"}` | art ids (URLs in `data/assets.json`, which carries all 99 — the owned picks since 0.2.0, the fork's 7 collab picks since 2026-10-08, the demoted 塑心 and the promoted 克莱门莎 / 结城理 since 2026-10-11/12, the demoted 缄默德克萨斯 and the promoted 予愿安洁莉娜 since 2026-10-12, the demoted 卡涅利安 and the promoted 真言 since 2026-10-13, ASSETS.md); the elite form takes the E2 art when it exists — of the stand-ins only 领主·Sharp has it, every owned pick does |
+| `assets` | `{"avatar":"char_611_acnipe","avatarGolden":"char_611_acnipe","portrait":"char_611_acnipe_1","portraitGolden":"char_611_acnipe_1","spine":"char_611_acnipe","subProfIcon":"sub_fastshot_icon"}` | art ids (URLs in `data/assets.json`, which carries all 89 — the owned picks since 0.2.0, ASSETS.md); the elite form takes the E2 art when it exists — of the stand-ins only 领主·Sharp has it, every owned pick does |
 | `moduleNames` | `{"uniequip_001_acnipe":{"name":"Stormeye证章","typeName":"ORIGINAL"},"uniequip_002_acnipe":{"name":"Stormeye证章","typeName":"MAR-X"}}` | every module of the character (a composed record names its module on the normal form too) |
 | `standsIn[]` | `["chess_char_3_21_a","chess_char_4_02_a","chess_char_5_18_a","chess_char_5_22_a","chess_char_6_01_a","chess_char_6_05_a"]` | the NORMAL base chess it replaces (`[]` for an owned pick) |
 | `forms[statusKey]` | keys `"2/1/4/0"`, `"2/60/7/1"`, `"2/60/7/3"` | the character at every status it fights at — of the chess it stands in for and of the DIY slots it may fill (`statusKey(status)` = `phase/level/skillLevel/equipLevel`): 3 forms per 6★ (an owned pick: exactly the three DIY slot statuses — E2 Lv1 skill rank 4 without a module, E2 Lv60 rank 7 with every module at stage 1 and at stage 3), 2 per 4★ |
 
 A **form** holds the operator fields of a chess record with **nothing selected**: `status`; `stats`, `trait`, `talents`
 **without** a module, at full potential as on a chess (`potDown` / chained talents for the lower ones, §2.3); `immunities`, `rangeId`, `rangeGrid`, `dmgType`, `attackKind`, `projectile`, `canHitFly`,
-`targetPriority`; `skills[]` — every skill unlocked at the status, at its skill level, `trigger` resolved per skill, no
-`isDefault`; `displayTokens` / `tokens` (summons — none of the 17 stand-ins has one; 28 of the owned picks do, their
+`targetPriority`; `placeOnRanged` (present only when that Chinese trait contains 「可以放置于远程位」 — 温蒂's forms — or a compact MELEE plugin form sets `true` [ASSUMED]; the composed 自选 record copies it, GitHub #676); `skills[]` — every skill unlocked at the status, at its skill level, `trigger` resolved per skill, `passiveRange` when that skill's Chinese text is its own range (GitHub #700), no
+`isDefault`; `displayTokens` / `tokens` (summons — none of the 17 stand-ins has one; 27 of the owned picks do, their
 records in `tokens` below); at `equipLevel > 0` `modules[]` (§2.2 shape without `isDefault`). `buildUnitForm` uses buildChess's helpers and rules, and the build fails when `buildUnitForm` +
 `composeUnitRecord` do not give back every PRESET chess field for field (each is its own backup), so a later change to
 buildChess that the stand-ins would miss stops the build. The chess trigger deviations (§2.2, DESIGN §21.29) name chess
@@ -751,7 +691,7 @@ with `backup.skillIndex` / `backup.uniEquipId` as the defaults, plus `standInFor
 mark on the avatar). The result is shaped exactly like a chess record (`skill` = the `isDefault` entry of `skills[]`;
 elite `statsBase` / `traitBase` / `talentsBase` / `modules[]`), so `normalizeChess`, `resolveLoadout` (no loadout ⇒ the
 backup selection) and `loadoutRecord` read it unchanged; null for a PRESET or DIY chess. `isDroppableChess(chess)` says
-which chess a player may mark as not owned (the 52 NORMAL base chess; `shared/protocol.js checkNotOwned` keeps those of a
+which chess a player may mark as not owned (the 55 NORMAL base chess; `shared/protocol.js checkNotOwned` keeps those of a
 `room.ownership` list). **In the match** (`server/match/player/basics.js`: `PlayerState.standIns`, `fieldsStandIn`,
 `fieldRecord` = `gd.standIn(id)`) the player's piece keeps the chess's identity for every meta rule (price, bonds,
 特质, merges, pools) and is deployed as the stand-in (placement class, summon / bot ranges; no summons — none of the 17
@@ -786,10 +726,7 @@ operator (自选)").
 |---|---|---|
 | `slots[slotId]` | `{"tier":5,"goldenId":"chess_char_5_diy1_b","shopLevel":5,"requirement":"TIER_6"}` | the four DIY chess `chess_char_5_diy1/2_a`, `chess_char_6_diy1/2_a` (chess.json: price 4, sell 1, `diyRequirement`, empty `bonds` / `garrisonIds`); `shopLevel` = the 调度中心 level whose `shopLevelDisplayDataDict.charChessDiySlotIdList` lists the slot |
 | `prototypes[tier]` | `{"5":[…15],"6":[…9]}` | the legal prototype picks: the nine 6★ at both tiers, at tier 5 also the six 4★ that are not 先锋 / 特种 ("第5阶可额外从6名四星原型干员（先锋、特种职业除外）中选取"; `DIY_EXTRA_PROTOTYPES`). A prototype may fill a tier-5 and a tier-6 slot ("原型干员可于5、6阶之间重复选取") |
-| `locked[tier][charId]` | `{"skillIndex":2,"uniEquipId":"uniequip_002_acguad","from":["chess_char_5_06_a","chess_char_5_13_a"]}` | the skill and module a prototype carries in a slot of that tier — "技能携带规则与系统补位时一致" (PRTS 卫戍协议), read as [ASSUMED] (the owner's decision of 2026-10-05) the selection of its 补位 rows at that tier (`from`): the eight 6★ elites S3 with their own module, 领主·Sharp S1, the reserves S3 without a module; 预备干员-医疗 has no tier-5 row: S3 by analogy (`from` `[]`, `DIY_PROTOTYPE_FALLBACK_SKILL`), and Sharp lost the module of its tier-6 entry when 佩佩's NORMAL row moved to 等级 5 (§F9: `from` `[]`, no `uniEquipId`) |
-| `ownedPool[]` | 78 charIds | the owned 6★ a player may slot: obtainable, rarity = the requirement, and no chess names it — hidden chess included ("不可甄选加入已在名单中的固定干员"); each at most once per roster ("玩家已拥有干员不可重复选取"). In this fork the 7 collab operators upstream leaves out are picks too (`excluded`), the demoted 塑心, 缄默德克萨斯, 卡涅利安 and 莫斯提马 (`shared/diyOnly.js`: their shop chess left the roster) are as well, and the 5 promoted 可用干员 (`shared/promoted.js`: 克莱门莎, 结城理, 予愿安洁莉娜, 真言, 维伊) have left the pool |
-| `excluded[]` | `[]` | upstream: the 7 obtainable 6★ outside the pool that come from a 联动寻访 — a collab team in `mainPower` / `subPower` (`DIY_EXCLUDED_TEAMS`: rainbow, action4, mujica, sees, laios — 灰烬, 麒麟R夜刀, 艾拉, 玛露西尔, 丰川祥子, 结城理) or a collab series in `displayNumber` (`DIY_EXCLUDED_NUMBER_PREFIXES` MH / RS / AM / PS / DD — also 焰狐龙梓兰 MH05, whose team reserve6 names no collab), left out of the data and the pool by upstream's owner on 2026-10-05 (copyright; the excel does not exclude them). **The fork** keeps them: `tools/build-data.mjs FORK_INCLUDE_COLLAB_PICKS` (the fork owner's decision of 2026-10-08) leaves this list empty, so `char_456_ash`, `char_1029_yato2`, `char_1048_orchd2`, `char_4123_ela`, `char_4141_marcil`, `char_4182_oblvns` and `char_4217_makoto` are in `ownedPool`, `units` (艾拉's 雷鸣地雷 `token_10033_ela_grzmot` in `tokens`) and `operators` — 结城理 拉特兰 by his subPower laterano, the other six 协防干员 |
-
+| `locked[tier][charId]` | `{"skillIndex":2,"uniEquipId":"uniequip_002_acguad","from":["chess_char_5_06_a","chess_char_5_13_a"]}` | the skill and module a prototype carries in a slot of that tier — "技能携带规则与系统补位时一致" (PRTS 卫戍协议), read as [ASSUMED] (the owner's decision of 2026-10-05) the selection of its 补位 rows at that tier (`from`): the eight 6★ elites S3 with their own module, 领主·Sharp S1, the reserves S3 without a module; 预备干员-医疗 has no tier-5 row: S3 by analogy (`from` `[]`, `DIY_PROTOTYPE_FALLBACK_SKILL`) |
 | `ownedPool[]` | 72 charIds | the owned 6★ a player may slot: obtainable, rarity = the requirement, and no chess names it — hidden chess included ("不可甄选加入已在名单中的固定干员"); each at most once per roster ("玩家已拥有干员不可重复选取"). Not the collab operators (`excluded`) |
 | `excluded[]` | `["char_456_ash","char_1029_yato2","char_1048_orchd2","char_4123_ela","char_4141_marcil","char_4182_oblvns","char_4217_makoto"]` | the 7 obtainable 6★ outside the pool that come from a 联动寻访 — a collab team in `mainPower` / `subPower` (`DIY_EXCLUDED_TEAMS`: rainbow, action4, mujica, sees, laios — 灰烬, 麒麟R夜刀, 艾拉, 玛露西尔, 丰川祥子, 结城理) or a collab series in `displayNumber` (`DIY_EXCLUDED_NUMBER_PREFIXES` MH / RS / AM / PS / DD — also 焰狐龙梓兰 MH05, whose team reserve6 names no collab): left out of the data and the pool by the owner's decision of 2026-10-05 (copyright); the excel does not exclude them |
 | `operators[charId]` | `{"name":"煌","rarity":6,"profession":"WARRIOR","subProfessionId":"centurion","obtainable":true,"powers":["rhodes","elite","yan","victoria"],"bonds":["yanShip","victoriaShip"]}` | every pick (owned pool + prototypes): `powers` = the `nationId` / `groupId` / `teamId` of `mainPower` and of every `subPower` (隐藏势力); `bonds` = the core bonds whose `powerIdList` meets them — one or several — else `economy.fallbackBondId` 协防干员 ("甄选加入的干员会根据其实际阵营所属分配核心盟约，若没有可匹配的则改为分配协防干员盟约"); every prototype gets `["emptyShip"]` |
@@ -816,3 +753,19 @@ burn hammers 2 each; limited accelerator 1; shield drone and laser emitter 4 eac
 Ashlock 10, Fartooth 3. Rebuild `choices.json` offline; these weights do not exempt draws from shared availability.
 The runtime derives unlimited fixed-gift families from `SERVER_GAIN_EQUIP`; this is a grant-source exemption,
 not a zero-occupancy flag or a manually maintained second list in generated data.
+
+## Plugin compact metadata (0.3.1)
+
+Plugin records may carry optional `origin` (official charId/chessId provenance) and `assets.voice` (voice bank ID).
+`assets.spine` and other art IDs may differ by form. Pair references, not suffixes, identify normal/elite forms.
+Hidden additions retain records with `isHidden: true`, `visible: false` and omit visible pools.
+See [PLUGINS §16](PLUGINS.md#16-forge-import) for the compact inputs and [ASSUMED] defaults.
+
+
+### Plugin-only records (0.3.1)
+
+`server/plugins/gameplayRecords.js` adds namespaced bonds and complete supported item pairs to a content set,
+without changing these generated files. Membership is rebuilt from chess records. Operator forms may retain tags
+and existing token ids. `server/plugins/officialUnitBuilder.js` exports the import-only `deriveOfficialUnit` helper; `tools/build-data.mjs` shares its
+normal builder's stat, potential, skill, talent, range and classification paths; loading it performs no CLI I/O.
+See PLUGINS.md for namespaces, limits and the local-table version recorded by Forge imports.

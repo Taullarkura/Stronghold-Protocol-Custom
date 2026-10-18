@@ -79,6 +79,7 @@ function makeData(src) {
     if (diys.has(key)) return diys.get(key);
     let rec;
     try { rec = diyRecordOf(c, pick, { chess: chessMap(), backups: b }); } catch { rec = null; }
+    if (rec && b.units?.[pick.charId]?.fx) rec = { ...rec, fx: b.units[pick.charId].fx };
     diys.set(key, rec);
     return rec;
   };

@@ -98,14 +98,15 @@ export class RehearsalRun {
    * @param {null | (() => boolean)} [outOfBudget] checked every 4 ticks and between candidates (a candidate built in
    *   this call is always stepped or scored before the check), so a slice never exceeds 4 ticks of stepping (plus the
    *   one build of the candidate it stops on) past its budget; the first candidate of a call always runs, so every call
-   *   makes progress
+   *   makes progress. A test replay passes the same check points and ignores the wall clock (`control`).
+   * @param {null | { note?: (n: number) => void }} [control] when set, each stepped tick is counted for the journal
    * @param {number} [maxTicks] fixed work bound of THIS call (Match's recorded-host slices, server/match/bot.js
    *   `job.runTicks`): the ticks the run stepped itself, counted across candidates and never exceeded — the run stops
    *   one tick short of the bound otherwise, since a wall-clock budget may overrun by the check interval. A bound the
    *   call has already used returns false, and only a call that stepped or scored everything returns true.
    * @returns {boolean} true when every candidate is done
    */
-  run(outOfBudget = null, maxTicks = Infinity) {
+  run(outOfBudget = null, control = null, maxTicks = Infinity) {
     // ticks stepped in THIS call: the budget is checked every 4 of them, across the candidate boundary too
     let n = 0;
     // a candidate was consumed in THIS call: the check between candidates asks once the call did anything, so a
@@ -115,11 +116,12 @@ export class RehearsalRun {
     // fixed work bound: steps stepped in THIS call, checked before every step and between candidates
     const bounded = Number.isFinite(maxTicks);
     let steps = 0;
+    const note = () => { n++; steps++; if (control) control.note(1); this.spent = n; };
     while (this.index < this.candidates.length) { // loop-cap: the candidate list
       // a candidate that ended mid-slice (finished, cap, or beaten at a 64-tick check that skipped the budget test):
       // check the budget before building and stepping the next one
       if (bounded && steps >= maxTicks) return false;
-      if (outOfBudget && worked && outOfBudget()) return false;
+      if (outOfBudget && worked && outOfBudget()) { this.spent = n; return false; }
       try {
         // the candidate of this turn, built when the first slice reaches it: its construction is part of the sliced
         // work, and the battle stays in `this.current` for the slices that continue it
@@ -135,10 +137,9 @@ export class RehearsalRun {
             if (bounded && steps >= maxTicks) return false;
             battle.step();
             this.ticks++;
-            n++;
-            steps++;
+            note();
             if ((this.ticks & 63) === 0 && !this.score.alive(battle)) { beaten = true; break; }
-            if (outOfBudget && (n & 3) === 0 && outOfBudget()) return false;
+            if (outOfBudget && (n & 3) === 0 && outOfBudget()) { this.spent = n; return false; }
           }
           if (!beaten) {
             if (!battle.finished) battle.forceEnd('timeout');
@@ -153,6 +154,7 @@ export class RehearsalRun {
       this.index++;
       this.ticks = 0;
     }
+    this.spent = n;
     return true;
   }
 }

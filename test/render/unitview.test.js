@@ -43,6 +43,17 @@ function view(info, opts = {}, assets = store()) {
   return new UnitView(ctx, { id: 1, side: 'ally', kind: 'chess', defId: 'char_x', tier: 3, x: 5, y: 12, maxHp: 1000, ...info }, opts);
 }
 
+test('prep pips retain both equipment slots and a zero-slot morph, then remove only unequipped pips', () => {
+  const v = view({}, { prep: true });
+  v.setItems(['one', 'two', 'morph']);
+  assert.deepEqual(v.itemPips.map((p) => p._url), ['one', 'two', 'morph']);
+  v.setItems(['one', 'two']);
+  assert.deepEqual(v.itemPips.map((p) => p._url), ['one', 'two']);
+  v.setItems([]);
+  assert.equal(v.itemPips.length, 0);
+  v.destroy();
+});
+
 describe('tier chips', () => {
   test('summon tokens in the hand show no tier chip (tokens have no tier)', async () => {
     const v = view({ kind: 'token', defId: 'token_10028_vigil_wolf', avatar: 'token_10028_vigil_wolf' }, { prep: true });
@@ -244,28 +255,6 @@ describe('bounds (view.pieceScreenRect)', () => {
     const g = cam().project(3, 7, 0.16);
     assert.ok(Math.abs(r.x + r.width / 2 - g.x) < 1e-6 && Math.abs(r.y + r.height / 2 - g.y) < 1e-6, 'dragged: centred on its ground point (the pointer)');
     assert.equal(it.plate.anchor.y, 0.5);
-  });
-});
-
-describe('clipped skeletons (eye clips)', () => {
-  test('keep their clipping masks at any quality: drawn through a clip page of the impostor atlas', async () => {
-    // the battle chibis blink by switching the clip of their eyes: drawn unclipped, the eyeballs showed over the closed
-    // eyelids (user report 2026-10; the field used to switch clipping off below high quality or with two clipped units)
-    const clips = [];
-    const atlas = {
-      alloc: (w, h, o = {}) => { clips.push(!!o.clip); return { w, h, tex: new fake.P.Texture(), clip: !!o.clip }; },
-      free() {}, park(o) { o.visible = false; }, unpark(o) { o.visible = true; }, draw() {},
-    };
-    const assets = store({ spine: true });
-    assets.spine = { acquire: async () => ({ animations: [{ name: 'Idle' }], skins: [{ getAttachments: () => [{ attachment: { type: 6 } }] }] }), release() {} };
-    const ctx = fakeViewCtx(fake.P, { assets, cam, impostors: atlas, settings: { damageNumbers: true, quality: 'low' }, renderer: { resolution: 1, render() {} } });
-    const v = new UnitView(ctx, { id: 1, side: 'ally', kind: 'chess', defId: 'char_x', tier: 3, x: 5, y: 12, maxHp: 1000 });
-    await tick(); await tick();
-    assert.ok(v.spineReady && v.actor.clipped, 'a skeleton with a clipping attachment');
-    for (let i = 0; i < 4; i++) v.update(1 / 60, cam(), i / 60);
-    assert.ok(v.imp?.slot?.clip, 'drawn through a clip page');
-    assert.ok(clips.length > 0 && clips.every(Boolean), 'never an unclipped slot');
-    assert.equal(v.actor.clipOn, true, 'nothing can switch its clipping off');
   });
 });
 

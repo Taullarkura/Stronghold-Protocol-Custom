@@ -122,7 +122,7 @@ export async function startServer(opts = {}) {
   // the content hashes of the art (built in the background once listening) and the manifests served with them
   const indexOptions = assetIndexOptionsFrom(opts, publicDir);
   const assetIndex = indexOptions ? createAssetIndex({ publicDir, log, ...indexOptions }) : null;
-  const views = assetIndex ? createManifestViews({ dataDir, index: assetIndex, log }) : null;
+  const views = createManifestViews({ dataDir, index: assetIndex, log });
   // /resource-manifest.json (the local resource cache's file list; server/http/resourceManifest.js): the Cloudflare
   // build publishes it, a Node install builds it in the background once listening. The hashes persist in .cache/ only
   // for the repository's own public/ (a test's temporary folder keeps them in memory).
@@ -189,6 +189,9 @@ export async function startServer(opts = {}) {
     const actual = server.address();
     const scriptHost = actual && typeof actual === 'object' ? actual.address : '';
     packs.setScriptHost(scriptHost);
+    const testGate = lobby.setTestHost(scriptHost);
+    if (testGate.warn) log.warn(`[test-mode] ${testGate.warn}`);
+    else if (testGate.enabled) log.info('[test-mode] test rooms enabled');
     if (!trustedHostAllowed(scriptHost, scriptMode)) {
       lobby.trustedRuntime = null;
       await trustedRuntime?.close();

@@ -14,7 +14,7 @@
 // Enter work the same way). While the pick is in flight the card shows a "选择中" strip with a sweeping bar (never a
 // spinner over its text — user playtest #3 item 9), dropped as soon as the pick shows in m.public (spBusy itself resets
 // when the request settles, ≤ 8 s, or the phase moves on). Untimed drafts (solo, a single-human match: sp.untimed) show
-// no countdown and say so.
+// no countdown and say so. The selected card's frame and its ☑ 确认选择 strip are white, as in the event's video (10:16).
 // Rooms of 5–8 players (a remake extension) draft max(6, alive + 2) cards — 7 to 10 (shared/protocol.js SP_CARDS_MAX):
 // more than 6 cards are laid out as ceil(n / 2) columns × 2 rows (spGridLayout: 4 × 2 for 7–8 cards, 5 × 2 for 9–10;
 // `spov__grid--wide`) with a smaller icon and the same text size, the effect text filling the card and scrolling inside
@@ -214,10 +214,10 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           ${personal ? html`<span class="spov__turntxt is-mine">${t('从候选中选择一项战术特训')}</span>`
             : mine != null ? html`<span class="spov__turntxt is-done"><${Icon} name="check" />${t('已完成选择')}</span>`
             : myTurn ? html`<span class="spov__turntxt is-mine">${t('当前轮到你决策')}</span>`
-            : html`<span class="spov__turntxt">${t('{turnName} 正在决策…', { turnName })}<${Icon} name="hourglass" /></span>`}
+            : html`<span class="spov__turntxt is-other"><span class="spov__tw"><b>${turnName}</b><small>${t('正在决策…')}</small></span><${Icon} name="hourglass" /></span>`}
           ${armed != null ? html`<${Button} variant="primary" size="lg" icon="check" class="spov__confirm" data-testid="sp-confirm"
               title=${armedName ? t('确认选择「{armedName}」（再次点击卡牌亦可）', { armedName }) : t('确认选择')} onClick=${onConfirm}>${t('确认选择')}<//>` : null}
-          ${timed ? html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="sm" />` : null}
+          ${timed ? html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="md" />` : null}
         </div>
       </header>
       ${order.length ? html`<div class=${cx('spov__order', dense && 'spov__order--dense')} aria-label=${t('决策顺序')}>

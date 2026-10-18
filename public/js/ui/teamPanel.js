@@ -142,7 +142,7 @@ export const teamCompact = (n) => Number(n) > TEAM_FULL_ROWS;
  *   uniteField: the field id of that replica (several 联防 fields: it speaks only for its own field's leakers)
  *   compact: force the compact rows (they are used anyway for more than TEAM_FULL_ROWS players)
  */
-export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal: uniteShown = null, uniteField = null }) {
+export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal: uniteShown = null, uniteField = null, spMarks = null }) {
   const [openPid, setOpenPid] = useState(null);
   // the room's seats (room.state) — this fork's rooms take 5–8, and a seat's avatarUrl is what its row shows
   const seats = useStore((s) => s.room?.seats);
@@ -206,6 +206,8 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>
           ${p.isBot ? html`<span class="team__ai">AI</span>` : null}
           ${self ? html`<span class="team__you"><${Icon} name="user" /></span>` : null}
+          ${spMarks?.get(p.playerId) === 'done' ? html`<span class="team__spmark is-done" title=${t('已完成选择')}><${Icon} name="check" /></span>`
+            : spMarks?.get(p.playerId) === 'turn' ? html`<span class="team__spmark is-turn" title=${t('正在决策…')}><i></i><i></i><i></i></span>` : null}
         </button>
         <div class="team__info">
           <span class="team__top">

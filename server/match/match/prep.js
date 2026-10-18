@@ -7,6 +7,7 @@
 
 import { PHASE } from '../../../shared/constants.js';
 import { botPrepBeginSteps, botPrepEndSteps, runSteps, TRANSIENT, HEAVY } from '../bot.js';
+import { testSlice } from '../testTrace.js';
 import { DELAYS } from './common.js';
 
 export class MatchPrep {
@@ -64,6 +65,8 @@ export class MatchPrep {
     const later = (ms, fn, heavy = false) => fixed ? this.laterWork(ms, fn, heavy ? 'prepArrange' : 'prep', valid) : this.later(ms, fn);
     const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
     const delay = this.scaled(DELAYS.BOT_ACTION + i * DELAYS.BOT_STAGGER);
+    // Test replay ignores the wall clock and stops after the journalled step count (testSlice).
+    const sliceCtl = testSlice(this);
     // where the job stands, for the prep deadline (_finishBotPrep): stage 'wait' (its start is queued), 'begin' (economy
     // + default layout), 'rehearsal', 'end'; `gen` the stage's step generator, `done` / `value` once it has returned
     const run = { valid, startAt: this.sched.now() + delay, stage: 'wait', gen: null, done: false, value: null, job: null, rehearsed: false, complete: null };
@@ -82,8 +85,13 @@ export class MatchPrep {
         else then(value);
       };
       try {
-        do { r = gen.next(); if (r.value !== TRANSIENT) steps++; }
-        while (!r.done && (fixed ? r.value === TRANSIENT || (steps < fixed.prepSteps && r.value !== HEAVY) : !(bounded && now() - t0 >= this.botSliceMs)));
+        do {
+          r = gen.next();
+          if (sliceCtl) sliceCtl.note(1);
+          if (r.value !== TRANSIENT) steps++;
+        } while (!r.done && (fixed
+          ? r.value === TRANSIENT || (steps < fixed.prepSteps && r.value !== HEAVY)
+          : !(sliceCtl ? sliceCtl.wall(now() - t0, this.botSliceMs) : (bounded && now() - t0 >= this.botSliceMs)))); // loop-cap: generator and the bot time slice
       } catch (e) {
         this.reportError(`bot ${ps.playerId}${label}`, e);
         finish(null);
@@ -120,7 +128,7 @@ export class MatchPrep {
       const slice = () => {
         if (!valid()) return;
         let done = true;
-        try { done = job.run(this.botSliceMs); } catch (e) { this.reportError(`bot ${ps.playerId} rehearsal`, e); }
+        try { done = job.run(this.botSliceMs, sliceCtl); } catch (e) { this.reportError(`bot ${ps.playerId} rehearsal`, e); }
         if (done) finish(job);
         else later(0, slice);
       };

@@ -24,13 +24,6 @@ const skip = enabled ? false : 'set RENDER_E2E=1 (needs Chrome and downloaded as
 // 德克萨斯's redeploy time and cost from the data (at full potential since 0.2.1: 60 s and 11; 70 s and 13 before)
 const TEXAS = JSON.parse(readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8')).chess_char_1_08_a.stats;
 
-/**
- * The field view draws the battle LOOK_AHEAD (1 game s, render/app.js) behind the frames it is fed, so right after a push
- * what is drawn is older than the feed: wait until the render clock has reached the newest frame before reading it. This
- * relies on interp.update playing the buffered frames out to the newest once the feed stops (pinned in interp.test.js).
- */
-const settled = (page) => page.waitForFunction(() => { const i = window.__demo.view.debug.interp; return i.renderT >= i.newestT; }, { polling: 'raf', timeout: 10000 });
-
 // the right-hand helper of a two-helper 联防 (colOffset +8): 德克萨斯 knocked out in its own combat,
 // with 艾雅法拉 standing at half HP; the only enemy spawns long after the check (it keeps the battle running)
 const SPEC = buildBattleSpec({
@@ -117,7 +110,6 @@ describe('联防: an operator knocked out in its own combat enters down (headles
       await run(30, 2);
       const texas = await page.evaluate(() => window.__sim.unit(1).id);
       const eyja = await page.evaluate(() => window.__sim.unit(2).id);
-      await settled(page);
       let st = await page.evaluate(() => window.__sim.state());
       await page.screenshot({ path: path.join(OUT, 'unitedown-start.png') });
       assert.ok(st[texas], 'the knocked-out operator has a view on the 联防 field');
@@ -134,7 +126,6 @@ describe('联防: an operator knocked out in its own combat enters down (headles
       // fast-forward to the redeploy (DP 10 + 1/s reaches her cost long before her redeploy timer ends)
       await run(40, 60);
       await run(30, 2);
-      await settled(page);
       st = await page.evaluate(() => window.__sim.state());
       await page.screenshot({ path: path.join(OUT, 'unitedown-redeployed.png') });
       assert.equal(st[texas].alive, true, 'back on its tile');

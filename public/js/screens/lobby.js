@@ -16,12 +16,14 @@ import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, DEFAULT_SEATS, MAX_SPECTATORS, ERR, modeIdFor } from '../../../shared/constants.js';
 import {
-  html, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo, PlayerName,
+  html, confirmDialog, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo, PlayerName,
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
+import { NoticesButton } from '../ui/notices.js';
 import { ResourceButton } from '../ui/resourceButton.js';
 import { openStats } from './stats.js';
+import { SweepReport } from './sweep.js';
 import { SettingsButton } from '../ui/settings.js';
 import { PwaInstallButton } from '../ui/device.js';
 import { LoadoutButton } from './loadout.js';
@@ -180,6 +182,24 @@ export function rememberRoom(code) {
   savePref('recentRooms', [code, ...recentRooms().filter((c) => c !== code)].slice(0, 4));
 }
 
+/**
+ * Join (or spectate) a room by key, confirming first when the key is a 测试房间 (the server answers TEST_CONFIRM:
+ * such a room counts in no record). Returns the reply, or undefined when the confirmation was declined.
+ * @param {'room.join'|'room.spectate'} type
+ * @param {string} key
+ */
+export async function joinKnown(type, key) {
+  try { return await net.request(type, { code: key }); } catch (err) {
+    if (err?.code !== ERR.TEST_CONFIRM) throw err;
+    const text = type === 'room.spectate'
+      ? t('这是测试房间，不计入任何记录。确认观战？')
+      : t('这是测试房间，不计入任何记录。确认加入？');
+    if (await confirmDialog({ title: t('测试'), text })) {
+      return net.request(type, { code: key, testAck: true });
+    }
+  }
+}
+
 const FALLBACK_TIPS = [
   N_('联合模拟在选择策略时可以进行一次跳过'),
   N_('调度中心即使冻结，依然可以主动刷新'),
@@ -290,6 +310,9 @@ export function LobbyScreen() {
   const [busy, setBusy] = useState(null);
   usePref('recentRooms', null);
   const recent = recentRooms();
+  const [asTest, setAsTest] = useState(false);
+  const testMode = useStore((s) => s.testMode === true);
+  const [sweepOpen, setSweepOpen] = useState(false);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -309,7 +332,9 @@ export function LobbyScreen() {
       if (alive.current) setBusy(null);
     }
   };
-  const create = () => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
+  const create = () => run('create', () => net.request('room.create', {
+    mode: roomMode, difficulty, ...(testMode && asTest ? { test: true } : {}),
+  }));
   // 匹配 (matchmaking queue): wait for other players of the same difficulty instead of hand-sharing a key. The ticker the
   // panel shows is driven by the server's queue.status frames (store.queue), so it survives a reconnect.
   const queueJoin = () => run('queue', () => net.request('queue.join', { difficulty }));
@@ -321,7 +346,7 @@ export function LobbyScreen() {
     if (!k) { toast(t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN }), 'warn'); return; }
     run('join', async () => {
       // account mode: joining by code is an application to the host
-      const reply = await net.request('room.join', { code: k });
+      const reply = await joinKnown('room.join', k);
       if (reply?.application) applicationSent(k);
     });
   };
@@ -357,6 +382,7 @@ export function LobbyScreen() {
         <span class="presence num" data-testid="lobby-presence" title=${presenceHint()}>${presenceLabel(presence)}</span>
         <span class="topbar__sep" aria-hidden="true"></span>
         <div class="topbar__tools">
+          <${NoticesButton} />
           <${SettingsButton} class="lobby-settings" variant="secondary" square=${true} />
           <${GuideButton} class="lobby-guide" variant="secondary" square=${true} />
           <${PwaInstallButton} class="lobby-pwa" square=${true} />
@@ -368,6 +394,8 @@ export function LobbyScreen() {
       </div>
       <div class="topbar__right">
         <${ResumeMatchButton} />
+        <${Button} variant="secondary" size="sm" icon="book" class="lobby-sweep" onClick=${() => setSweepOpen(true)}
+          title=${t('S.W.E.E.P.报告：盟约、策略与敌方资料')}>S.W.E.E.P.<//>
         <${ResourceButton} class="lobby-res" variant="secondary" />
         <${LoadoutButton} from="lobby" size="sm" class="lobby-loadout" label=${t('干员调配')} />
         <button type="button" class="me-chip me-chip--btn stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>
@@ -416,6 +444,11 @@ export function LobbyScreen() {
           ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${roomMode} difficulty=${d} selected=${difficulty === d} onSelect=${pickDifficulty} />`)}
         </div>
         <div class="create-box">
+          ${testMode && roomMode === 'coop' ? html`<label class="create-box__test" data-testid="create-test">
+            <input type="checkbox" checked=${asTest} onChange=${(e) => setAsTest(e.target.checked)} />
+            <span>${t('测试房间')}</span>
+            <em class="t-dim">${t('不计入战绩。房间会标明「测试」，只有房主能使用测试指令。')}</em>
+          </label>` : null}
           ${queue.waiting
             ? html`<${QueuePanel} q=${queue} difficulty=${queue.difficulty || difficulty} busy=${busy} onCancel=${queueLeave} />`
             : html`<div class="create-box__row">
@@ -442,5 +475,6 @@ export function LobbyScreen() {
         </div>
       </section>
     </div>
+    ${sweepOpen ? html`<${SweepReport} onClose=${() => setSweepOpen(false)} />` : null}
   </div>`;
 }

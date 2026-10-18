@@ -17,10 +17,8 @@
 //     the policy allows it), PLUGIN_LIMIT (the visual set's art limits), PLUGIN_BUSY (one content set more than the
 //     server runs at once).
 //   hold / release (vs), holdContent / releaseContent (cs), onStale, unofficial — the visual and content sets'.
-//   defaults() → the ids a new room starts with: the policy's `default` plus every installed gameplay plugin (the
-//   server's own content, DESIGN §F14) — [] for the original game; fixed() → those ids when every room must play them
-//   (rooms: fixed), else null; official(list) → whether the list holds no gameplay plugin the server does not own (a
-//   room playing only the server's content is the original game to the interface and the statistics).
+//   defaults() → the ids a new room starts with (the policy's `default`; [] for the original game); fixed() → those ids
+//   when every room must play them (rooms: fixed), else null.
 // A cosmetic plugin's requirements are cosmetic plugins (the visual set closes over them again) [ASSUMED]; a content
 // plugin may require a cosmetic one (its operators' art) and may carry art itself (its `assets`: part of the room's
 // visual set, so the room's `vs` names it too).
@@ -31,7 +29,7 @@ import { normalizeSettings } from '../../shared/plugins/patch.js';
 import { resolvePluginOrder } from '../../shared/plugins/order.js';
 
 /**
- * @param {{ registry: { plugin: (id: string) => any }, visual: ReturnType<typeof import('./visualSet.js').createVisualSets> | null,
+ * @param {{ registry: { plugin: (id: string) => any, plugins?: () => any[] }, visual: ReturnType<typeof import('./visualSet.js').createVisualSets> | null,
  *   contents: ReturnType<typeof import('./contentSets.js').createContentSets> | null,
  *   policy: ReturnType<typeof import('./policy.js').createPluginPolicy> | null }} opts
  */
@@ -112,6 +110,7 @@ export function createRoomSets({ registry, visual, contents, policy }) {
         warnings: [...(vset?.warnings || []), ...warnings],
         bytes: vset ? vset.bytes : 0,
         ...(cset ? { dataBytes: cset.dataBytes, modes: cset.modes, kitted: cset.kitted } : {}),
+        ...(cset?.rules ? { rules: cset.rules } : {}),
       },
     };
   }
@@ -147,6 +146,9 @@ export function createRoomSets({ registry, visual, contents, policy }) {
     onContentStale: (fn) => contents?.onStale?.(fn) || (() => {}),
     onStale: (fn) => (visual?.onStale ? visual.onStale(fn) : () => {}),
     unofficial: () => (visual?.unofficial ? visual.unofficial() : 0),
+    // Catalogue hint only: language plugins can publish notices even when the unofficial count is zero.
+    hasNotices: () => registry.plugins?.().some((p) => p.status === 'loaded' && p.manifest?.notices?.length > 0) || false,
+    defaults,
     /** Does a resolved plugin list change no rule — every gameplay plugin in it the server's own (DESIGN §F14)? */
     official: (list) => {
       const gameplay = (Array.isArray(list) ? list : []).filter((p) => p && GAMEPLAY_CLASSES.includes(p.class));
@@ -154,7 +156,6 @@ export function createRoomSets({ registry, visual, contents, policy }) {
       const base = new Set(baseline());
       return gameplay.every((p) => base.has(p.id));
     },
-    defaults,
     /** The plugins every room must play (plugins/config.json rooms: fixed), else null. */
     fixed: () => (policy?.get()?.rooms === 'fixed' ? defaults() : null),
     /** The merged data of a content set (the lobby's checks of loadouts and 自选 picks in its rooms), or null. */
