@@ -357,9 +357,7 @@ function setPhase(phase, variant) {
       break;
     case PHASE.RESULT:
       pub.round = 14;
-      // late: the RESULT phase first, m.result a moment later (as from the server)
-      if (VARIANTS.has('late')) setTimeout(() => store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) }), 800);
-      else store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) });
+      store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) });
       break;
     default:
       break;
