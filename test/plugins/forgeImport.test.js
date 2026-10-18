@@ -13,7 +13,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { main } from '../../tools/plugin.mjs';
-import { importForge, readUntrustedZip } from '../../server/plugins/forgeImport.js';
+import { importForge, planForgeImport, readUntrustedZip } from '../../server/plugins/forgeImport.js';
 import { skeletonClipData } from '../../server/plugins/pack.js';
 import { parseSkel } from '../../tools/assets/skel.mjs';
 import { crc32, zipFiles } from '../../server/plugins/zip.js';
@@ -460,34 +460,19 @@ function zipDir(dir) {
   return zipFiles(files);
 }
 
-async function postPreview(studio, body) {
-  const raw = Buffer.from(JSON.stringify(body));
-  const req = Readable.from([raw]);
-  req.method = 'POST';
-  req.url = '/studio/api/forge/preview';
-  req.headers = {
-    host: 'localhost',
-    'content-type': 'application/json',
-    'content-length': String(raw.length),
-    'x-sp-studio': studio.key,
-  };
-  req.socket = { remoteAddress: '127.0.0.1' };
-  const chunks = [];
-  let status = 0;
-  const res = {
-    headersSent: false,
-    setHeader() {},
-    getHeader() { return undefined; },
-    writeHead(code) { status = code; this.headersSent = true; return this; },
-    write(c) { if (c) chunks.push(Buffer.from(c)); return true; },
-    end(c) { if (c) chunks.push(Buffer.from(c)); this.headersSent = true; },
-    destroy() {},
-  };
-  await studio.handle(req, res, '/studio/api/forge/preview', '');
-  const text = Buffer.concat(chunks).toString('utf8');
-  let parsed = null;
-  try { parsed = text ? JSON.parse(text) : null; } catch { parsed = { raw: text }; }
-  return { status, body: parsed, text };
+/**
+ * What the removed studio preview route used to answer, without the route: read the zip, plan the import.
+ * @param {Buffer} zip
+ */
+async function preview(encoded) {
+  const zip = Buffer.isBuffer(encoded) ? encoded : Buffer.from(String(encoded), 'base64');
+  try {
+    const files = await readUntrustedZip(zip);
+    const plan = planForgeImport(files, { dataDir: path.join(ROOT, 'data') });
+    return { status: 200, body: { report: { ok: true, wrote: false, plan } }, text: '' };
+  } catch (e) {
+    return { status: 400, body: { error: e.code, detail: e.detail }, text: String(e.detail ?? e.message) };
+  }
 }
 
 test('preview and dry-run leave Object.prototype unchanged on success and on a poisoned pack', async () => {
@@ -518,16 +503,16 @@ test('preview and dry-run leave Object.prototype unchanged on success and on a p
   fs.writeFileSync(skinPath, skinZip);
   fs.writeFileSync(truncPath, Buffer.from('not a zip'));
   try {
-    const bad = await postPreview(studio, { zip: poison.toString('base64') });
+    const bad = await preview(poison.toString('base64'));
     assert.equal(bad.status, 400, bad.text);
     assert.equal(bad.body.error, 'PLUGIN_FORGE_JSON');
-    const ctorRes = await postPreview(studio, { zip: ctor.toString('base64') });
+    const ctorRes = await preview(ctor.toString('base64'));
     assert.equal(ctorRes.status, 400, ctorRes.text);
-    const ok = await postPreview(studio, { zip: skinZip.toString('base64') });
+    const ok = await preview(skinZip.toString('base64'));
     assert.equal(ok.status, 200, ok.text);
     assert.equal(ok.body.report.ok, true);
     assert.equal(ok.body.report.wrote, false);
-    const broken = await postPreview(studio, { zip: Buffer.from('not a zip').toString('base64') });
+    const broken = await preview(Buffer.from('not a zip').toString('base64'));
     assert.equal(broken.status, 400, broken.text);
     assert.equal(broken.body.error, 'PLUGIN_FORGE_ZIP');
 
