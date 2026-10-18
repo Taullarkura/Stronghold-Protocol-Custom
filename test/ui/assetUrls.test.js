@@ -78,7 +78,7 @@ describe('assetUrls', () => {
         assert.equal(chessPortraitUrl(m, c), m.chars[portraitId.slice(0, -2)].portrait, c.chessId);
       }
     }
-    assert.equal(official, 258);
+    assert.equal(official, 260); // 0.3.1's official pool plus this fork's seven pool-outside operators (DESIGN §F8)
   });
   test('bonds, bands, items, enemies, tokens, factions, titles, effects', () => {
     for (const id of Object.keys(load('bonds.json'))) assert.ok(bondIconUrl(m, id), id);
