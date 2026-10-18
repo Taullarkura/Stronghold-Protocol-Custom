@@ -342,8 +342,6 @@ replacement. No route or frozen plugin grammar member is added; the stable surfa
 | `studio.route.POST /studio/api/plugins/:id/pack` | stable | 0.3.0 | `server/studio/index.js#STUDIO_ROUTES` |
 | `studio.route.POST /studio/api/catalog` | stable | 0.3.0 | `server/studio/index.js#STUDIO_ROUTES` |
 | `studio.route.POST /studio/api/catalog/install` | stable | 0.3.0 | `server/studio/index.js#STUDIO_ROUTES` |
-| `studio.route.POST /studio/api/forge/preview` | stable | 0.3.0 | `server/studio/index.js#STUDIO_ROUTES` |
-| `studio.route.POST /studio/api/forge/import` | stable | 0.3.0 | `server/studio/index.js#STUDIO_ROUTES` |
 | `error.PLUGIN_STUDIO_CHANGED` | stable | 0.3.0 | `shared/plugins/errors.js#PLUGIN_ERRORS` |
 | `error.PLUGIN_STUDIO_TRIAL_BUSY` | stable | 0.3.0 | `shared/plugins/errors.js#PLUGIN_ERRORS` |
 | `error.PLUGIN_STUDIO_TRIAL_TIMEOUT` | stable | 0.3.0 | `shared/plugins/errors.js#PLUGIN_ERRORS` |

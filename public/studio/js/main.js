@@ -30,7 +30,6 @@ import { TrialBench } from './trial.js';
 import { CreateDialog } from './create.js';
 import { CatalogPage } from './catalog.js';
 import { SelectTools, confirmRemoval, removePlugins, showRefused } from './remove.js';
-import { ForgeDialog } from './forge.js';
 import { TargetPicker } from './picker.js';
 import { SlotCard } from './slots.js';
 import { InfoForm, FileList, ManifestEditor } from './info.js';
@@ -264,7 +263,6 @@ function App({ info }) {
   const [selected, setSelected] = useState(() => new URLSearchParams(location.search).get('plugin') || null);
   const [createOpen, setCreateOpen] = useState(false);
   const [pane, setPane] = useState('plugins');
-  const [forgeOpen, setForgeOpen] = useState(false);
   const [events, setEvents] = useState({ on: false, at: null });
   const refresh = () => get('plugins').then((r) => setPlugins(r.plugins || [])).catch(() => {});
   useEffect(() => { refresh(); }, []);
@@ -369,7 +367,6 @@ function App({ info }) {
       <aside class="st-side">
         <${Button} variant="primary" block=${true} onClick=${() => setCreateOpen(true)} data-testid="new-plugin">${t('新建插件')}<//>
         <${Button} block=${true} active=${pane === 'catalog'} onClick=${() => setPane('catalog')} data-testid="catalog-open">${t('从目录安装')}<//>
-        <${Button} block=${true} class="st-forge-open" onClick=${() => setForgeOpen(true)} data-testid="forge-import">${t('从 Forge 包导入')}<//>
         ${removable.length ? html`<${SelectTools} count=${checked.size} total=${removable.length} busy=${removing} onRemove=${removeChecked}
           onAll=${(on) => { setRemoval(null); setChecked(on ? new Set(removable.map((p) => p.id)) : new Set()); }}
           onClear=${() => { setRemoval(null); setChecked(new Set()); }} />` : null}
@@ -411,8 +408,6 @@ function App({ info }) {
     </div>
     <${CreateDialog} open=${createOpen} templates=${info.templates} onClose=${() => setCreateOpen(false)}
       onCreated=${(st) => { setCreateOpen(false); setPane('plugins'); refresh(); setSelected(st.id); }} />
-    <${ForgeDialog} open=${forgeOpen} onClose=${() => setForgeOpen(false)}
-      onImported=${(plugins) => { setForgeOpen(false); refresh(); if (plugins[0]?.id) setSelected(plugins[0].id); }} />
     <${UiHosts} />
   </div>`;
 }

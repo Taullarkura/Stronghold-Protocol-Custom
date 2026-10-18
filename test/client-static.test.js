@@ -1550,8 +1550,6 @@ test('the hud slot stays above the hand, plugin frames declare a dark scheme, an
   const frame = readFileSync(path.join(PUBLIC, 'js/ui/pluginFrame.js'), 'utf8');
   assert.match(frame, /ui-slot__tab/);
   assert.match(frame, /chosenSlot/);
-  const skeleton = readFileSync(path.join(ROOT, 'server/plugins/forgeImport.js'), 'utf8');
-  assert.match(skeleton, /color-scheme:dark/);
   const template = readFileSync(path.join(ROOT, 'plugins/_template/ui/ui/index.html'), 'utf8');
   assert.match(template, /color-scheme: dark/);
 });

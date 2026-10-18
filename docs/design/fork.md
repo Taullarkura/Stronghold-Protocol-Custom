@@ -790,3 +790,19 @@ lobby wired without a policy keeps playing without plugins (the test harnesses).
 policy default, `rooms: off` takes none, `fixed` holds the same set, `official` is true only while the extra plugins are
 cosmetic, and a policy-less lobby defaults to none — and `test/ui/plugin-official.test.js` — no 非官方 mark, `contentOf`
 null, a plugin the server does not own still modded.
+
+## F15. The 2026-10-18 plan — the 0.3.1 release, without its result screen and its workshop line
+
+**Plan.** Take the whole upstream v0.3.1 range (215 commits) except two lines the maintainer does not want: PR #698
+(the result screen in the official flow — radar intro, personal report, alliance page, the 60 卫戍认证 levels and
+the daily defence goal) and the Forge/workbench line (the studio's Forge import button, the nine graphical templates
+and the test console with its 「测试」 match mode).
+
+**Why.** This fork keeps its own result screen and its own plugin studio workflows; neither line was asked for, and
+both bring a large client surface that would have to be maintained forever.
+
+**How.** `1139ea0b` and `2858360f` are reverted: `public/js/screens/settle.js`, its CSS and its test are gone and
+`public/js/screens/game.js` imports `./result.js` again. The studio's Forge entry goes alone: its
+`POST /studio/api/forge/*` routes, the 「从 Forge 包导入」 button and `public/studio/js/forge.js` are removed, while
+the importer stays a library the CLI (`node tools/plugin.mjs import-forge`) and the plugin tests use [ASSUMED].
+The workbench templates and the test console are removed whole in the commits after the merge.

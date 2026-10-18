@@ -18,11 +18,6 @@ import { readFxManifest as readPluginManifest } from '../plugins/fxAssets.js';
 //                                       plugin in use (an open room's plugin set; a running match plays its room's), is
 //                                       refused alone → 200 { removed: [{ id, to }], refused: [{ id, error, params }] }
 //                                       also when some or all are refused (removePlugins)
-//   POST /studio/api/forge/preview      a Forge pack as { zip: base64 } or { files: [{ name, data: base64 }] } — the report,
-//                                       no plugins written; needed official tables may be cached. No server path input.
-//                                       noScripts: true leaves the sandboxed script plugin of kits/ out (--no-scripts).
-//                                       offline: true forbids table downloads in preview/import (§34.33).
-//   POST /studio/api/forge/import       the same body; writes plugins/<id>/ after the report's products pass check and pack
 //   GET  /studio/api/plugins/<id>       its manifest, files, sections, findings (coded: shared/plugins/errors.js), lock
 //   PUT  /studio/api/plugins/<id>/manifest     plugin.json as a whole (the advanced editor)
 //   POST /studio/api/plugins/<id>/meta         basic fields { fields, lang }
@@ -81,42 +76,6 @@ import { readStudioData } from './gameData.js';
 import { editMediaDraft } from './mediaDraft.js';
 import { createAuthoring } from './authoring.js';
 import { createPluginWatcher } from './watch.js';
-import { importForge } from '../plugins/forgeImport.js';
-
-/** Safety failures of a Forge import (the page shows the catalogue). A check failure stays in the report, HTTP 200. */
-const FORGE_SAFETY = new Set(['PLUGIN_FORGE_INPUT', 'PLUGIN_FORGE_ZIP', 'PLUGIN_FORGE_JSON', 'PLUGIN_FORGE_ID', 'PLUGIN_FORGE_EXISTS']);
-
-/**
- * A Forge pack uploaded by the page. A path on the server is never accepted.
- * @param {any} body
- * @returns {{ zip: Buffer } | { files: Map<string, Buffer> }}
- */
-function forgeUpload(body) {
-  if (typeof body.zip === 'string' && body.zip) {
-    const buf = Buffer.from(body.zip, 'base64');
-    if (!buf.length) throw new StudioError('PLUGIN_FORGE_INPUT', 400, { detail: 'empty zip' }, 'empty zip');
-    if (buf.length > PLUGIN_LIMITS.pluginBytes) throw new StudioError('PLUGIN_FORGE_ZIP', 400, { detail: 'zip is larger than 200 MB' }, 'zip is larger than 200 MB');
-    return { zip: buf };
-  }
-  if (Array.isArray(body.files)) {
-    if (!body.files.length) throw new StudioError('PLUGIN_FORGE_INPUT', 400, { detail: 'no files' }, 'no files');
-    if (body.files.length > PLUGIN_LIMITS.files) throw new StudioError('PLUGIN_FORGE_ZIP', 400, { detail: `more than ${PLUGIN_LIMITS.files} files` }, `more than ${PLUGIN_LIMITS.files} files`);
-    const map = new Map();
-    let total = 0;
-    for (const f of body.files) {
-      const name = typeof f?.name === 'string' ? f.name.replace(/\\/g, '/') : '';
-      if (!name || typeof f?.data !== 'string') throw new StudioError('PLUGIN_FORGE_INPUT', 400, { detail: 'each file needs a name and base64 data' }, 'each file needs a name and base64 data');
-      const data = Buffer.from(f.data, 'base64');
-      total += data.length;
-      if (data.length > PLUGIN_LIMITS.pluginBytes || total > PLUGIN_LIMITS.pluginBytes) throw new StudioError('PLUGIN_FORGE_ZIP', 400, { detail: 'files are larger than 200 MB' }, 'files are larger than 200 MB');
-      if (map.has(name)) throw new StudioError('PLUGIN_FORGE_ZIP', 400, { detail: `${name.slice(0, 80)}: duplicate name` }, `${name.slice(0, 80)}: duplicate name`);
-      map.set(name, data);
-    }
-    return { files: map };
-  }
-  throw new StudioError('PLUGIN_FORGE_INPUT', 400, { detail: 'send a zip or a file list, not a path on the server' }, 'send a zip or a file list, not a path on the server');
-}
-
 /** The page's URL prefix and its API's. */
 /** The studio's own notes of a plugin folder (a dot file: never listed, served, checked or packed). */
 export const SIDECAR = '.studio.json';
@@ -172,8 +131,6 @@ export const STUDIO_ROUTES = Object.freeze([
   'POST /studio/api/plugins/:id/pack',
   'POST /studio/api/catalog',
   'POST /studio/api/catalog/install',
-  'POST /studio/api/forge/preview',
-  'POST /studio/api/forge/import',
 ]);
 
 const noopLog = { info() {}, warn() {}, error() {} };
@@ -941,21 +898,6 @@ export function createStudio({ publicDir, pluginsDir, dataDir, registry, lobby =
     if (route === 'plugins/remove' && method === 'POST') {
       if (!mayChange(req)) return false;
       return json(200, removePlugins(await readJson(req, 16 * 1024)));
-    }
-    if ((route === 'forge/preview' || route === 'forge/import') && method === 'POST') {
-      if (!mayChange(req)) return false;
-      const body = await readJson(req, STUDIO_LIMITS.bodyBytes);
-      const result = await importForge(forgeUpload(body), {
-        id: typeof body.id === 'string' && body.id ? body.id.slice(0, 64) : undefined,
-        dryRun: route === 'forge/preview', pluginsDir, dataDir, root: path.dirname(path.resolve(publicDir)),
-        vanilla: registry.vanillaAssets(), scripts: body.noScripts !== true,
-        officialTables: { offline: body.offline === true, fetchImpl, log: line => log.info?.(line) },
-      });
-      const safety = result.issues.find((i) => FORGE_SAFETY.has(i.code));
-      if (safety) throw new StudioError(safety.code, 400, { detail: safety.detail }, safety.detail);
-      if (route === 'forge/import' && result.wrote) watcher.rescan();
-      const products = Array.isArray(result.report?.products) ? result.report.products : [];
-      return json(200, { report: result.report, plugins: products.map((p) => ({ id: p.id, class: p.class })) });
     }
     const m = /^plugins\/([^/]+)(?:\/(.*))?$/.exec(route);
     if (!m) return false;

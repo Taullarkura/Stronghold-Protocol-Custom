@@ -1676,7 +1676,6 @@ GET without the body):
 | `POST /studio/api/console/options` · `POST /studio/api/console/build` | test console defaults / combat choice support; validate a scene and build its browser BattleSpec (both keyed; 512 KiB body limit) |
 | `POST …/authoring` · `POST /studio/api/validate-dsl` | wizard save with revision; structural DSL validation |
 | `POST /studio/api/authors` · `GET /studio/api/events` | name the page's game sessions; the change events |
-| `POST /studio/api/forge/preview` · `POST /studio/api/forge/import` | a Forge pack as `{ zip?: base64, files?: [{ name, data: base64 }], id?, noScripts?, offline? }` — never a path on the server. Preview is a dry run; `noScripts` leaves the script plugin of `kits/` out. §16 |
 
 **The files** (`server/studio/files.js`): everything the studio touches is inside `plugins/<id>/` — the id a plugin id
 (never a `_` template or a dot folder), a path a plain relative path (no `..`, no `.` part, no hidden part, ≤ 200
@@ -1961,18 +1960,10 @@ rename: record maps with phases/levels/grids, module equipDict/charEquip maps, a
 on 2026-10-17. Concurrent imports share a per-install queue. No table download happens in matches, lobbies or game
 client paths, and no plugin field, API surface or derived-record semantics change.
 
-The studio does the same thing. On `/studio/` the button 「从 Forge 包导入」 takes a zip or a folder. The browser
-sends the bytes. While that read is in progress the preview and confirm buttons stay disabled, and the previous
-report is cleared so a late read cannot confirm the pack that was on screen before. The server is never given a
-path on its disk. `POST /studio/api/forge/preview` and
-`POST /studio/api/forge/import` take `{ zip?: base64, files?: [{ name, data: base64 }], id?, noScripts?, offline? }` and use the
-same gate as every other change (`X-SP-Studio`, this machine or the local network). A pack that is unsafe to unpack
-is 400 with a `PLUGIN_FORGE_*` code. A pack that was read answers 200 `{ report, plugins: [{ id, class }] }`.
-`report.ok` is false when a product failed the checks, and nothing was written. Preview is a dry run. Confirming
-writes `plugins/<id>/` and rescans. The dialog's box 「不生成脚本插件」 sends `noScripts: true` (the CLI's
-`--no-scripts`); toggling it clears the report, so confirm always writes what the last preview showed. When the
-report has a script plugin the dialog says when it runs (below). The 「离线导入（不下载官方数据表）」 box sends
-`offline: true` for both preview and confirm, and clears the old report when toggled. Online preview may populate
+This fork imports a Forge pack from the command line only — `node tools/plugin.mjs import-forge <dir|zip>` with
+`--dry-run`, `--json`, `--no-scripts` and `--offline`; the studio's 「从 Forge 包导入」 button and its two
+`/studio/api/forge/*` routes are not part of this fork (DESIGN §F15). The importer itself is unchanged: it reads a
+folder or a zip, and a pack that is unsafe to unpack is refused with a `PLUGIN_FORGE_*` code. Online import may populate
 the official cache; confirming reuses it.
 
 Each product is checked with `checkPluginFolder` and `packPlugin`. A cosmetic product is then resolved with
