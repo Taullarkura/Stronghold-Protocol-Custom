@@ -49,15 +49,34 @@ export const VENDOR_FILES = Object.freeze([
 export function vendor({ log = console.log, warn = console.warn } = {}) {
   mkdirSync(out, { recursive: true });
   const done = [];
+  const missing = [];
   for (const [src, dst, optional] of VENDOR_FILES) {
     const from = join(root, src);
-    if (optional && !existsSync(from)) { warn(`vendor: ${dst} skipped (${src} not installed; the 3D board falls back to 2D)`); continue; }
+    if (!existsSync(from)) {
+      if (optional) { warn(`vendor: ${dst} skipped (${src} not installed; the 3D board falls back to 2D)`); continue; }
+      missing.push(dst);
+      continue;
+    }
     if (VENDOR_REWRITES[dst]) writeFileSync(join(out, dst), rewriteBare(readFileSync(from, 'utf8'), VENDOR_REWRITES[dst]));
     else copyFileSync(from, join(out, dst));
     done.push(dst);
     log('vendor:', dst);
   }
+  // A dependency may be missing from package.json (an upstream merge can drop one the fork still vendors).
+  // Report every file in one line instead of an ENOENT stack from copyFileSync.
+  if (missing.length > 0) {
+    const err = new Error(`vendor: ${missing.length} 个前端依赖文件缺失（${missing.join(', ')}），请先运行 npm install 并按 package.json 的依赖列表检查`);
+    err.missing = missing;
+    throw err;
+  }
   return done;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) vendor();
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  try {
+    vendor();
+  } catch (err) {
+    console.error(err.message);
+    process.exitCode = 1;
+  }
+}
