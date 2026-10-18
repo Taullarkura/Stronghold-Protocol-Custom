@@ -54,7 +54,6 @@ describe('room.setPlugins (P1a: cosmetic plugins)', () => {
     writePlugin(path.join(plugins, 'texas-red'), cosmetic({ assets: { chars: { char_102_texas: { avatar: 'a.png' } } } }), { 'a.png': png(4, 4) });
     writePlugin(path.join(plugins, 'texas-blue'), cosmetic({ assets: { chars: { char_102_texas: { avatar: 'b.png' } } } }), { 'b.png': png(4, 4, [0, 0, 255, 255]) });
     writePlugin(path.join(plugins, 'mine'), cosmetic({ scope: ['personal'], assets: { chars: { char_102_texas: { avatar: 'm.png' } } } }), { 'm.png': png(2, 2) });
-    writePlugin(path.join(plugins, 'rules'), { manifest: 2, version: '1.0.0', app: '*', api: 1, class: 'content', permissions: ['data.patch'], data: ['d.json'] }, { 'd.json': { patch: 1, ops: [] } });
     writePlugin(path.join(plugins, 'base'), cosmetic({ assets: { chars: { char_112_siege: { avatar: 'b.png' } } } }), { 'b.png': png(2, 2) });
     writePlugin(path.join(plugins, 'top'), cosmetic({ requires: { base: '*' }, assets: { chars: { char_102_texas: { avatar: 't.png' } } } }), { 't.png': png(2, 2) });
     writePlugin(path.join(plugins, 'fresh'), cosmetic({ assets: { chars: { char_112_siege: { avatar: 'f.png' } } } }), { 'f.png': png(2, 2, [1, 1, 1, 255]) });
@@ -69,9 +68,10 @@ describe('room.setPlugins (P1a: cosmetic plugins)', () => {
 
   test('/healthz and welcome count the server\'s unofficial plugins (the title screen\'s N; a server without any sends no count)', async () => {
     const c = await player('Closure');
-    // texas-red, texas-blue, mine, base, top, fresh, later (cosmetic) and rules (content, planned): every class but a language
-    assert.deepEqual(c.welcome.content, { vanilla: srv.content.cs, plugins: 8 });
-    assert.deepEqual((await (await fetch(`${srv.url}/healthz`)).json()).content, { vanilla: srv.content.cs, sets: 0, plugins: 8 }, 'before any hello: the title screen');
+    // texas-red, texas-blue, mine, base, top, fresh and later: every class but a language (cosmetics only — an installed
+    // gameplay plugin is part of the server's rooms by default, DESIGN §F14, and the "room content sets" fixture below has them)
+    assert.deepEqual(c.welcome.content, { vanilla: srv.content.cs, plugins: 7 });
+    assert.deepEqual((await (await fetch(`${srv.url}/healthz`)).json()).content, { vanilla: srv.content.cs, sets: 0, plugins: 7 }, 'before any hello: the title screen');
     const lobby = new Lobby({ registry: new SessionRegistry(), content: { cs: 'ab'.repeat(32) }, plugins: { resolve: () => null, unofficial: () => 0 } });
     assert.deepEqual(lobby.welcomeInfo().content, { vanilla: 'ab'.repeat(32) }, 'none: exactly the welcome of a server without plugins');
     lobby.shutdown();
@@ -625,8 +625,9 @@ describe('the server owner\'s policy and the content-set limit (P1c)', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-policy-'));
     dirs.push(tmp);
     const plugins = path.join(tmp, 'plugins');
-    writePlugin(path.join(plugins, 'one'), content(), { 'p.json': { patch: 1, ops: [] } });
-    writePlugin(path.join(plugins, 'two'), content(), { 'p.json': { patch: 1, ops: [] } });
+    // one file each: both are part of every room's default set (DESIGN §F14), so their overlays must not collide
+    writePlugin(path.join(plugins, 'one'), content({ data: ['p1.json'] }), { 'p1.json': { patch: 1, ops: [] } });
+    writePlugin(path.join(plugins, 'two'), content({ data: ['p2.json'] }), { 'p2.json': { patch: 1, ops: [] } });
     if (config) fs.writeFileSync(path.join(plugins, 'config.json'), JSON.stringify(config));
     const s = await startServer({ port: 0, host: '127.0.0.1', quiet: true, pluginsDir: plugins, MatchClass: RecordingStub, assetIndex: false });
     servers.push(s);
@@ -647,16 +648,20 @@ describe('the server owner\'s policy and the content-set limit (P1c)', () => {
     for (const d of dirs) fs.rmSync(d, { recursive: true, force: true });
   });
 
-  test('limits.maxSets: one content set more than rooms hold is PLUGIN_BUSY; a set already held, or the one a room gives up, is free', async () => {
+  test('limits.maxSets: a host\'s own set over the limit is PLUGIN_BUSY; a set already held, or the one a room gives up, is free', async () => {
+    // both rooms start with the server's own content (DESIGN §F14) — one set shared — and maxSets 1 leaves no room for a
+    // set of a host's own until the other room gives the shared one up
     const s = await serverWith({ limits: { maxSets: 1 } });
     const a = await player(s, 'A');
     const b = await player(s, 'B');
     for (const c of [a, b]) { assert.equal((await c.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' }, BUILD_MS)).t, 'ok'); await c.waitFor('room.state', undefined, BUILD_MS); }
-    assert.equal((await a.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }] }, BUILD_MS)).t, 'ok');
     const builds = s.contents.stats().builds;
-    const busy = await b.request({ t: 'room.setPlugins', plugins: [{ id: 'two' }] }, BUILD_MS);
+    const busy = await a.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }] }, BUILD_MS);
     assert.deepEqual([busy.t, busy.code], ['error', ERR.PLUGIN_BUSY]);
     assert.equal(s.contents.stats().builds, builds, 'refused before it was built');
+    // B gives the shared set up: nothing else holds it, so A's own set fits
+    assert.equal((await b.request({ t: 'room.setPlugins', plugins: [] }, BUILD_MS)).t, 'ok');
+    assert.equal((await a.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }] }, BUILD_MS)).t, 'ok');
     assert.equal((await b.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }] }, BUILD_MS)).t, 'ok', 'the set already held');
     // A gives it up; B (its only holder now) switches to another one: freed by the change
     assert.equal((await a.request({ t: 'room.setPlugins', plugins: [] }, BUILD_MS)).t, 'ok');
@@ -665,20 +670,20 @@ describe('the server owner\'s policy and the content-set limit (P1c)', () => {
     assert.equal(st.content.vanilla, false);
   });
 
-  test('rooms: fixed — every room starts with the default set and its host cannot change it; allow — only the listed plugins', async () => {
+  test('rooms: fixed — every room starts with the default set and the server\'s own content, and its host cannot change it; allow — only the listed plugins', async () => {
     const s = await serverWith({ rooms: 'fixed', default: ['one'] });
     const a = await player(s, 'A');
     assert.equal((await a.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' }, BUILD_MS)).t, 'ok');
     const st = await a.waitFor('room.state', (x) => x.content?.vanilla === false, BUILD_MS);
-    assert.deepEqual(st.content.plugins.map((p) => p.id), ['one']);
+    assert.deepEqual(st.content.plugins.map((p) => p.id), ['one', 'two'], 'the default set and every installed gameplay plugin (DESIGN §F14)');
     const r = await a.request({ t: 'room.setPlugins', plugins: [] }, BUILD_MS);
     assert.deepEqual([r.t, r.code], ['error', ERR.PLUGIN_BLOCKED]);
-    assert.equal((await a.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }] }, BUILD_MS)).t, 'ok', 'the fixed set itself');
+    assert.equal((await a.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }, { id: 'two' }] }, BUILD_MS)).t, 'ok', 'the fixed set itself');
     const s2 = await serverWith({ allow: ['one'] });
     const b = await player(s2, 'B');
     assert.equal((await b.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' }, BUILD_MS)).t, 'ok');
     const st2 = await b.waitFor('room.state', undefined, BUILD_MS);
-    assert.equal(st2.content.vanilla, true, 'no default: the original game');
+    assert.deepEqual(st2.content.plugins.map((p) => p.id), ['one'], 'the server\'s own content the policy allows');
     const no = await b.request({ t: 'room.setPlugins', plugins: [{ id: 'two' }] }, BUILD_MS);
     assert.deepEqual([no.t, no.code], ['error', ERR.PLUGIN_BLOCKED]);
     assert.equal((await b.request({ t: 'room.setPlugins', plugins: [{ id: 'one' }] }, BUILD_MS)).t, 'ok');

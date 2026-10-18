@@ -51,7 +51,8 @@ export function createRoomSets({ registry, visual, contents, policy }) {
     const pol = policy?.get();
     if (pol && pol.rooms === 'off') return { error: ERR.PLUGIN_BLOCKED, detail: 'this server\'s rooms play the original game (plugins/config.json rooms: off)' };
     if (pol && pol.rooms === 'fixed') {
-      const want = [...pol.default].sort().join(',');
+      // the same set a new room starts with: the policy's `default` and the server's own gameplay plugins (DESIGN §F14)
+      const want = [...defaults()].sort().join(',');
       if ([...ids].sort().join(',') !== want) return { error: ERR.PLUGIN_BLOCKED, detail: 'this server fixes every room\'s plugins (plugins/config.json rooms: fixed)' };
     }
     for (const id of ids) {
