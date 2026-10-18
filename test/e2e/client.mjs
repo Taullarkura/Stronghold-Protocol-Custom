@@ -228,6 +228,9 @@ export class Client {
     await page.setViewport({ width: this.w, height: this.h });
     page.on('console', (m) => {
       if (m.type() === 'error') this.problems.push(`console: ${m.text()} @ ${m.location()?.url || ''}`);
+      else if (process.env.SP_E2E_DEBUG && /\[runner\]|\[battle\]|\[sim\]|\[plugin\]/.test(m.text())) {
+        console.log(`[${this.label}] ${m.type()}: ${m.text()}`); // SP_E2E_DEBUG: follow the client's battle lifecycle
+      }
     });
     page.on('pageerror', (e) => this.problems.push(`pageerror: ${e.message}`));
     page.on('requestfailed', (r) => {
@@ -366,8 +369,21 @@ export class Client {
     return file;
   }
 
+  /** The first visit opens the update notice over the title (screens/title.js hasSeenUpdateNotice): close it, or every
+   *  title control stays covered. A no-op when nothing is open. */
+  async dismissAnnouncement() {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 5000) {
+      if (!(await this.page.$('.modal'))) return false;
+      await this.page.keyboard.press('Escape');
+      await this.page.waitForFunction(() => !document.querySelector('.modal'), { timeout: 3000 }).catch(() => {});
+    }
+    return true;
+  }
+
   /** Title → lobby with a callsign. */
   async enter(name) {
+    await this.dismissAnnouncement();
     await this.page.waitForSelector('.title-login input', { timeout: 20000 });
     await this.click('.title-login input');
     await this.page.keyboard.type(name);

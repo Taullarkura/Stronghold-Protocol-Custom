@@ -599,6 +599,8 @@ async function openSettings(c) {
 
 /** 玩法说明 viewer: open from `openSel`, page forward (button + arrow key), screenshot, close. */
 async function openGuide(c, openSel, shotName) {
+  // a fresh browser profile opens the update notice over the title (title.js: hasSeenUpdateNotice) — close it first
+  await c.dismissAnnouncement();
   await c.click(openSel);
   await c.page.waitForSelector('.guide', { timeout: 5000 });
   await c.page.waitForFunction(() => { const i = document.querySelector('.guide__page img'); return i && i.complete && i.naturalWidth > 0; }, { timeout: 15000 });
@@ -750,7 +752,7 @@ async function observeAfterFinish(c) {
   assert.ok(await c.exists('.chud__progress'), "teammates' progress under the pill");
   await c.shot('combat-waiting');
   await c.click('.team__row:not(.is-self) .team__btn', null, { nth: other.nth });
-  const voice0 = await c.page.evaluate(() => globalThis.__SP__.audio.voiceLog.length);
+  const voice0 = await c.page.evaluate(() => (globalThis.__SP__.audio.voiceLog || []).length);
   if (!(await c.click('.team__ob', '前往查看', { optional: true, timeout: 3000 }))) return false;
   const ok = await c.page.waitForFunction((fid) => { const s = globalThis.__SP_RUNNER__?.state(); return !!s && s.fieldId === fid && s.watch; }, { timeout: 15000 }, other.fieldId).then(() => true, () => false);
   if (!ok) return false; // the phase moved on
