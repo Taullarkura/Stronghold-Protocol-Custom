@@ -253,7 +253,7 @@ describe('a leaker\'s ×N and pending LP per field (uniteLocalFor → rowLp)', (
     assert.match(game, /const ownUniteLocal = uniteLocalFor\(pub, uniteLocal, uniteField, myId\);\s*const localLeft = leaker && ownUniteLocal \? \(ownUniteLocal\[myId\] \?\? 0\) : undefined;/);
     assert.match(game, /<\$\{TeamPanel\}[^\n]*uniteLocal=\$\{uniteLocal\} uniteField=\$\{uniteField\}/);
     const panel = read('public/js/ui/teamPanel.js');
-    assert.match(panel, /uniteLocal: uniteShown = null, uniteField = null \}\)/);
+    assert.match(panel, /uniteLocal: uniteShown = null, uniteField = null[^)]*\}\)/);
     assert.match(panel, /const uniteLocal = uniteLocalFor\(pub, uniteShown, uniteField, p\.playerId\);\s*const lp = rowLp\(p, pub, self \? selfLive : null, \{ uniteLocal, cap \}\);/);
   });
 });

@@ -1,6 +1,6 @@
-// 机变 draft overlay (research 06 §4.4 / §11.5): family title | description, "倒计时结束后仍未选定将自动分配",
-// whose turn ("当前轮到你决策" / "{name} 正在决策…") with countdown, pick order with ✓ / ⌛ / … / door,
-// and a 3×2 grid (solo: 3 cards) of cards in the official layout (the official 悬赏 / 机密商店 / 战术 screenshots): a
+// 机变 draft overlay (research 06 §4.4 / §11.5): family title | description over "倒计时结束后仍未选定将自动分配",
+// whose turn ("当前轮到你决策" / name over "正在决策…") with countdown — the pick order as ✓ / ••• on the team panel's
+// portraits (spMarks) — and a 3×2 grid (solo: 3 cards) of cards in the official layout (the official 悬赏 / 机密商店 / 战术 screenshots): a
 // framed icon at the top-left with the bold name beside it (tags under the name), the effect text across the card under
 // both, left-aligned; the tier chip on the icon's corner and the taker's round avatar alone at the top-right (their
 // name is its tooltip and part of the card's accessible name; a taken card's name wraps before it). The effect text
@@ -9,21 +9,18 @@
 // playtest #6 item 6: at 756×366 it used to sit below a large centred icon, clipped away). Picking takes two taps, like
 // buying in the shop (user playtest #4 item 2 — extra enemies, items and tactics were picked by a slip of the finger;
 // research 09 §5 EventOnFirstClick → EventOnConfirm): the first tap on an available card selects it (it lifts with a
-// gold frame and a 确认选择 · 再次点击 strip; the header shows 确认选择), a second tap on the same card — or 确认选择 —
+// white frame and a ☑ 确认选择 · 再次点击 strip; the header shows 确认选择), a second tap on the same card — or 确认选择 —
 // sends g.choice; a tap on another card moves the selection, a tap elsewhere or Esc drops it. Cards are buttons (Tab /
 // Enter work the same way). While the pick is in flight the card shows a "选择中" strip with a sweeping bar (never a
 // spinner over its text — user playtest #3 item 9), dropped as soon as the pick shows in m.public (spBusy itself resets
 // when the request settles, ≤ 8 s, or the phase moves on). Untimed drafts (solo, a single-human match: sp.untimed) show
-// no countdown and say so. The selected card's frame and its ☑ 确认选择 strip are white, as in the event's video (10:16).
+// no countdown and say so.
 // Rooms of 5–8 players (a remake extension) draft max(6, alive + 2) cards — 7 to 10 (shared/protocol.js SP_CARDS_MAX):
 // more than 6 cards are laid out as ceil(n / 2) columns × 2 rows (spGridLayout: 4 × 2 for 7–8 cards, 5 × 2 for 9–10;
-// `spov__grid--wide`) with a smaller icon and the same text size, the effect text filling the card and scrolling inside
-// it when it is longer (a fade at its foot while more is below; the card's tooltip has it whole); a pick order of more
-// than 4 players is dense (`spov__order--dense`: shorter names, none on phones — the header names the current picker).
-// Up to 6 cards and 4 players keep the official layout above.
+// `spov__grid--wide`) with a smaller icon and the same text size. Up to 6 cards keep the official layout above. The selected card's frame and its ☑ 确认选择 strip are white, as in the event's video (10:16).
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
-import { html, Icon, TierChip, Countdown, MicroLabel, Button, PlayerName } from './components.js';
+import { html, Icon, TierChip, Countdown, Button } from './components.js';
 import { Img, RichText, PlayerAvatar, GIcon } from './gameComponents.js';
 import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
 import { richTextPlain } from './richText.js';
@@ -35,22 +32,6 @@ import { sentText } from './lang.js';
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 const bare = (t) => String(t || '').replace(/\s+/g, '');
-
-/** Cards of the official grid (co-op 3 × 2); a larger room's draft (7–10 cards) gets the wide grid. */
-export const SP_GRID_CARDS = 6;
-/**
- * The card grid's layout for `n` cards: ≤ 3 (solo) the centred row of 3 (`spov__grid--3`), 4–6 the official 3 × 2
- * (no modifier), more (a 5–8-player room) ceil(n / 2) columns × 2 rows (`spov__grid--wide`, `--sp-cols`).
- * @param {number} n
- * @returns {{ cls: string|null, cols: number|null }}
- */
-export function spGridLayout(n) {
-  if (n <= 3) return { cls: 'spov__grid--3', cols: null };
-  if (n <= SP_GRID_CARDS) return { cls: null, cols: null };
-  return { cls: 'spov__grid--wide', cols: Math.ceil(n / 2) };
-}
-/** Whether the pick order strip of `n` players is dense (more than the official 4). */
-export const spOrderDense = (n) => Number(n) > 4;
 
 /**
  * A card's effect text: the card's own rich text, else the data's rich text (highlighted numbers, 下场作战, set bonuses,
@@ -175,8 +156,8 @@ export function ChoiceOverlay(props) {
 }
 
 /**
- * Who has picked and who is deciding, as the team panel shows it during a shared draft (the official 悬赏决策: ✓
- * beside who has picked, ••• beside who is deciding): playerId → 'done' | 'turn'. Empty for solo and personal picks.
+ * The pick order as the team panel shows it during a shared draft (the official 悬赏决策: ✓ beside who has picked, •••
+ * beside who is deciding): playerId → 'done' | 'turn'. Empty for solo and personal picks.
  * @param {any} sp normalizeSp(...) @param {{ solo: boolean }} o
  * @returns {Map<string, 'done'|'turn'>}
  */
@@ -189,6 +170,22 @@ export function spMarks(sp, { solo }) {
   }
   return out;
 }
+
+/** Cards of the official grid (co-op 3 × 2); a larger room's draft (7–10 cards) gets the wide grid. */
+export const SP_GRID_CARDS = 6;
+/**
+ * The card grid's layout for `n` cards: ≤ 3 (solo) the centred row of 3 (`spov__grid--3`), 4–6 the official 3 × 2
+ * (no modifier), more (a 5–8-player room) ceil(n / 2) columns × 2 rows (`spov__grid--wide`, `--sp-cols`).
+ * @param {number} n
+ * @returns {{ cls: string|null, cols: number|null }}
+ */
+export function spGridLayout(n) {
+  if (n <= 3) return { cls: 'spov__grid--3', cols: null };
+  if (n <= SP_GRID_CARDS) return { cls: null, cols: null };
+  return { cls: 'spov__grid--wide', cols: Math.ceil(n / 2) };
+}
+/** Whether the pick order strip of `n` players is dense (more than the official 4). */
+export const spOrderDense = (n) => Number(n) > 4;
 
 /**
  * The overlay's view (pure: no hooks — test/ui renders it as a function).
@@ -204,12 +201,9 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
   const mine = sp.pickOf.get(myId);
   const turnName = players.get(sp.turnPid)?.name || t('队友');
   const special = /_s$/.test(String(sp.family || ''));
-  const order = personal || solo ? [] : sp.order;
   const timed = personal ? pub?.deadline > 0 : !solo && !sp.untimed;
   const armedCardRec = armed != null ? sp.cards.find((c) => c && c.idx === armed) : null;
   const armedName = armedCardRec ? resolveSpCard(armedCardRec, sp.family).name : null;
-  const grid = spGridLayout(sp.cards.length);
-  const dense = spOrderDense(order.length);
   // a press anywhere but a card or the confirm button drops the selection
   const onDown = (e) => {
     if (armed == null) return;
@@ -217,13 +211,17 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
     if (t && typeof t.closest === 'function' && t.closest('.spcard, .spov__confirm')) return;
     onDisarm();
   };
-  return html`<div class=${cx('spov', armed != null && 'has-armed')} role="dialog" aria-label=${personal ? t('教鞭选择') : t('机变阶段')} onPointerDown=${onDown}>
+  // the official header (the event's 悬赏决策, video 9:59): 「悬赏决策 |」 with the description and the timing line stacked
+  // beside the bar; on the right the player deciding (name over 正在决策…, an hourglass) or 当前轮到你决策, then the
+  // countdown. The pick order lives on the team panel (✓ / ••• on the portraits, ui/teamPanel.js spMarks).
+  const grid = spGridLayout(sp.cards.length);
+  return html`<div class=${cx('spov', armed != null && 'has-armed', personal && 'spov--personal')} role="dialog" aria-label=${personal ? t('教鞭选择') : t('机变阶段')} onPointerDown=${onDown}>
     <div class="spov__veil" aria-hidden="true"></div>
     <div class="spov__inner">
       <header class="spov__head">
         <div class="spov__titles">
-          <${MicroLabel} tone="mint">${personal ? t('教鞭选择') : t('CONTINGENCY // 机变阶段')}</${MicroLabel}>
-          <h2 class=${cx('spov__title', special && 'is-special')}>${sentText(sp.name, rawFam?.name, fam?.name) || fam?.name || t('机变')}<span class="spov__bar">|</span><span class="spov__desc"><${RichText} text=${sentText(sp.desc, rawFam?.desc, fam?.desc) || fam?.desc || t('选择一项')} /></span></h2>
+          <i class="spov__deco" aria-hidden="true"></i>
+          <h2 class=${cx('spov__title', special && 'is-special')}><span class="spov__name">${sentText(sp.name, rawFam?.name, fam?.name) || fam?.name || t('机变')}</span><span class="spov__bar">|</span><span class="spov__desc"><${RichText} text=${sentText(sp.desc, rawFam?.desc, fam?.desc) || fam?.desc || t('选择一项')} /></span></h2>
           <p class="spov__sub">${timed ? (personal ? t('休整期结束时未选择将自动选定') : t('倒计时结束后仍未选定将自动分配')) : t('选择一项（无时间限制）')}${mine == null && myTurn ? t(' · 点击卡牌选中，再次点击确认') : ''}</p>
         </div>
         <div class="spov__turn">
@@ -236,21 +234,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           ${timed ? html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="md" />` : null}
         </div>
       </header>
-      ${order.length ? html`<div class=${cx('spov__order', dense && 'spov__order--dense')} aria-label=${t('决策顺序')}>
-        ${order.map((pid, i) => {
-          const p = players.get(pid);
-          const picked = sp.pickOf.has(pid);
-          const cur = sp.turnPid === pid && !picked;
-          const left = p?.status === 'left';
-          return html`<div key=${pid} class=${cx('spov__who', cur && 'is-cur', picked && 'is-done', pid === myId && 'is-self')} title=${dense ? p?.name || t('博士') : undefined}>
-            <span class="spov__idx num">${i + 1}</span>
-            <${PlayerAvatar} player=${p || { name: '?' }} size="sm" self=${pid === myId} />
-            <span class="spov__wname"><${PlayerName} name=${p?.name || t('博士')} /></span>
-            <span class="spov__wstate">${left ? html`<${Icon} name="exit" />` : picked ? html`<${Icon} name="check" />` : cur ? html`<${Icon} name="hourglass" />` : html`<${Icon} name="dots" />`}</span>
-          </div>`;
-        })}
-      </div>` : null}
-      <div class=${cx('spov__grid', grid.cls)} style=${grid.cols ? `--sp-cols:${grid.cols}` : undefined}>
+        <div class=${cx('spov__grid', grid.cls)} style=${grid.cols ? { '--sp-cols': String(grid.cols) } : undefined}>
         ${sp.cards.map((card) => {
           const r = resolveSpCard(card, sp.family);
           const taker = card.takenBy ? players.get(card.takenBy) : null;
@@ -276,7 +260,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
             ${card.soldOut && !taker ? html`<span class="spcard__busy" role="status">${t('库存不足')}</span>` : null}
             ${r.tier ? html`<${TierChip} tier=${r.tier} size="md" class="spcard__tier" />` : null}
             ${taker ? html`<span class="spcard__taker" title=${t('{name} 已选择', { name: taker.name })}><${PlayerAvatar} player=${taker} size="sm" /></span>` : null}
-            ${isArmed ? html`<span class="spcard__confirm" role="status"><b>${t('确认选择')}</b><small>${t('再次点击')}</small></span>` : null}
+            ${isArmed ? html`<span class="spcard__confirm" role="status"><span class="spcard__cbox"><${Icon} name="check" /></span><b>${t('确认选择')}</b><small>${t('再次点击')}</small></span>` : null}
             ${busy ? html`<span class="spcard__busy" role="status">${t('选择中')}</span>` : null}
           </button>`;
         })}

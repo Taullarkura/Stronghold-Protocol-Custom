@@ -148,14 +148,15 @@ describe('机变 draft of a larger room: up to 10 cards, wide grid, dense order'
     const sp = normalizeSp({ family: 'supply', cards: supply.slice(0, nCards), order, turn: order[Object.keys(picks).length], picks }, players);
     return [...walk(ChoiceView({ pub: { players, deadline: 0 }, sp, myId: 'p1', solo: false }))];
   };
-  test('ChoiceView, 4 players / 6 cards: the official markup (no modifier, no style, no tooltips on the order)', () => {
+  test('ChoiceView, 4 players / 6 cards: the official markup (no modifier, no style, the order on the team panel)', () => {
     const nodes = view(4, 6, { p0: 2 });
     const grid = byClass(nodes, 'spov__grid')[0];
     assert.equal(grid.props.class, 'spov__grid');
     assert.equal(grid.props.style, undefined);
-    const order = byClass(nodes, 'spov__order')[0];
-    assert.equal(order.props.class, 'spov__order');
-    assert.ok(byClass(nodes, 'spov__who').every((n) => n.props.title === undefined));
+    // 0.3.1 moved the pick order to the team panel's ✓ / ••• marks (ui/teamPanel.js); the overlay keeps only the
+    // deciding player beside the countdown
+    assert.equal(byClass(nodes, 'spov__order').length, 0);
+    assert.ok(byClass(nodes, 'spov__turntxt')[0], 'the turn strip names who decides');
     assert.equal(byClass(nodes, 'spcard').length, 6);
     // solo's row of 3 as before
     const players = team(1);
@@ -163,22 +164,17 @@ describe('机变 draft of a larger room: up to 10 cards, wide grid, dense order'
     const solo = [...walk(ChoiceView({ pub: { players, deadline: 0 }, sp, myId: 'p0', solo: true }))];
     assert.equal(byClass(solo, 'spov__grid')[0].props.class, 'spov__grid spov__grid--3');
   });
-  test('ChoiceView, 8 players / 10 cards: a 5 × 2 grid of 10 cards keyed by index, a dense order of 8 with names as tooltips', () => {
+  test('ChoiceView, 8 players / 10 cards: a 5 × 2 grid of 10 cards keyed by index', () => {
     const nodes = view(8, 10, { p0: 9 });
     const grid = byClass(nodes, 'spov__grid')[0];
     assert.equal(grid.props.class, 'spov__grid spov__grid--wide');
-    assert.equal(grid.props.style, '--sp-cols:5');
+    assert.deepEqual(grid.props.style, { '--sp-cols': '5' });
     const cards = byClass(nodes, 'spcard');
     assert.deepEqual(cards.map((c) => c.key), [...Array(10).keys()]);
     assert.ok(hasClass(cards[9], 'is-taken'), 'the 10th card taken by P1');
     assert.ok(hasClass(cards[8], 'is-pickable'), 'P2 (my turn) may pick the 9th');
-    const order = byClass(nodes, 'spov__order')[0];
-    assert.equal(order.props.class, 'spov__order spov__order--dense');
-    const who = byClass(nodes, 'spov__who');
-    assert.equal(who.length, 8);
-    assert.deepEqual(who.map((w) => w.props.title), team(8).map((p) => p.name));
     // 7 cards (5 players): 4 × 2
-    assert.equal(byClass(view(5, 7), 'spov__grid')[0].props.style, '--sp-cols:4');
+    assert.deepEqual(byClass(view(5, 7), 'spov__grid')[0].props.style, { '--sp-cols': '4' });
   });
   test('the wide grid\'s CSS: columns from --sp-cols, the text scrolls in the card, same text size as the 3 × 2 grid', () => {
     const css = read('public/css/screens/game-panels.css');
