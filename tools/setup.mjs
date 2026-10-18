@@ -56,8 +56,11 @@ const NODE_URL = 'https://nodejs.org/zh-cn/download';
 /** Data files the server expects (server/data.js DATA_FILES) + the emote catalogue used by the client. */
 export const DATA_FILES = ['config', 'chess', 'bonds', 'garrisons', 'items', 'bands', 'effects', 'choices',
   'enemies', 'factions', 'waves', 'stages', 'bosses', 'tokens', 'assets', 'backups', 'emotes'];
-/** Runtime packages that must be installed (package.json dependencies). */
-export const RUNTIME_PACKAGES = ['ws', 'pixi.js', 'pixi-spine', 'preact', 'htm'];
+/**
+ * Runtime packages that must be installed (package.json dependencies). `ses` and `acorn` are imported lazily by the
+ * script-plugin sandbox, so a partial install still boots the server and only fails when a script set is composed.
+ */
+export const RUNTIME_PACKAGES = ['ws', 'pixi.js', 'pixi-spine', 'preact', 'htm', 'ses', 'acorn'];
 /** Vendor files the client cannot run without (tools/vendor.mjs; three.js is optional there). */
 export const VENDOR_REQUIRED = ['pixi.min.js', 'pixi-spine.js', 'preact.module.js', 'hooks.module.js', 'htm.module.js'];
 export const VENDOR_OPTIONAL = ['three.core.js', 'three.module.js'];
