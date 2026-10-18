@@ -31,15 +31,6 @@ import meta from './meta.js';
 import mode from './mode.js';
 import ui from './ui.js';
 import script from './script.js';
-import bond from './bond.js';
-import item from './item.js';
-import trait from './trait.js';
-import offers from './offers.js';
-import rules from './rules.js';
-import theme from './theme.js';
-import notices from './notices.js';
-import fx from './fx.js';
-import skins from './skins.js';
 import { readStudioData } from '../gameData.js';
 import { DATA_DIR } from '../../data.js';
 import { validateDsl, validatePrepSpec } from '../../sim/content/dsl/validate.js';
@@ -55,7 +46,7 @@ import { readmeOf } from './readme.js';
  */
 
 /** @type {readonly StudioTemplate[]} every template, in the studio's order */
-export const TEMPLATES = Object.freeze([art, spine, voice, audio, numbers, operator, dsl, meta, mode, ui, script, bond, item, trait, offers, rules, theme, notices, fx, skins]);
+export const TEMPLATES = Object.freeze([art, spine, voice, audio, numbers, operator, dsl, meta, mode, ui, script]);
 
 /** The template of an id, or null. @param {unknown} id */
 export const templateById = (id) => TEMPLATES.find((t) => t.id === id) || null;
