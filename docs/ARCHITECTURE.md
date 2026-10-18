@@ -47,14 +47,12 @@ making one, in Chinese). How to set up, test and send a change: [CONTRIBUTING.md
   + − × ÷ and `Math.sqrt`; ESLint and `test/sim/detmath.test.js` refuse the Math ones in `server/sim/`. The golden
   results (§5) rely on it.
 
-### This fork: the Cloudflare deployment
+### This fork: 5–8 player rooms, phones, presence, the collab picks
 
-This fork (BBleae/Stronghold-Protocol) also runs on Cloudflare Workers: the same client, data and sim as static assets,
-one Durable Object per room running the same lobby and match code (`worker/room-runtime.js`), accounts, history and
-replays in further Durable Objects, the 匹配 queue (`worker/matchmaker.js`) and the account pages' API
-(`public/js/room-net.js`, `public/js/preferenceSchema.js`). `tools/build-worker.mjs` builds it; docs/CLOUDFLARE.md and
-docs/ACCOUNTS-HISTORY.md describe it, and `tools/build-android.mjs` the android app (docs/ANDROID.md). The fork's own
-design sections — 5–8 player rooms, phones, 匹配, 在线人数, the collab 自选 picks — are in `docs/design/fork.md` (§F1 … §F6).
+This fork (BBleae/Stronghold-Protocol) adds its own design sections — 5–8 player rooms, phones, 在线人数, the collab
+自选 picks — in `docs/design/fork.md` (§F1 … §F6), all on the same Node server: the Cloudflare deployment the fork once
+carried was removed on 2026-10-18 (its Worker, accounts, 匹配 queue and history pages went with it).
+`tools/build-android.mjs` builds the android app (docs/ANDROID.md).
 
 ## 2. The WebSocket protocol
 

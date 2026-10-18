@@ -7,10 +7,7 @@
 // has no session), a second page (another player, in the lobby) is counted — its top bar shows the numbers the server
 // pushes — and the title page catches up within one poll; closing a page takes the count back down.
 // Phones (640×360, 844×390, touch) in Chinese and English: the readout is on screen, fully readable (no ellipsis), at
-// least 10 px, and overlaps none of its neighbours in the title footer and the lobby top bar. The Cloudflare site's
-// signed-out title page (its account card centred over the footer; account mode faked over the Node server, as the
-// Worker build marks the page) at 640×360 / 667×375 in Japanese, Chinese and English with three-digit numbers: the
-// readout stays clear of the card.
+// least 10 px, and overlaps none of its neighbours in the title footer and the lobby top bar.
 // Every page must finish with zero console errors / page errors / failed requests. Screenshots: test/e2e/out/presence-*.png
 
 import { test, describe, before, after } from 'node:test';
@@ -143,62 +140,6 @@ describe('在线人数 readout (real server, headless Chrome)', { skip: !ENABLED
     return out;
   }, SEL, scope);
 
-  /**
-   * The Cloudflare site's signed-out title page over this server: the page marked as the Worker build marks it
-   * (tools/build-worker.mjs: data-sp-runtime="cloudflare", worker-entry.js), /api/me with password + GitHub sign-in and
-   * nobody signed in (its account card), /healthz with `nums`.
-   */
-  async function openSignIn({ lang, device, nums }) {
-    const html = (await (await fetch(`${base}/`)).text())
-      .replace('<html ', '<html data-sp-runtime="cloudflare" ').replace('src="/js/main.js"', 'src="/js/worker-entry.js"');
-    const ctx = await browser.createBrowserContext();
-    const page = await ctx.newPage();
-    await page.emulate({ viewport: device, userAgent: ANDROID_UA });
-    await page.setRequestInterception(true);
-    page.on('request', (r) => {
-      const u = new URL(r.url());
-      if (u.origin !== base) return r.continue();
-      if (u.pathname === '/' || u.pathname === '/index.html') return r.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
-      if (u.pathname === '/api/me') return r.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ capabilities: { password: true, github: true }, user: null, activeSeat: null, application: null }) });
-      if (u.pathname === '/healthz') return r.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, online: nums[0], inRoom: nums[1] }) });
-      return r.continue();
-    });
-    const problems = [];
-    page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    // (the Cloudflare site's first visit asks how to load the resources: answered — on demand)
-    await page.evaluateOnNewDocument(() => { localStorage.setItem('stronghold-resource-mode', 'ondemand'); });
-    await page.goto(`${base}/?lang=${lang}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('.title-screen--sign-in .title-login', { visible: true, timeout: 20000 });
-    await page.waitForFunction(() => !document.getElementById('boot'), { timeout: 15000 });
-    await page.waitForFunction((n) => (document.querySelector('[data-testid="title-presence"]')?.textContent || '').includes(String(n)), { timeout: 15000 }, nums[0]);
-    await new Promise((r) => setTimeout(r, 900)); // the card's rise-in
-    return { ctx, page, problems };
-  }
-
-  for (const [w, h] of [[640, 360], [667, 375]]) {
-    test(`Cloudflare sign-in title page ${w}×${h}: the readout stays clear of the account card (ja / zh / en, three-digit numbers)`, async () => {
-      for (const lang of ['ja', 'zh', 'en']) {
-        const { ctx, page, problems } = await openSignIn({ lang, nums: [128, 64], device: { width: w, height: h, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: true } });
-        for (const scrolled of [false, true]) {
-          if (scrolled) await page.evaluate(() => { const m = document.querySelector('.title-main'); m.scrollTop = m.scrollHeight; });
-          const m = await page.evaluate(() => {
-            const el = document.querySelector('[data-testid="title-presence"]'), card = document.querySelector('.title-login');
-            const r = el.getBoundingClientRect(), c = card.getBoundingClientRect();
-            const ix = Math.min(r.right, c.right) - Math.max(r.left, c.left), iy = Math.min(r.bottom, c.bottom) - Math.max(r.top, c.top);
-            return { text: el.textContent.trim(), overlap: ix > 0.5 && iy > 0.5 ? [Math.round(ix), Math.round(iy)] : null,
-              ellipsized: el.scrollWidth > el.clientWidth + 1, offScreen: r.left < 0 || r.right > innerWidth || r.bottom > innerHeight,
-              fontPx: parseFloat(getComputedStyle(el).fontSize) };
-          });
-          const tag = `${lang} ${w}×${h}${scrolled ? ' scrolled' : ''}: ${m.text}`;
-          assert.equal(m.overlap, null, `${tag}: under the card by ${m.overlap}`);
-          assert.ok(!m.ellipsized && !m.offScreen && m.fontPx >= 10, `${tag}: readable (${JSON.stringify(m)})`);
-        }
-        await page.screenshot({ path: path.join(OUT, `presence-signin-${lang}-${w}x${h}.png`) });
-        assert.deepEqual(problems, []);
-        await ctx.close();
-      }
-    });
-  }
 
   const PHONES = {
     'phone-min': { width: 640, height: 360, deviceScaleFactor: 2, isMobile: true, hasTouch: true, isLandscape: true },

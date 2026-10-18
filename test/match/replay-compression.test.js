@@ -1,15 +1,15 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { encodeReplayChunks, decodeReplayChunk } from '../../shared/replay-codec.js';
 import { createFrameEncoder, decodeReplayFrame } from '../../shared/replay-frames.js';
 import { verifyReplayChunks } from '../../public/js/battle/replay-runner.js';
-import { hash } from '../../worker/accounts/auth.js';
+import { sha256Hex } from '../../shared/sha256.js';
 import { randomBytes } from 'node:crypto';
 
 test('gzip chunks preserve UTF-8 boundaries and reject corruption and excessive inflation', async () => {
-  const source = JSON.stringify({ name: '博士🪄'.repeat(15000), n: 1.123456789 });
+  const source = JSON.stringify({ name: '鍗氬＋馃獎'.repeat(15000), n: 1.123456789 });
   const encoded = await encodeReplayChunks(source);
-  const chunks = await Promise.all(encoded.chunks.map(async (c, index) => ({ ...c, index, hash: await hash(c.text) })));
+  const chunks = await Promise.all(encoded.chunks.map(async (c, index) => ({ ...c, index, hash: sha256Hex(c.text) })));
   const manifest = { ...encoded, chunks: chunks.map(({ text, ...c }) => c) };
   assert.deepEqual(await verifyReplayChunks(manifest, (i) => chunks[i]), JSON.parse(source));
   assert.ok(chunks.every((c) => c.text.length < 64000));
@@ -24,13 +24,13 @@ test('incompressible payload is split below storage limits and valid hashes do n
   const source = JSON.stringify({ random: randomBytes(220000).toString('base64') });
   const encoded = await encodeReplayChunks(source);
   assert.ok(encoded.chunks.length > 2);
-  const chunks = await Promise.all(encoded.chunks.map(async (c, index) => ({ ...c, index, hash: await hash(c.text) })));
+  const chunks = await Promise.all(encoded.chunks.map(async (c, index) => ({ ...c, index, hash: sha256Hex(c.text) })));
   assert.ok(chunks.every((c) => c.text.length <= 60000));
   const manifest = { ...encoded, chunks: chunks.map(({ text, ...c }) => c) };
   assert.deepEqual(await verifyReplayChunks(manifest, (i) => chunks[i]), JSON.parse(source));
   const broken = structuredClone(chunks);
   broken[0].text = 'not gzip';
-  broken[0].hash = await hash(broken[0].text);
+  broken[0].hash = sha256Hex(broken[0].text);
   const badManifest = { ...manifest, chunks: broken.map(({ text, ...c }) => c) };
   await assert.rejects(
     verifyReplayChunks(badManifest, (i) => broken[i]),

@@ -21,9 +21,9 @@ and had renumbered upstream's 0.1.4 reports. Commit messages and notes from befo
 
 The official 同盟模拟 has 1–4 players (research 09 §3.1; the room's four seat cards, research 06 §3.2). The owner asked for bigger groups (owner's decisions 2026-10-05): a co-op room holds up to `MAX_SEATS` = **8** seats. **Hard rule:** a match of 1–4 players — whatever its room's capacity — keeps every rule, number, timer, layout and random draw of before (the same seeds give the same match; the 1–4 tests are unchanged). Everything below applies only above 4 players and is the remake's linear extrapolation, f = max(1, n / 4) (5 → 1.25, 6 → 1.5, 7 → 1.75, 8 → 2); which n each rule reads (the seats at the start, the players alive at a phase's start) is given with the rule. The match-side constants are `server/match/gamedata.js DEFAULTS.largeRoom` = `{ players: 4, spCardsPlus: 2, bandTurn: 20, spTurn: 12 }` (`config.largeRoom` — not generated — may override any key); `GameData.isLargeRoom(n)` = co-op and n > `largeRoom.players`, `largeRoomFactor(n)` = f (exactly 1 for 1–4, solo, or a missing count).
 
-### F1.1 Room capacity — `shared/constants.js MAX_SEATS / DEFAULT_SEATS`, `shared/protocol.js` (`room.create {capacity?}`, `room.setCapacity`), `server/lobby.js` (`coopCapacity`, `Room.capacity / resize`, `Lobby.setCapacity`, `BOT_NAMES`), `worker/room-runtime.js socketLimits / admission`, `worker/index.js` (listing), `screens/room.js` (`roomCapacity`, `CapacityPicker`), `screens/lobby.js`, `ui/components.js SEAT_HUES / seatHue`, `ui/teamPanel.js teamCompact`
+### F1.1 Room capacity — `shared/constants.js MAX_SEATS / DEFAULT_SEATS`, `shared/protocol.js` (`room.create {capacity?}`, `room.setCapacity`), `server/lobby.js` (`coopCapacity`, `Room.capacity / resize`, `Lobby.setCapacity`, `BOT_NAMES`), `screens/room.js` (`roomCapacity`, `CapacityPicker`), `screens/lobby.js`, `ui/components.js SEAT_HUES / seatHue`, `ui/teamPanel.js teamCompact`
 
-- `MAX_SEATS` = 8 is the protocol maximum (seat indexes 0–7); `DEFAULT_SEATS` = 4 is the official room — the size every co-op room starts with and the fewest seats a host may choose. `room.create {mode, difficulty, capacity?}`: `capacity` DEFAULT_SEATS…MAX_SEATS (else `BAD_MSG`; absent ⇒ 4; a solo room has one seat whatever it says). `room.setCapacity {capacity}` (host, LOBBY, co-op; `NOT_HOST`, `ROOM_STARTED`, `BAD_MSG` outside 4–8, `BAD_TARGET` for a solo room or fewer seats than the occupied ones — on Workers also fewer than the members plus the approved applicants): shrinking moves the members seated at an index ≥ capacity to the lowest free seats, in seat order; nobody is un-readied (the seat count decides nothing of the match, its players do). `Room.seats.length` is the capacity and `room.state.capacity` carries it; `freeSeat`, `room.addBot` / `ROOM_FULL`, `room.kick`, `room.removeBot` and the listings all read the room's own seats.
+- `MAX_SEATS` = 8 is the protocol maximum (seat indexes 0–7); `DEFAULT_SEATS` = 4 is the official room — the size every co-op room starts with and the fewest seats a host may choose. `room.create {mode, difficulty, capacity?}`: `capacity` DEFAULT_SEATS…MAX_SEATS (else `BAD_MSG`; absent ⇒ 4; a solo room has one seat whatever it says). `room.setCapacity {capacity}` (host, LOBBY, co-op; `NOT_HOST`, `ROOM_STARTED`, `BAD_MSG` outside 4–8, `BAD_TARGET` for a solo room or fewer seats than the occupied ones ): shrinking moves the members seated at an index ≥ capacity to the lowest free seats, in seat order; nobody is un-readied (the seat count decides nothing of the match, its players do). `Room.seats.length` is the capacity and `room.state.capacity` carries it; `freeSeat`, `room.addBot` / `ROOM_FULL`, `room.kick`, `room.removeBot` and the listings all read the room's own seats.
 - AI teammates may fill every free seat (up to 7): `BOT_NAMES` has 8 names — the first three unchanged (a 4-seat room names its ≤ 3 bots as before), then `AI·杜宾`, `AI·德克萨斯`, `AI·银灰`, `AI·能天使`, `AI·陈` (the unreachable 凯尔希 / 可露希尔 of the old list had no art and were replaced); every name matches an operator or a strategy, which is the bot's portrait (test/lobby.test.js checks the art of all of them). The seat colours (`SEAT_HUES`) have 8 hues: P1–P4 the official four (mint, cyan, amber, violet), P5–P8 rose, blue, lime, magenta. Spectator seats stay `MAX_SPECTATORS` = 2 whatever the capacity.
 - Client: the room shows one seat card per seat — 4 in one row as in the official room, 5–8 in two rows of 4 smaller cards (`seats--wide`) — and the host's **同盟席位** picker 4–8 (sizes below the occupied seats disabled; the bar's difficulty labels never wrap and its ready row's icons are smaller above 4 humans, so 8 humans leave the host's pickers their room at 640×360); the lobby's co-op card reads 「默认 4 席 · 创建者可扩至 8 席」. The in-match screens fit 8 players (the team panel's compact rows above 4 players, the strategy-draft order, the 机变 order strip and its up to 10 cards, the briefing, the result screen, history and replays), at 640×360 and on phones too; 1–4 players keep their layouts.
 - Room Worker (account mode): a room saved before rooms had a capacity (its 4-slot `seats`) restores as a 4-seat room. The socket limits follow the capacity (`socketLimits(seats)`): the members keep `reserve` = capacity + 1 sockets (every player seat plus one overlap during a reconnect) and strangers share the rest — sockets = reserve + 11, socketsPerIp = reserve + 3 — so a 4-seat room keeps 16 / 8 as before and an 8-seat room has 20 / 12. The public listing's capacity is `room.seats.length` (`x/4` for a 4-seat room as before). Sign-up / login rate limits are unchanged (owner's decision).
@@ -69,8 +69,8 @@ Copies per chess = ceil(the 4-seat shared cap × n / 4), n = the match's seats (
 
 ### F1.7 Tests and docs
 
-- Soak: `test/match/fullmatch-coop-5seats.test.js` (1 human on AI 托管 + 4 AI, NORMAL) and `test/match/fullmatch-coop-8seats.test.js` (2 humans + 6 AI, HARD — a timed match), `min(MATCH_SEEDS, 6)` seeds each so the full suite grows little, two files so `node --test` runs them in parallel: the real simulation with client combat to RESULT with zero errors (`fullmatchRun.js`), and each phase's view checked against this section (`fullmatchLarge.js`: pool copies, the 20 s draft turn, max(6, alive + 2) 机变 cards, the 联防 helpers / fields / leaker split / `unite.fields`, boss pairs and pools, a result row per seat and — above 4 — a title for every player who spent funds). Unit tests: `test/match/largeroom.test.js` (every scaled count and timer, the 1–4 side of each rule on the same code path, the titles' second pass), `test/protocol-capacity.test.js` (capacity, seat indexes, the per-player result maps, the 10th 机变 card), `test/worker/room-capacity.test.js` (the Worker's capacity, socket limits, approved applicants, snapshots and pre-capacity rooms), `test/lobby.test.js` / `test/client-static.test.js` / `test/match/finalAssault.test.js` (the room size, the seat helpers, 5–8 pairings), `test/match/unite-large.test.js` (the 联防 planning and leaker balance, several fields server-run and client-run with one of each, a field that cannot run, an empty field, 7 leakers on one field, per-field settlement, fitResult's lean stage), `test/match/fuzz.test.js` (a block of 5–8-seat rooms with their extra field ids and 机变 indexes), `test/ui/eight-players.test.js` (seat hues, the compact panels and orders, the 10-card 机变 grid and its turn, the overtime rate, replay labels) and `test/ui/unite-fields.test.js` (the client's 联防 field helpers); in a browser (`SP_E2E=1`) `test/ui/eight-players.e2e.test.js` and `test/ui/unite-fields.e2e.test.js` at 640×360 / 844×390 / 1920×1080.
-- Docs: README, PLAYING §12 (+ §1, §3, §5, §7, §8, §9), META (§1 timers, §1.2, §1.3, §3, §4, §5, §6), DATA (`largeRoom`), DEPLOY §0, CLOUDFLARE, BALANCE (the tables are measured at 4), CHANGELOG (unreleased).
+- Soak: `test/match/fullmatch-coop-5seats.test.js` (1 human on AI 托管 + 4 AI, NORMAL) and `test/match/fullmatch-coop-8seats.test.js` (2 humans + 6 AI, HARD — a timed match), `min(MATCH_SEEDS, 6)` seeds each so the full suite grows little, two files so `node --test` runs them in parallel: the real simulation with client combat to RESULT with zero errors (`fullmatchRun.js`), and each phase's view checked against this section (`fullmatchLarge.js`: pool copies, the 20 s draft turn, max(6, alive + 2) 机变 cards, the 联防 helpers / fields / leaker split / `unite.fields`, boss pairs and pools, a result row per seat and — above 4 — a title for every player who spent funds). Unit tests: `test/match/largeroom.test.js` (every scaled count and timer, the 1–4 side of each rule on the same code path, the titles' second pass), `test/protocol-capacity.test.js` (capacity, seat indexes, the per-player result maps, the 10th 机变 card), `test/lobby.test.js` / `test/client-static.test.js` / `test/match/finalAssault.test.js` (the room size, the seat helpers, 5–8 pairings), `test/match/unite-large.test.js` (the 联防 planning and leaker balance, several fields server-run and client-run with one of each, a field that cannot run, an empty field, 7 leakers on one field, per-field settlement, fitResult's lean stage), `test/match/fuzz.test.js` (a block of 5–8-seat rooms with their extra field ids and 机变 indexes), `test/ui/eight-players.test.js` (seat hues, the compact panels and orders, the 10-card 机变 grid and its turn, the overtime rate, replay labels) and `test/ui/unite-fields.test.js` (the client's 联防 field helpers); in a browser (`SP_E2E=1`) `test/ui/eight-players.e2e.test.js` and `test/ui/unite-fields.e2e.test.js` at 640×360 / 844×390 / 1920×1080.
+- Docs: README, PLAYING §12 (+ §1, §3, §5, §7, §8, §9), META (§1 timers, §1.2, §1.3, §3, §4, §5, §6), DATA (`largeRoom`), DEPLOY §0, BALANCE (the tables are measured at 4), CHANGELOG (unreleased).
 
 ---
 
@@ -200,10 +200,8 @@ Decorations make room:
 `kits/ops/op-*.js`) replaces this section's 外援 / 甄选: one implementation of the official four DIY slots, not two.
 Nothing of 外援 runs any more. This section keeps what it was, so the fork's commits, CHANGELOG entries, tests and the
 comments citing it by its fork-era id (§27) can still be read. A match recorded with 外援 picks before the retirement replays
-and recovers on the rules version it was played with (the Worker keeps the earlier rules engines, docs/CLOUDFLARE.md,
-docs/ACCOUNTS-HISTORY.md), never on the current engine. The Worker checkpoints such a running match with its 外援 picks, as that engine did
-(`worker/match-checkpoint.js`), and account history counts a 外援 operator of those matches as the operator
-(`shared/history.js historyOperatorId`), the way a 自选 piece is counted.
+and recovers on the rules version it was played with, never on the current engine. (The Cloudflare Worker that kept the
+earlier rules engines and checkpointed such matches went on 2026-10-18; this history records what it did.)
 
 **What it was** (Slapq's PR #17, written on upstream 0.1.3 and merged 2026-10-06; PR #19, the kits, and PR #20, the
 shop / combat / elite fixes, merged 2026-10-07; the fork's §27 up to fork/master b8c8025):
@@ -246,7 +244,7 @@ shop / combat / elite fixes, merged 2026-10-07; the fork's §27 up to fork/maste
 | 15 hand-written kits + the generic talents / summoner | 71 hand-written kits, `kits/ops/op-*.js` |
 | bots bring four 外援 | bots field no 自选 piece; under AI 托管 a human's own picks score more (§6) |
 | the 外援 operators' voice | the 自选 operators' voice (§25.12) on this fork's engine (§21.30; a 自选 slot speaks with its operator, a 补位 piece with its stand-in) |
-| the account preference `waiguan` (`sp.pref.waiguan`) | the account preferences `diy` (`sp.pref.diy`) and `ownership` (`sp.pref.ownership`), synced the way `waiguan` was (`PREFERENCE_KEYS`, Worker `POST /api/me/preferences`, docs/ACCOUNTS-HISTORY.md) |
+| the account preference `waiguan` (`sp.pref.waiguan`) | the account preferences `diy` (`sp.pref.diy`) and `ownership` (`sp.pref.ownership`), synced the way `waiguan` was (`PREFERENCE_KEYS`, the Worker's `POST /api/me/preferences`; retired on 2026-10-18) |
 
 PR #17's other half, the 匹配 queue (§F4), is not part of 外援 and stays, as does the mirror retry tool
 `tools/fetch-assets-retry.mjs` (docs/ASSETS.md).
@@ -282,22 +280,11 @@ arrival order). A group never exceeds `DEFAULT_SEATS`; a player that could not b
 dropped. The queue lives in memory like every room — a server restart empties it. The room is a normal 同盟 room: it has
 a code, it can be shared, and its AI teammates can still be removed by hand.
 
-### F4.2 匹配 in the room Worker (account mode) — `worker/matchmaker.js`, `worker/rooms/queue-routes.js`, `public/js/room-net.js`
+### F4.2 匹配 in the room Worker — retired on 2026-10-18 (history only)
 
-The Worker has no lobby every session is connected to: each room is its own Durable Object, and the menu of an account
-page has no socket (room-net.js). Its queue is one more Durable Object, `MATCHMAKER` (instance `'queue'`, binding and
-migration `v4-matchmaker` in `wrangler.jsonc`), reached over the account API; the room's own `Lobby` has no queue
-(`queueTickMs: 0`: a `queue.join` on a room socket is refused, and no queue clock keeps a room awake).
-
-| Piece | Rule |
-|---|---|
-| `POST /api/queue { action, difficulty?, code? }` | Signed in, from the game's own page (Origin), counted per network against its own `QUEUE_LIMIT` (a waiting page polls 40 times a minute: the queue does not use up `API_LIMIT`). `join` (the 匹配 click) is refused from a seat in a live room (`ALREADY_SEATED`, as applying elsewhere is) and starts over: a group the account was in before is left first. Answers the account's status: §F4.1's `queue.status` fields, plus `matched` once a group was formed |
-| Polling | The menu page polls (`poll`, carrying the difficulty) every `QUEUE_POLL_MS` (1.5 s) while it waits; a page silent for `silentMs` (6 s) is dropped — from the queue, and from a group still waiting for its room (`expect` counts the live members only) — which is how the Worker learns of a closed page. The queue is memory only: an evicted instance starts empty and the next poll re-enters the player, except within `leftMs` (5 s) of a `leave` (a poll that crossed it). Entering a room any other way (an application, 继续对局) leaves the queue |
-| Grouping | `MatchQueue.tick`, run on every call (no timer): §F4.1's rules — same difficulty, ≤ `DEFAULT_SEATS`, ≥ 2 after the grace, a lone player after the timeout. The grace runs from the last arrival **of the group** (the Node queue takes the whole queue's): players of another difficulty never hold a group back |
-| The room | The group's first account is its **host**: `matched { role: 'host', code: null, expect, members }`. Its page creates a co-op room the normal way (`POST /api/rooms`, `room.create`) and reports it (`hosted { code }`, refused unless the host sits in that room); a host that does not report within `hostMs` (20 s), or whose page went away before it was told, is dropped and the others go back to the front of the queue, keeping their waiting time. A host that cancels (its page leaves the room it opened) or queues again ends the group the same way. Members get `matched { role: 'member', code }` and join it like an invite (`main.js` pendingJoin → `room.join` → a join application); a room that could not be opened or reported is a toast |
-| Admission | The host's page approves the join applications of **its group's accounts only** (`QUEUE_APPROVE_MS`, 60 s); a stranger's application waits for the host as always. Nothing in the queue seats, approves or creates anything: every room write is one of the players' own requests, with its usual checks |
-| Readiness and start | A matched member says `room.ready` itself once inside (the Node server marks it; a failed try is repeated once the room is online again). It waits until that room's `room.ownership` / `room.diy` have their replies (`loadoutSync.js roomPrefsSettled`): a room Worker is a new session that sends them ~50 ms after its `welcome`, and the match takes them from the seat at `room.start`. The host's `screens/room.js` sequence first waits (≤ 30 s) until the `expect`ed humans are in — their seats must not go to AI teammates first — then fills the free seats and starts once the others are ready |
-| Tests | `test/worker/matchmaker.test.js` (MatchQueue rules, the Durable Object's answers), `test/worker/matchmaking.test.js` (workerd: queue → host opens and reports → the member is approved in), `test/worker-client.test.js` (the page: polling, leaving, host / member hand-over, approvals of the group only, a cancel while the host opens its room, entering another way, errors) |
+The Worker's queue lived in its own Durable Object (`MATCHMAKER`, migration `v4-matchmaker`, `wrangler.jsonc`) and the
+account pages polled it over the account API. It went with the Cloudflare line: this fork now has only §F4.1's Node
+queue. The rules as built are in `CHANGELOG.md` and the git history.
 
 ---
 
@@ -307,15 +294,15 @@ migration `v4-matchmaker` in `wrangler.jsonc`), reached over the account API; th
 `public/js/ui/presence.js`, `server/lobby.js presence()` / `broadcastPresence` / `presenceTickMs`, the `/healthz`
 counters, `shared/protocol.js 'presence'`, the title footer and lobby top bar readout, `test/presence.test.js`,
 `test/ui/presence.test.js`, `test/ui/presence.e2e.test.js`), on the maintainer's decision of 2026-10-08, onto today's
-layout (`server/http/*` instead of `server/index.js`, every text through `t()`) and onto the Cloudflare Worker. The
+layout (`server/http/*` instead of `server/index.js`, every text through `t()`) and onto the Node server. The
 official mode has no such readout.
 
 **What the player sees.** The title footer (beside the version) and the lobby top bar show 「在线 N 人 · 房间内 M 人」
 (EN "N online · M in rooms"; the four language packs): `online` = the pages with the game open, `inRoom` = the humans
 holding a seat plus the spectators. A number not known yet, or a failed read, shows as —. On a phone the readout keeps a
 10 px floor and ellipsises when the bar is short (`css/components.css`, `css/screens/title.css`); in the title footer it
-keeps to the side of the centred account card and wraps above the version where both do not fit on one line (the
-Cloudflare site's sign-in page at 640×360 in Japanese ran it under the card).
+keeps to the side of the version and wraps where both do not fit on one line (a phone at 640×360 in Japanese ran it
+under the settings button before the wrap).
 
 ### F5.1 The Node server — `server/lobby.js`, `server/http/websocket.js` / `routes.js` / `config.js`, `shared/protocol.js`
 
@@ -335,48 +322,20 @@ page is hidden (one read as it comes back), and not while frames reach the page 
 online). Changed from Jerry's version: the poll pauses while the page is hidden (request volume on Cloudflare), the
 slice gains `via`, a failed read shows unknown, and the timeout no longer passes a Promise to `clearTimeout`.
 
-### F5.3 The Cloudflare Worker — `worker/presence.js`, `worker/room-runtime.js`, `worker/matchmaker.js`, `worker/lobby-gateway.js`, `worker/index.js`
+### F5.3 The Cloudflare Worker — retired on 2026-10-18 (history only)
 
-The Worker has no lobby every page is connected to, so the counters are summed on a **presence board** in the
-`MATCHMAKER` Durable Object (instance `'queue'`, route `/_presence`; memory only, no new class or migration):
-
-- **Rooms report** (`RoomDurableObject.publishPresence`, a background task like the lobby listing) their open sockets and
-  their seated humans + spectators (`RoomRuntime.presenceCounts`) when the two numbers change, renew with the first event
-  55 s after the last report (a connected room wakes every minute anyway), set one alarm only when 100 s pass without an
-  event, and withdraw at zero. The board keeps a report 150 s: a room that stopped reporting (evicted, crashed, redeployed)
-  drops out by itself.
-- **The 匹配 queue's pages** have no socket: `MatchQueue.waiting()` counts the ones that polled within 6 s and are not in a
-  room yet.
-- **Frames:** the board answers a report with the site-wide totals; the room's `AlarmLobby` overrides `presenceOn` /
-  `presence()` with them and pushes `presence` to its sessions when they changed — never on a clock (no timer keeps a room
-  awake).
-- **`GET /healthz`**: this isolate's copy (5 s), then the data centre's Cache API copy, then the board (2 s timeout; only
-  this read counts against `STATUS_LIMIT`); concurrent requests share one read; a failure answers the last totals of the
-  past 60 s, else `null`, and waits 5 s before trying again. A network over its limit gets the last totals for itself
-  only: its refusal is no attempt of the isolate's, and a request of another network that joined it reads the board
-  itself (one NAT of many lobby pages kept everyone on —). The shared read runs under the starting request's
-  `ctx.waitUntil`, and nobody waits for one longer than 2 s + 1 s (`PRESENCE.graceMs`): a read whose request was
-  cancelled with its I/O no longer hangs every later `/healthz` of the isolate.
-- **The node-protocol gateway** (`NODE_COMPAT`, `worker/lobby-gateway.js`): one lobby is the whole site, so it passes
-  `sockets` like the Node server; frames go out at each event's commit (`startPresenceClock` is a no-op: the object must
-  hibernate) and `/_status` / `/healthz` carry the two numbers.
-
-**Differences from Node** (docs/CLOUDFLARE.md「在线人数」, with the request cost): in account mode the title screen and
-the lobby hold no socket, so a visitor only browsing there is not in `online`; a room nobody is connected to leaves
-`inRoom` after the 150 s lease (Node counts seated humans while their seats are kept); after the board's instance
-restarts the totals refill within about a minute.
+The Worker summed the counters on a presence board in `MATCHMAKER` (rooms reporting their sockets, the queue's polling
+pages, a cached `/healthz`) because it had no lobby every page was connected to. That deployment is gone; the Node
+server's counters (§F5.1) are the only ones, and the retirement is recorded in `CHANGELOG.md` and the git history.
 
 ### F5.4 Tests
 
 `test/presence.test.js` (Node: the hello frame, the push on connect / room entry / leave / drop, the change guard,
 `presenceTickMs: 0`, `/healthz`, the Lobby class on its own, the per-session correction of a passing hello count and of
 a skipped push), `test/ui/presence.test.js` (formatting in the five languages, the poll and visibility rules),
-`test/ui/presence.e2e.test.js` (browser: the desktop flow, the 640×360 / 844×390 phone layouts in Chinese and English,
-and the Cloudflare sign-in title page at 640×360 / 667×375 in Japanese / Chinese / English: clear of the account card),
-`test/worker/presence.test.js` (board, leases, reports, `/healthz` caching and limits, a network over its limit, a read
-that never settles), `test/worker/presence-integration.test.js` (workerd, the production bundle),
-`test/worker/gateway-compat.test.js` (the node-protocol gateway's counters), `test/lobby.test.js` (the replay order
-ignores `presence`, `/healthz` carries the counters).
+`test/ui/presence.e2e.test.js` (browser: the desktop flow, the 640×360 / 844×390 phone layouts in Chinese and English),
+`test/lobby.test.js` (the replay order ignores `presence`, `/healthz` carries the counters). The three `test/worker/`
+files that checked the Worker board, its bundle and the gateway went with the Worker on 2026-10-18.
 
 ---
 
@@ -416,7 +375,7 @@ six collab picks remain in `diy.ownedPool`.
 
 ### F6.2 The kits — `server/sim/content/kits/ops/op-{ash,yato2,orchd2,ela,marcil,oblvns,makoto}.js`
 
-Registered at the end of `kits/index.js OPERATOR_KIT_FILES` (so the Worker bundle imports them), each written to
+Registered at the end of `kits/index.js OPERATOR_KIT_FILES` , each written to
 kits/README.md's fidelity checklist from the composed record (`data/backups.json` via `diyRecordOf`: every number from
 the data, every form × module × skill), PRTS's notes and the official buff templates; each file's header lists its
 sources and its [ASSUMED] readings. Tests: `test/content/op_<codename>.test.js` (one per kit, every form × skill).

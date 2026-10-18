@@ -1,6 +1,6 @@
 # 对局状态的持久归属
 
-实现入口是 `server/match/checkpoint.js` 和 `worker/room-runtime.js`。Match、Battle 中技能闭包、生成器、共享首领池和临时状态不适合直接 JSON 化。本实现重执行**完整**初始化配置、外部方法调用与定时器执行顺序，重建整个对象图；渲染 snapshot 仅用于核验/回放，不能加载成活跃战斗。
+实现入口是 `server/match/checkpoint.js`。Match、Battle 中技能闭包、生成器、共享首领池和临时状态不适合直接 JSON 化。本实现重执行**完整**初始化配置、外部方法调用与定时器执行顺序，重建整个对象图；渲染 snapshot 仅用于核验/回放，不能加载成活跃战斗。
 
 | 状态族 | 持久来源与恢复方式 |
 | --- | --- |

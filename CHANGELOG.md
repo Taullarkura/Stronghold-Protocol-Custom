@@ -354,7 +354,7 @@
 - 标题画面页脚（版本号旁）和大厅顶栏显示「**在线 N 人 · 房间内 M 人**」：在线是开着游戏页面的人数，房间内是占着席位的博士加观战者；还不知道时显示「—」。五种界面语言都有，手机上字号不小于 10px，放不下时省略。
 - 本功能移植自 Jerryzhu1234510 的分支 Jerryzhu1234510/Stronghold-Protocol（`v0.1.4-jerry`，提交 4f4e848f）：服务器的 `presence` 计数与推送、`/healthz` 里的两个数、客户端的显示和测试，按现在的代码结构（`server/http/`、界面文字走 `t()`）重写接入，感谢 @Jerryzhu1234510。另外改了几处：页面在后台时不轮询；收到服务器推送时不再轮询 `/healthz`；读取失败显示「—」；修正了超时处理里把 Promise 传给 `clearTimeout` 的问题。
 - Node 服务器：每个连接打招呼后立刻收到一次，之后数字变化时推送（默认每 5 秒检查一次，`presenceTickMs`）；没有会话的标题页每 10 秒读一次 `/healthz`。
-- Cloudflare 部署：每个房间把自己的人数报给 `MATCHMAKER` 里的在线人数看板（只在内存，不写存储，不新增 DO 类和迁移），`/healthz` 带缓存地读看板，房间里的连接收到推送。与 Node 服务器的差别：账号模式下只停在标题页或大厅的访客没有 WebSocket，不计入在线；没有人连接的房间 150 秒后不计入房间内。请求成本见 [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md)「在线人数」，设计见 [docs/design/fork.md](docs/design/fork.md) §F5。
+- Cloudflare 部署：每个房间把自己的人数报给 `MATCHMAKER` 里的在线人数看板（只在内存，不写存储，不新增 DO 类和迁移），`/healthz` 带缓存地读看板，房间里的连接收到推送。与 Node 服务器的差别：账号模式下只停在标题页或大厅的访客没有 WebSocket，不计入在线；没有人连接的房间 150 秒后不计入房间内。请求成本见当时的 docs/CLOUDFLARE.md「在线人数」（该指南已随 Cloudflare 部署线于 2026-10-18 移除），设计见 [docs/design/fork.md](docs/design/fork.md) §F5。
 
 ### 联动干员回到自选编队
 
