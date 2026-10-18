@@ -56,12 +56,15 @@ zip, can be imported as the plugins it can become (§16). Install local zips or 
 ## 1. Principles (the maintainer's decisions of 2026-10-12)
 
 - **The original game is always the default.** A room plays the vanilla content unless its host chooses plugins (P1c);
-  the golden results, DESIGN and the fidelity checks cover the original content only.
-- **Plugins are marked unofficial** wherever they are shown — the catalogue (`unofficial: true` on every class but
+  the golden results, DESIGN and the fidelity checks cover the original content only. A server's own gameplay plugins
+  (`content`, `script`, `trusted`) are its content: once the owner installs one, every new room starts with it and a
+  room playing only those plugins is the original game (the owner's decision of 2026-10-18, DESIGN §F14).
+- **Plugins are marked unofficial** wherever they are shown — a plugin the server does not own: the catalogue (`unofficial: true` on every class but
   `lang`), the title screen (「本服务器安装了 N 个插件」), the room (「原版」 / 「插件 ×N」, the panel's 非官方 marks),
   the diagnostics (`content: … cosmetic vs=… plugins=…`, `MODDED …` for gameplay plugins), and with gameplay plugins
   the briefing, the HUD corner, the result and the statistics (such matches stay out of the overview by default; a match
-  with cosmetic plugins only is still the original game — §9, §11).
+  with cosmetic plugins only, and a room playing only the server's own installed gameplay plugins, are still the
+  original game — §9, §11).
 - **No third-party code in a battle unless the server owner switches it on.** Art and data plugins carry no code, and
   the declarative DSL (§12) is data, not code. An interface plugin (P4, §14) runs only inside a sandboxed iframe: it sees
   a read-only feed and cannot send a match intent. Code plugins (`script`, `trusted`, §13) are off by default: trusted
@@ -702,7 +705,9 @@ that holds another content set, or none, for a battle of the room's set is never
 the server takes the field over at the deadline. The server refuses a result that names another `cs` and simulates that
 battle itself. A BattleSpec may carry the room's `vs` as well (for the diagnostics; the sim never reads it).
 
-**Unofficial marks.** The room's 插件 tag reads 非官方 with gameplay plugins; the briefing and the result say 非官方 with
+**Unofficial marks.** The room's 插件 tag reads 非官方 with gameplay plugins the server does not own (a room whose
+gameplay plugins are all the server's own installed `content` / `script` / `trusted` plugins is not marked — it is the
+server's content, DESIGN §F14); the briefing and the result say 非官方 with
 the number of gameplay plugins; the HUD shows a small corner mark. Statistics records carry `content: { cs, plugins }`
 (null for the original game) and the overview leaves such matches out by default (「含插件对局」 counts them). The
 diagnostics line reads `MODDED cs=… plugins=…` and the bug template asks whether plugins were on.
@@ -711,7 +716,9 @@ diagnostics line reads `MODDED cs=… plugins=…` and the bug template asks whe
 plugins (`rooms: "host"`, the default), every room plays a fixed set (`"fixed"`) or rooms play the original game
 (`"off"`); the plugins a new room starts with (`default`); the plugins rooms may use (`allow`); the classes rooms may
 use (`classes`: overrides individual defaults — cosmetic/content on, script also on in sandbox/trusted modes, trusted also on in trusted modes; other classes denied); the concurrent content sets (`limits.maxSets`); whether gameplay plugins made for other versions may be
-used (`allowIncompatible`). `SP_PLUGINS=off|host|fixed` overrides `rooms`. The file is read again when it changes;
+used (`allowIncompatible`). A new room's set is `default` plus every installed gameplay plugin the policy allows —
+those are the server's content (DESIGN §F14), and `rooms: "off"` plays without them. `SP_PLUGINS=off|host|fixed`
+overrides `rooms`. The file is read again when it changes;
 a bad field keeps its default and is reported in the log. `docs/DEPLOY.md` has an example.
 
 **HTTP.** `/cs/<cs16>/index.json`, `/cs/<cs16>/data/<table>.json` and `/cs/<cs16>/i18n/<lang>.json` of a gameplay set

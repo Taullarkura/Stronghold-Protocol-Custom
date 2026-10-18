@@ -109,6 +109,13 @@ export const PLUGIN_CLASSES = Object.freeze({
 });
 
 /**
+ * The classes that change what a match is (a content set of its own: operators, records, rules code) — the ones this
+ * fork's servers treat as their own content once installed (DESIGN §F14: on by default in every room, no unofficial
+ * mark, counted in the statistics). A language, a cosmetic or an interface plugin changes no rule and is not one.
+ */
+export const GAMEPLAY_CLASSES = Object.freeze(['content', 'script', 'trusted']);
+
+/**
  * @typedef {{ required?: boolean, ext: string[] }} FileRole a role of a folder pack's `files`
  * @typedef {{ status: 'supported' | 'planned', summary: string, live?: boolean, files?: Record<string, FileRole>,
  *   class: string }} PackType

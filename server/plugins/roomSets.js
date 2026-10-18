@@ -17,13 +17,16 @@
 //     the policy allows it), PLUGIN_LIMIT (the visual set's art limits), PLUGIN_BUSY (one content set more than the
 //     server runs at once).
 //   hold / release (vs), holdContent / releaseContent (cs), onStale, unofficial — the visual and content sets'.
-//   defaults() → the ids a new room starts with (the policy's `default`; [] for the original game); fixed() → those ids
-//   when every room must play them (rooms: fixed), else null.
+//   defaults() → the ids a new room starts with: the policy's `default` plus every installed gameplay plugin (the
+//   server's own content, DESIGN §F14) — [] for the original game; fixed() → those ids when every room must play them
+//   (rooms: fixed), else null; official(list) → whether the list holds no gameplay plugin the server does not own (a
+//   room playing only the server's content is the original game to the interface and the statistics).
 // A cosmetic plugin's requirements are cosmetic plugins (the visual set closes over them again) [ASSUMED]; a content
 // plugin may require a cosmetic one (its operators' art) and may carry art itself (its `assets`: part of the room's
 // visual set, so the room's `vs` names it too).
 
 import { ERR } from '../../shared/constants.js';
+import { GAMEPLAY_CLASSES } from '../../shared/plugins/manifest.js';
 import { normalizeSettings } from '../../shared/plugins/patch.js';
 import { resolvePluginOrder } from '../../shared/plugins/order.js';
 
@@ -112,6 +115,28 @@ export function createRoomSets({ registry, visual, contents, policy }) {
     };
   }
 
+  /**
+   * The installed gameplay plugins this server plays as its own content (DESIGN §F14): a room starts with them, and a
+   * room whose content plugins are all of them is the original game for the interface and the statistics.
+   * @returns {string[]} their ids (load order is the resolve()'s business)
+   */
+  function baseline() {
+    // the policy is the plugin system's switchboard: a lobby wired without one (a test harness, an embedder) takes no
+    // plugins by default and plays the original game
+    if (!policy?.get()) return [];
+    const list = registry.plugins?.() || [];
+    return list
+      .filter((p) => GAMEPLAY_CLASSES.includes(p.class) && contentUsable(p, 'room') && allowed(p) && !p.disabled)
+      .map((p) => p.id);
+  }
+
+  /** The ids a new room starts with: the policy's `default` and every installed gameplay plugin, once each. */
+  function defaults() {
+    const p = policy?.get();
+    if (p && p.rooms === 'off') return [];
+    return [...new Set([...(p ? p.default : []), ...baseline()])];
+  }
+
   return {
     resolve,
     hold: (vs) => visual?.hold?.(vs),
@@ -121,9 +146,16 @@ export function createRoomSets({ registry, visual, contents, policy }) {
     onContentStale: (fn) => contents?.onStale?.(fn) || (() => {}),
     onStale: (fn) => (visual?.onStale ? visual.onStale(fn) : () => {}),
     unofficial: () => (visual?.unofficial ? visual.unofficial() : 0),
-    defaults: () => { const p = policy?.get(); return p && p.rooms !== 'off' ? [...p.default] : []; },
+    /** Does a resolved plugin list change no rule — every gameplay plugin in it the server's own (DESIGN §F14)? */
+    official: (list) => {
+      const gameplay = (Array.isArray(list) ? list : []).filter((p) => p && GAMEPLAY_CLASSES.includes(p.class));
+      if (!gameplay.length) return false;
+      const base = new Set(baseline());
+      return gameplay.every((p) => base.has(p.id));
+    },
+    defaults,
     /** The plugins every room must play (plugins/config.json rooms: fixed), else null. */
-    fixed: () => { const p = policy?.get(); return p && p.rooms === 'fixed' ? [...p.default] : null; },
+    fixed: () => (policy?.get()?.rooms === 'fixed' ? defaults() : null),
     /** The merged data of a content set (the lobby's checks of loadouts and 自选 picks in its rooms), or null. */
     dataOf: (cs) => contents?.dataOf?.(cs) || null,
     /** The operators a 自选 slot may field in a content set (null = the vanilla list). */

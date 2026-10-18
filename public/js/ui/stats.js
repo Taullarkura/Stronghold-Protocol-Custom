@@ -72,11 +72,12 @@ const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const vsOf = (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : null);
 /**
  * The content set a record names (see the header): `{ cs, plugins: ['<id>@<version>' …] }` of a room with gameplay
- * plugins — room.state.content with `vanilla: false`, or a record's own — else null (the original game).
+ * plugins — room.state.content with `vanilla: false`, or a record's own — else null (the original game). A room whose
+ * gameplay plugins are all the server's own content is the original game too (DESIGN §F14: `official`).
  * @param {any} c
  */
 export function contentOf(c) {
-  if (!isObj(c) || c.vanilla === true || !vsOf(c.cs)) return null;
+  if (!isObj(c) || c.vanilla === true || c.official === true || !vsOf(c.cs)) return null;
   const list = (Array.isArray(c.plugins) ? c.plugins : [])
     .map((p) => (typeof p === 'string' ? p : isObj(p) && typeof p.id === 'string' ? `${p.id}@${typeof p.version === 'string' ? p.version : '?'}` : null))
     .filter((x) => typeof x === 'string' && x.length <= 80).slice(0, 32);

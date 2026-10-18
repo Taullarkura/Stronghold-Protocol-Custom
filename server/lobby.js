@@ -1048,7 +1048,8 @@ export class Lobby {
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now(), coopCapacity(capacity));
     room.content = this.vanilla;
-    // the server owner's default plugins (plugins/config.json `default`; header "Gameplay plugins"): none — the original game
+    // the server's own content (DESIGN §F14): the policy's `default` plus every installed gameplay plugin; a lobby wired
+    // without a policy has none — the original game
     const defaults = this.plugins?.defaults?.() || [];
     if (defaults.length) {
       const r = this.resolveContent(room, defaults);
@@ -1282,6 +1283,9 @@ export class Lobby {
     if (!r || !r.ok) return fail(r && isErrCode(r.error) ? r.error : ERR.INTERNAL, r && typeof r.detail === 'string' ? r.detail.slice(0, 200) : undefined);
     const { cs, vs, plugins: list, warnings, bytes, dataBytes, modes, kitted, trusted, execution } = r.set;
     const modded = isContentHash(cs) && cs !== this.vanilla.cs;
+    // DESIGN §F14: the server's own gameplay plugins are no unofficial change — the room is the original game for the
+    // interface (no 非官方 mark) and for the statistics, though its content set is its own (the pages load it).
+    const official = modded && this.plugins?.official?.(list) === true;
     const frozen = (a) => Object.freeze((Array.isArray(a) ? a : []).map((p) => Object.freeze({ ...p })));
     // the operators its plugins add to a 自选 slot's list (welcome.diyKitted holds the server's own): the pages' pickers
     const extra = modded && Array.isArray(kitted) ? kitted.filter((id) => typeof id === 'string' && !VANILLA_KITTED.has(id)).slice(0, 200) : [];
@@ -1289,6 +1293,7 @@ export class Lobby {
       content: Object.freeze({
         cs: modded ? cs : this.vanilla.cs,
         vanilla: !modded,
+        ...(official ? { official: true } : {}),
         ...(vs ? { vs } : {}),
         plugins: frozen(list),
         ...(trusted ? {trusted} : {}),

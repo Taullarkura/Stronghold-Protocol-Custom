@@ -767,3 +767,26 @@ entry. `test/match/feedback1-gaps.test.js` pins the client-result bound of the c
 48 per operator of the player for 迅捷; 谢拉格 still 999 − its start layers). The golden corpus is recomputed where a
 scenario fields either operator — the corpus's 灵巧 gains drop to the cap (46 → 32 in the roster family) and the two
 matches that field 灵知 drift from it. Setting `capNormal` / `capElite` back to 0 restores upstream's texts.
+
+## F14. The 2026-10-18 plan — a server's gameplay plugins are its content
+
+**Plan.** The owner (2026-10-18): 「这类添加新内容的（script和content）插件一旦安装之后在房间中默认启用（服务器也一样）且视为原版内容」.
+
+**Why.** Until now a content set was something a host switched on, marked 非官方 and left out of the statistics. A server
+that installs its own strategies (阿斯卡伦's 针对打击 and 易's 以物易物, `plugins/askalen-strategy` and `plugins/yi-strategy`)
+wants them to be what the server plays, the way the original game's rules are: no host switch to remember, no unofficial
+mark, counted.
+
+**How.** `server/plugins/roomSets.js` gains `baseline()` — every loaded `content` / `script` / `trusted` plugin the policy
+allows (`policy.allows`, `classes`, `allow`, not disabled) that resolves for a room — and `defaults()` becomes the policy's
+`default` plus the baseline (empty when `rooms` is `off`); `fixed()` follows. `official(list)` answers whether a room's
+content list holds no gameplay plugin the server does not own. `server/lobby.js` puts the answer on the room as
+`content.official` beside `cs` / `plugins`, and `public/js/ui/pluginTag.js` (`isModdedRoom`) and the statistics' `contentOf`
+read it: the tag, the briefing, the HUD corner, the result and the statistics overview treat such a room as the original
+game, while any plugin the server does not own still marks it. Cosmetic plugins change no rule and stay out of both. A
+lobby wired without a policy keeps playing without plugins (the test harnesses).
+
+**What the tests pin.** `test/plugins/roomContent.test.js` — the baseline is the installed gameplay plugins after the
+policy default, `rooms: off` takes none, `fixed` holds the same set, `official` is true only while the extra plugins are
+cosmetic, and a policy-less lobby defaults to none — and `test/ui/plugin-official.test.js` — no 非官方 mark, `contentOf`
+null, a plugin the server does not own still modded.

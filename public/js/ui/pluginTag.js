@@ -37,8 +37,9 @@ export function roomPluginFacts(room, myId) {
     inMatch: !!room?.inMatch,
     warnings: Array.isArray(c?.warnings) ? c.warnings.filter((w) => w && typeof w.code === 'string') : [],
     vs: typeof c?.vs === 'string' ? c.vs : null,
-    // gameplay plugins (DESIGN §32.6): the room plays a content set of its own — unofficial
-    modded: !!c && c.vanilla === false,
+    // gameplay plugins (DESIGN §32.6): the room plays a content set of its own — unofficial unless the server plays
+    // these plugins as its own content (DESIGN §F14: `official` is set when every gameplay plugin is the server's)
+    modded: !!c && c.vanilla === false && c.official !== true,
     cs: typeof c?.cs === 'string' ? c.cs : null,
     modes: Array.isArray(c?.modes) ? c.modes.filter((m) => m && typeof m.id === 'string') : [],
     modeId: typeof c?.modeId === 'string' ? c.modeId : null,
@@ -46,8 +47,12 @@ export function roomPluginFacts(room, myId) {
   };
 }
 
-/** Does the room play gameplay plugins (a content set of its own: unofficial — DESIGN §32.6)? @param {any} room */
-export const isModdedRoom = (room) => !!room?.content && room.content.vanilla === false;
+/**
+ * Does the room play gameplay plugins (a content set of its own: unofficial — DESIGN §32.6)? A room whose gameplay
+ * plugins are all the server's own content is the original game (DESIGN §F14: `content.official`).
+ * @param {any} room
+ */
+export const isModdedRoom = (room) => !!room?.content && room.content.vanilla === false && room.content.official !== true;
 
 /**
  * The small unofficial mark of a match with gameplay plugins (see the header): 「非官方」 (or the HUD's MOD), nothing for
