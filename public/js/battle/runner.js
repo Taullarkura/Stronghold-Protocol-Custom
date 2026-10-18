@@ -302,10 +302,12 @@ export function createBattleRunner(deps) {
   const rememberCombat = (e) => {
     if (!e.combatMetrics) return;
     const record = e.combatMetrics();
+    if (!record) return;
     if (!(combatHistory.get(e.battleId)?.seconds > record.seconds)) combatHistory.set(e.battleId, record);
   };
   // Opt-in (设置「作战统计」, default off). A boolean deps.combatMetrics pins a test and ignores setCombatMetrics.
-  // Otherwise screens/game.js pushes the settings store. A Worker host never attaches: its page battle is wire state.
+  // Otherwise screens/game.js pushes the settings store. In-page host: battle/metrics.js on the page's battle. Worker
+  // host: the tally runs in the worker and rides its packets (simHost.combatMetrics), so the page reads it the same way.
   let metricsWanted = false;
   const metricsEnabled = () => (typeof deps.combatMetrics === 'boolean' ? deps.combatMetrics : metricsWanted);
   const detachCombat = (e) => {
@@ -538,6 +540,10 @@ export function createBattleRunner(deps) {
           accept(value);
           stats.ticks += k;
           stats.stepMs += now() - t;
+          // This batch only ever saw the previous packet (entryWork steps from the battle's current tick) and `running()`
+          // drops a finished battle from the next batch's work — so a Worker packet that ends the battle has to finish it
+          // here, or its b.result never goes out and the server has to take the field over.
+          if (e.battle.finished && !e.done) finished(e);
         }, (err) => failWorker(e, err)).finally(() => { e.stepping = false; schedule(); });
         return n;
       }
@@ -1145,9 +1151,10 @@ export function createBattleRunner(deps) {
         endReason: null, ownDoneSent: false, lateEnd: false, noReplay: false,
       };
       task.entry = e;
-      // The Worker page holds wire state only (time, ids): no `damaged` hook and no `heal`, so trackCombat cannot
-      // run there. An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it).
-      if (metricsEnabled() && !host.remote) e.combatMetrics = trackCombat(battle);
+      // An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it). A Worker battle is
+      // wire state on this page (no `damaged`, no `heal`), so its meter runs inside the worker and rides in with each
+      // packet (battle/simWorkerRuntime.js `combat`); the reader here just re-reads that.
+      if (metricsEnabled()) e.combatMetrics = host.remote ? () => host.combatMetrics() : trackCombat(battle);
       if (task.pool && battle.sharedBoss) syncPool(e, task.pool);
       for (const control of task.controls) {
         if (control.kind === 'pool' && battle.sharedBoss) syncPool(e, control.msg);
@@ -1348,12 +1355,13 @@ export function createBattleRunner(deps) {
         // scouting another field must not replace the player's own current battle statistics
         const e = ownerId == null ? cur : localEntries.filter((entry) => entry.members.includes(ownerId))
           .sort((a, b) => b.seq - a.seq)[0];
-        return combineCombat(e?.combatMetrics ? [e.combatMetrics()] : [], ownerId);
+        const record = e?.combatMetrics ? e.combatMetrics() : null;
+        return combineCombat(record ? [record] : [], ownerId);
       }
       const records = new Map(combatHistory);
       for (const e of localEntries) if (e.combatMetrics) {
         const record = e.combatMetrics();
-        if (!(records.get(e.battleId)?.seconds > record.seconds)) records.set(e.battleId, record);
+        if (record && !(records.get(e.battleId)?.seconds > record.seconds)) records.set(e.battleId, record);
       }
       return combineCombat(records.values(), ownerId);
     },

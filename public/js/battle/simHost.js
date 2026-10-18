@@ -122,6 +122,8 @@ export class WorkerSimHost {
   progress() { return this.packet.progress; }
   uniteLeft() { return this.packet.left; }
   compactResult() { return this.packet.result; }
+  /** 作战统计: the tally the worker ran (battle/simWorkerRuntime.js `combat`), same shape as battle/metrics.js trackCombat. */
+  combatMetrics() { return this.packet?.combat || null; }
   unitStats(id) {
     if (!this.stopped && !this.statsPending.has(id)) {
       this.statsPending.add(id);

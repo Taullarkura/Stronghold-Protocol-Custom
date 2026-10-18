@@ -4,6 +4,7 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { InPageSimHost, WorkerSimHost } from '../../public/js/battle/simHost.js';
+import { trackCombat } from '../../public/js/battle/metrics.js';
 import { loadBrowserSim } from '../../public/js/battle/simLoader.js';
 import { forkSandbox } from '../../server/match/host/childHost.js';
 import { createBattleRunner } from '../../public/js/battle/runner.js';
@@ -137,4 +138,25 @@ test('Worker overhead budget (8-tick batches, 240 ticks)', async t => {
   const remoteMs = performance.now() - t1;
   t.diagnostic(JSON.stringify({ ticks: 240, localMs, workerMs: remoteMs, overheadMsPerTick: (remoteMs - localMs) / 240 }));
   assert.ok(remoteMs < 2000, '240 ticks fit inside a batch watchdog budget on this fixture');
+});
+
+test('the worker runs the 作战统计 tally: its combat record is the in-page meter one, batch by batch', async t => {
+  const set = fixtureSet(), spec = fixtureSpec();
+  const a = local(), b = remote(); t.after(() => b.stop());
+  await a.load(set.cs, set); await b.load(set.cs, set); a.start(spec); await b.start(spec);
+  const meter = trackCombat(a.battle);
+  let batches = 0, rows = 0;
+  while (!a.battle.finished) {
+    a.step(8); await b.step(8);
+    const mine = meter();
+    assert.deepEqual(b.combatMetrics(), mine, `batch ${batches} tally`);
+    rows = Math.max(rows, mine.rows.length);
+    batches += 1;
+  }
+  const row = (r) => [r.ownerId, r.defId, r.damage, r.healing, r.types];
+  const mine = meter();
+  assert.deepEqual(b.combatMetrics().rows.map(row), mine.rows.map(row), 'the final tally');
+  const damage = mine.rows.reduce((n, r) => n + r.damage, 0);
+  assert.ok(rows > 0 && damage > 0, 'the fixture fields an operator that dealt damage');
+  t.diagnostic(JSON.stringify({ batches, rows, damage, healing: mine.rows.reduce((n, r) => n + r.healing, 0) }));
 });

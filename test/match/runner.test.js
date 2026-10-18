@@ -813,8 +813,12 @@ test('the combat meter stays off unless the setting asks, and turning it off det
   on.runner.dispose();
 });
 
-test('a Worker host never attaches the combat meter, even when the setting is on', async () => {
+test('a Worker host takes its 作战统计 from the worker tally, never from the wire battle', async () => {
   let hooked = 0;
+  const tally = {
+    seconds: 12, owners: ['p_0'],
+    rows: [{ key: 'k', ownerId: 'p_0', kind: 'op', defId: 'char_1', name: '杜宾', damage: 42, healing: 0, types: { phys: 42, arts: 0, true: 0, elemental: 0 } }],
+  };
   const battle = {
     finished: true, time: 0, tickCount: 0, leakedCount: 0, flags: {}, allyUnits: [],
     snapshot: () => ({ t: 0 }),
@@ -828,6 +832,7 @@ test('a Worker host never attaches the combat meter, even when the setting is on
     remote: true,
     battle,
     meter: { lp: 0 },
+    combatMetrics: () => tally,
     async load() {},
     async start() {},
     async syncPool() {},
@@ -838,20 +843,65 @@ test('a Worker host never attaches the combat meter, even when the setting is on
     forceEnd: () => Promise.resolve(),
   };
   const r = rig({ createHost: () => host });
+  r.runner.setCombatMetrics(true);
   const spec = { fieldId: 'n:worker', kind: 'normal', players: [{ playerId: 'p_0' }] };
   r.net.emit('b.start', { battleId: 'worker-1', fieldId: 'n:worker', kind: 'normal', spec, authoritative: true, speed: 2 });
   await r.settle();
   const e = r.runner._entries.get('worker-1');
   assert.ok(e && !e.failed, 'the Worker battle was prepared');
-  assert.equal(e.combatMetrics, null);
-  assert.equal(hooked, 0);
-  const prog = r.net.sent.filter((m) => m.t === 'b.progress');
-  assert.ok(prog.length >= 1, 'progress is still the battle report');
+  assert.equal(typeof e.combatMetrics, 'function', 'the worker tally is the meter');
+  assert.deepEqual(e.combatMetrics(), tally);
+  assert.equal(hooked, 0, 'trackCombat cannot run on the wire battle');
+  assert.equal(r.runner.combatMetrics().damage, 42, 'the match total reads the worker tally');
   for (const msg of r.net.sent) {
     assert.equal(msg.rows, undefined);
     assert.equal(msg.combatMetrics, undefined);
     assert.notEqual(msg.t, 'b.result', 'a null compact result is not sent');
   }
+  r.runner.dispose();
+});
+
+test('a Worker packet that ends the battle sends its b.result, so the server need not take the field over', async () => {
+  // The Worker applies the packet's `state` when its step answers, after that batch's frame has returned: the entry's
+  // battle is `finished` before any later batch can reach the work loop's own finish check.
+  const battle = {
+    finished: false, time: 0, tickCount: 0, leakedCount: 0, flags: {}, allyUnits: [],
+    snapshot: () => ({ t: 0 }),
+    drainEvents: () => [],
+    fieldMeta: () => ({ units: [] }),
+    getPlayer: () => null,
+    on() {},
+    heal() { return 0; },
+  };
+  const packed = { v: 1, end: 'yes' };
+  const host = {
+    remote: true,
+    battle,
+    meter: { lp: 0 },
+    combatMetrics: () => null,
+    async load() {},
+    async start() {},
+    async syncPool() {},
+    stop() {},
+    progress: () => ({ gt: 3, killed: 0, total: 0, done: true, leaks: 0 }),
+    compactResult: () => packed,
+    step: async () => {
+      battle.time = 3;
+      battle.tickCount = 1;
+      battle.finished = true;
+      return { ticks: 1, slices: [], state: { finished: true, time: 3, tickCount: 1 } };
+    },
+    forceEnd: async () => {},
+  };
+  const r = rig({ createHost: () => host });
+  const requests = [];
+  r.net.request = (t, fields) => { requests.push({ t, fields }); return Promise.resolve({ t: 'ok' }); };
+  const spec = { fieldId: 'n:worker', kind: 'normal', players: [{ playerId: 'p_0' }] };
+  r.net.emit('b.start', { battleId: 'worker-finish', fieldId: 'n:worker', kind: 'normal', spec, authoritative: true, speed: 2 });
+  for (let i = 0; i < 6; i++) { r.advance(500); await r.settle(); }
+  const results = requests.filter((x) => x.t === 'b.result');
+  assert.equal(results.length, 1, 'the finished Worker battle reported its result once');
+  assert.deepEqual(results[0].fields.result, packed, 'the packed result the Worker returned');
   r.runner.dispose();
 });
 
@@ -862,7 +912,7 @@ test('settings expose 作战统计 off by default and the match hides the button
   assert.match(logic, /combatMetrics: false/);
   assert.match(settings, /label=\$\{t\('作战统计'\)\} micro="COMBAT STATS" value=\$\{s\.combatMetrics\}/);
   assert.match(game, /setCombatMetrics\(s\?\.combatMetrics === true\)/);
-  assert.match(game, /const showMetrics = metricsSetting && !modRoom && !spectator/);
+  assert.match(game, /const showMetrics = metricsSetting && !spectator/);
   assert.match(game, /data-ui-slot="hud\.right"/);
   const state = { me: {}, room: null, match: { public: null, battle: null }, connection: { status: 'online' } };
   const line = (s) => buildDiagnostics({ state, env: {}, settings: s }).split('\n').find((l) => l.startsWith('settings:'));

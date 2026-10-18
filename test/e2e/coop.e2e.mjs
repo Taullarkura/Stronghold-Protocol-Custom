@@ -1411,7 +1411,16 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
       await solo.click('.diff-card', '绝境模拟');
       await solo.click('.create-box button', '开始独立模拟');
       await solo.waitFor((s) => !!s.room, 'solo room');
-      if (!(await solo.st()).phase) await solo.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+      // 开始模拟 stays disabled while the room verifies its content set (cold start: a few seconds) and a click that
+      // lands before the screen is interactive is lost, so click again until the phase moves
+      if (!(await solo.st()).phase) {
+        const clickedAt = Date.now();
+        while (!(await solo.st()).phase) {
+          if (Date.now() - clickedAt > 90000) throw new Error('solo: the room never started');
+          await sleep(1500);
+          await solo.click('.room-bar__right button', '开始模拟', { timeout: 20000 }).catch(() => {});
+        }
+      }
       await solo.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
       await sleep(900);
       await solo.shot('briefing');

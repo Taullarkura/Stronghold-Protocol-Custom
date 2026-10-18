@@ -631,14 +631,14 @@ hook, `battle.heal` is not wrapped). On, the corner's 作战统计 button (`gm__
 modeless panel over the running battle: the fight keeps playing behind it, ✕ / Esc closes it, and the next frame's
 prep keeps it usable.
 
-`battle/metrics.js` (`trackCombat`) attaches in `prepare` only when the setting is on and the host is in-page.
-`screens/game.js` pushes the switch with `setCombatMetrics` (the runner does not import the settings store). A
-gameplay-plugin room (`room.content.vanilla === false`) simulates in a Worker: the page holds wire state only (time
-and ids, no `damaged` hook and no `heal`), so the meter is not attached and the button stays hidden. A cosmetic plugin
-keeps the vanilla content set and the in-page host, so the meter still runs. A `hud.right` ui-slot is a separate node
-and is not gated by this setting. Turning the setting off mid-battle detaches the hook and restores `heal`. Turning it
-on does not backfill a battle already prepared ([ASSUMED]: the hooks would have missed damage already dealt); the next
-battle prepared after the switch is the first one counted.
+`battle/metrics.js` (`trackCombat`) attaches in `prepare` only when the setting is on. In-page it wraps the real battle;
+under a gameplay-plugin room (`room.content.vanilla === false`, simulated in a Worker) the page holds wire state only, so
+the tally runs inside the worker (`battle/simWorkerRuntime.js` attaches `trackCombat` at `start` and puts its record in
+every packet; `WorkerSimHost.combatMetrics()` re-reads it) and the panel shows it like an in-page one. A cosmetic plugin
+keeps the vanilla content set and the in-page host. A `hud.right` ui-slot is a separate node and is not gated by this
+setting. Turning the setting off mid-battle detaches an in-page hook and restores `heal` (a worker tally keeps counting
+in the worker, unread); turning it on does not backfill a battle already prepared ([ASSUMED]: an in-page hook would have
+missed the damage already dealt; a Worker tally has counted since its start, so it shows the whole battle).
 
 `combatMetrics({ scope: 'battle' | 'match', ownerId })` sits beside `currentBattle()` on the runner. A row is one
 operator: the effective HP the sim's own counters lost (mitigation, silent damage and DoTs included; overkill, element
