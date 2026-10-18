@@ -24,8 +24,10 @@
 // handler): a chess gained during its dispatch — 贾维's gift, the elite that gift completes — waits for the next refresh.
 // 投资人 (investShip) active ⇒ SERVER_GAIN garrisons run ×2 (×3 at ≥ 100 layers) — owned by the dispatcher.
 // ctx.triggerGarrisons(uid, eventType) re-runs another piece's garrisons (铃兰, "触发…的获得时效果", 特质相同).
-// Items: onEquip / onArt / onDestroy go to the item's own handler only; every other hook runs for items equipped on
-// owned chess (ev.source.holder). That step walks a snapshot — the owned chess and each holder's items as they stand
+// Items: onEquip / onArt / onDestroy go to the item's own handler first (dispatchItem); a destroyed item is then
+// announced as onDestroy to the player's global / band / bond / effect handlers too (the item-only step below skips
+// that hook, so an item runs once) — a strategy or bond can react to equipment being destroyed. Every other hook runs
+// for items equipped on owned chess (ev.source.holder). That step walks a snapshot — the owned chess and each holder's items as they stand
 // when it begins (every [holder, item] pair, taken before the first item runs) — and runs an item only if, when its
 // turn comes, it is still equipped on that holder and the holder is still owned: handlers move and destroy pieces
 // mid-walk (突变细胞 destroys its holder, returns the equipment to the hand and gains an operator; normal 博士投影
@@ -398,18 +400,25 @@ export class EffectDispatcher {
     return n;
   }
 
-  /** Item-specific hook (onEquip / onArt / onDestroy) for one item piece. */
+  /**
+   * Item-specific hook (onEquip / onArt / onDestroy) for one item piece. A destruction is announced to the player's
+   * other handlers too (`onDestroy`, after the item's own: the item-only step of `dispatch` skips that hook, so nobody
+   * runs twice) — a strategy (band), a bond or a persistent effect can react to equipment being destroyed
+   * (docs/META.md §2.2, docs/PLUGINS.md §13).
+   */
   dispatchItem(ps, item, holder, hook, ev) {
     if (!item || this.depth >= MAX_DEPTH) return ev;
     const key = `item:${itemKey(this.m.gd.item(item.id)?.effectRef ?? item.id)}`;
     const h = this.registry.get(key);
-    if (!h) return ev;
-    this.depth++;
-    try {
-      this._call(ps, key, h, hook, { kind: 'item', key, piece: item, holder, item: this.m.gd.item(item.id) }, ev);
-    } finally {
-      this.depth--;
+    if (h) {
+      this.depth++;
+      try {
+        this._call(ps, key, h, hook, { kind: 'item', key, piece: item, holder, item: this.m.gd.item(item.id) }, ev);
+      } finally {
+        this.depth--;
+      }
     }
+    if (hook === 'onDestroy' && ps) this.dispatch(ps, 'onDestroy', ev, { quiet: true });
     return ev;
   }
 

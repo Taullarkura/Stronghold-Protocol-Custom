@@ -838,6 +838,13 @@ always wins over a plugin binding, and a plugin key nothing binds is inert. Reco
 namespace (`band_x_<plugin_id>_`), and breaking a strategy's numbers is a balance change, not a bug fix: mark it
 `[ASSUMED]` unless an official table or PRTS settles it.
 
+A strategy whose effect lives in the prep phase needs no battle part at all: the dispatcher looks a strategy's handlers
+up by `band:<bandId>` (META §2), so `sp.meta.register('band:band_x_example', { onGain, onDestroy, … })` is the whole
+implementation — `params` are read with `ctx.band` / the record. Every hook of META §2.2 is available, including
+`onDestroy`, which reaches the player's own handlers after the destroyed item's own (META §2.2): a strategy can pay for
+equipment being destroyed, with `ev = { item, holder, reason: 'replace' | 'player' }`. The same namespace rule and
+`[ASSUMED]` habit apply.
+
 The facade supplies no fetch, dynamic import, storage, clock or unseeded randomness. Hooks and engine helpers follow
 SIM §5–7. Use `battle.rng`, `after` and `every`. `tools/plugin.mjs check` and the registry use the same lexical scan
 (`shared/plugins/scriptCheck.js`): only `sp:sdk@1` imports, no dynamic import/re-export, eval, Function, require,

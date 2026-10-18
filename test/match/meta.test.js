@@ -223,3 +223,30 @@ test('choice:<id> handler overrides the family default, runs once, and other sou
   assert.ok(a.effects.some((e) => e.id === 'wealth'));
   m.dispose();
 });
+
+test('a destroyed item reaches the player\'s own handlers as onDestroy, after the item\'s and without running the other equipped items', () => {
+  const reg = registerBuiltins(new MetaRegistry(), DATA);
+  const seen = [];
+  reg.item('chess_item_1_01_e', { onDestroy: () => seen.push('other-item') });
+  reg.item('chess_item_1_02_e', { onDestroy: (ctx, ev) => seen.push(`own:${ev.reason}`) });
+  const { m, ps } = metaMatch(reg, { seed: 76 });
+  // the strategy (band) and a global observe the destruction; both are player scope, not the item's
+  reg.band(ps.bandId, { onDestroy: (ctx, ev) => seen.push(`band:${ev.item.id}:${ev.reason}`) });
+  reg.global('spy', { onDestroy: (ctx, ev) => seen.push(`global:${ev.reason}`) });
+  const a = give(m, ps, chessOfTier(3).find((c) => m.pool.has(c)));
+  const i1 = giveItem(m, ps, 'chess_item_1_01_e_a');
+  const i2 = giveItem(m, ps, 'chess_item_1_02_e_a');
+  const i3 = giveItem(m, ps, 'chess_item_3_03_e_a');
+  m.handle('p_0', { t: 'g.equip', itemUid: i1.uid, targetUid: a.uid });
+  m.handle('p_0', { t: 'g.equip', itemUid: i2.uid, targetUid: a.uid });
+  seen.length = 0;
+  // a full carrier replaces the picked item: reason 'replace'
+  assert.deepEqual(m.handle('p_0', { t: 'g.equip', itemUid: i3.uid, targetUid: a.uid, replaceUid: i2.uid }), { ok: true });
+  assert.deepEqual(seen, ['own:replace', 'global:replace', `band:${i2.id}:replace`], 'the item first, then the player scope (global → band), and the other equipped item does not run');
+  // destroying a hand item: reason 'player'
+  seen.length = 0;
+  const i4 = giveItem(m, ps, 'chess_item_2_03_e_a');
+  assert.deepEqual(m.handle('p_0', { t: 'g.destroy', uid: i4.uid }), { ok: true });
+  assert.deepEqual(seen, ['global:player', `band:${i4.id}:player`]);
+  m.dispose();
+});

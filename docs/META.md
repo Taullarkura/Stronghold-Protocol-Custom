@@ -399,14 +399,16 @@ Every handler method is `(ctx, ev)`; `ev` is shared by all handlers of one dispa
 | `onChoicePick` | a 机变 card was applied (the card's own `choice:` handler runs first, then every source observes) | `{ card, family, picker, forTeammate }` |
 | `onEquip` | `g.equip` (item handler only) | `{ item, target, golden, consumed, keep, error }` — see §2.5 |
 | `onArt` | `g.art` (item handler only) | `{ item, row, col, targets:[pieces], error, used }` |
-| `onDestroy` | an item was destroyed (player / replaced) | `{ item, holder, reason }` |
+| `onDestroy` | an item was destroyed (player / replaced) | `{ item, holder, reason }` — the item's own handler runs first (`dispatchItem`), then the player's `global` / `band` / `bond` / persistent-effect handlers; the item-only step of the dispatch skips this hook, so an item never runs twice and the other equipped items do not run at all. A strategy can so pay for equipment being destroyed (`docs/PLUGINS.md` §13) |
 | `onLayers` | bond layers were added (prep or battle gains) | `{ bondId, from, to, reason }` (milestones: 维多利亚 25, 远见 10, 奇迹 100 …); `to` ≤ 999 (`BOND_LAYER_CAP`) — a gain at the cap dispatches nothing, so the milestones stop with the count |
 | `onActiveBonds` | the set of active bonds changed: `PlayerState.recompute` (`player/round.js _reportActiveBonds`) compares the bonds it computed with the previous computed state — every path that changes what the bonds count ends there: placing / moving / swapping / withdrawing a piece in prep, buys, sells, merges, transformations, temp → hand moves, equipment (变形同构体), effects (`setBondCountBonus`, grants), evictions — any phase; never for an eliminated player | `{ activated: string[], deactivated: string[] }` (bond ids, data order; read only). A handler's own recompute (a grant's) reports only what changed after it. The layer milestones owed while a bond was off subscribe it and pay as soon as it lights up — 维多利亚's 维式重锤 (`bonds/core.js payHammers`: placing the third member in prep grants it at once, the maintainer's report of 2026-10-15), 远见 / 奇迹's funds and 远见's discount latch (`bonds/addon/meta.js`) — each milestone once (their counters), however often the bond goes off and on (DESIGN §32.14.31) |
 
 Dispatch order per player: `global` → `band` → `bond` (data order) → garrisons (board in reading order — top row first, `board.js boardOrder` —, then hand)
 → equipped items → EffectRefs (insertion order). `onPrice` runs the priced chess's own 特质 first (购买价格为N sets the
 price that 远见's discount then acts on). Every call is isolated with try/catch (the error is
-logged once and counted in `match.dispatcher.errors`); nested dispatches are capped at depth 6.
+logged once and counted in `match.dispatcher.errors`); nested dispatches are capped at depth 6. A destroyed item is
+announced to the player's own handlers as `onDestroy` as well, right after its own handler (`dispatchItem` → `dispatch`;
+the item step below skips that hook, so nothing runs twice).
 The equipped-items step walks a snapshot (the owned chess and each holder's items as they stand when it begins: every
 [holder, item] pair, taken before the first item runs) and runs an item only if, when its turn comes, it is still
 equipped on that holder and the holder is still owned: handlers move and destroy pieces mid-walk (突变细胞 transforms its
