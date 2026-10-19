@@ -973,7 +973,8 @@ diagnostics line reads `MODDED cs=… plugins=…` and the bug template asks whe
 plugins (`rooms: "host"`, the default), every room plays a fixed set (`"fixed"`) or rooms play the original game
 (`"off"`); the plugins a new room starts with (`default`); the plugins rooms may use (`allow`); the classes rooms may
 use (`classes`: overrides individual defaults — cosmetic/content on, script also on in sandbox/trusted modes, trusted also on in trusted modes; other classes denied); the concurrent content sets (`limits.maxSets`); whether gameplay plugins made for other versions may be
-used (`allowIncompatible`). `SP_PLUGINS=off|host|fixed` overrides `rooms`. The file is read again when it changes;
+used (`allowIncompatible`); whether every seated player must accept a trusted script set before the room starts
+(`trustedConsent`, default true — §13). `SP_PLUGINS=off|host|fixed` overrides `rooms`. The file is read again when it changes;
 a bad field keeps its default and is reported in the log. `docs/DEPLOY.md` has an example.
 
 **HTTP.** `/cs/<cs16>/index.json`, `/cs/<cs16>/data/<table>.json` and `/cs/<cs16>/i18n/<lang>.json` of a gameplay set
@@ -1198,6 +1199,10 @@ seat; every active human must accept before `room.start` (`PLUGIN_CONSENT`). Bot
 keep the seat's consent, a new cs clears it. The browser remembers its own decision in `sp.plugin.consent.<cs>`;
 server state alone never authorizes page execution. The risk dialog names authors, hashes and permissions and says
 「它可以完全控制你的游戏页面」; seats show 「已同意」 and a red 「受信任插件」 banner stays through the match.
+A server owner who runs only their own reviewed plugins can set `trustedConsent: false` in `plugins/config.json` (§11):
+the room then adds `required: false` to `content.trusted` instead of a `consent` map, no banner or risk dialog is
+shown, `room.consent` no longer gates `room.start` or `room.contentReady`, and every page loads and checks the scripts
+as if it had accepted. `required` is true (the default) when the field is absent or set to anything but `false`.
 
 Scripts are immutable `scripts/<id>.json` descriptors containing the original manifest and entry source texts.
 Their hashes enter each plugin's `files['@script']` in cs; `/cs/<cs16>/index.json` lists their routes. Each actual

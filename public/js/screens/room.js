@@ -92,7 +92,7 @@ export function roomFacts(room, myId) {
     seats, occupied, humans, bots, mine, isHost, readyHumans, isReady,
     capacity: seats.length,
     emptySeats: seats.filter((s) => !s).length,
-    canStart: isHost && othersReady && !!mine && contentReady && (!room?.content?.trusted || humans.every(s => room.content.trusted.consent[s.seat])),
+    canStart: isHost && othersReady && !!mine && contentReady && (!room?.content?.trusted || room.content.trusted.required === false || humans.every(s => room.content.trusted.consent?.[s.seat])),
     othersReady,
     modded,
     contentReady,
@@ -517,11 +517,12 @@ export function TrustedNotice() {
     finally { setBusy(false); }
   };
   useEffect(() => {
-    if (trusted && seat && hasScriptConsent(cs) && !trusted.consent?.[seat.seat] && !room.inMatch) {
+    if (trusted?.required !== false && trusted && seat && hasScriptConsent(cs) && !trusted.consent?.[seat.seat] && !room.inMatch) {
       net.request('room.consent',{cs,accept:true}).catch(toastError);
     }
   },[cs,seat?.seat,!!trusted?.consent?.[seat?.seat]]);
-  if (!trusted) return null;
+  // a server whose policy does not ask (trustedConsent:false) shows neither the banner nor the risk modal
+  if (!trusted || trusted.required === false) return null;
   return html`<aside class="trusted-banner" data-testid="trusted-banner">
     <strong>${t('受信任插件')}</strong>
     <button onClick=${() => setReview(true)}>${t('查看风险与同意状态')}</button>

@@ -409,7 +409,8 @@ node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol
   "allow": ["*"],
   "classes": { "cosmetic": true, "content": true },
   "limits": { "maxSets": 4 },
-  "allowIncompatible": false
+  "allowIncompatible": false,
+  "trustedConsent": true
 }
 ```
 
@@ -421,6 +422,7 @@ node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol
 | `classes` | 关掉某一类：例如 `{ "content": false }` 只允许外观插件；`classes` 按项覆盖默认值：默认允许 cosmetic/content；开启 sandbox 时再默认允许 script，trusted 模式再默认允许 trusted。其他未列出的类别不允许。ui 只供个人开启，不进房间组合 |
 | `limits.maxSets` | 同时运行的「改变玩法」内容组合上限（0–64，默认 4）；超过时房主会看到「本服务器同时运行的插件组合已达上限，请稍后再试」 |
 | `allowIncompatible` | 为其他游戏版本制作的改变玩法插件默认不能启用；设成 `true` 时大厅放行（房间里会提示）——但目前内容组合的构建本身仍会拒绝这类插件，所以暂时还开不了（DESIGN §32.6 待办）。外观插件只提示，不拦 |
+| `trustedConsent` | 受信任脚本插件默认要每位在座玩家亲自同意（房间里的红色横幅与风险弹窗，同意前不能开始）。只跑自己审过的插件的服务器可以设成 `false`：横幅与弹窗不再出现，房间不再等同意，页面直接按已同意加载并校验脚本；`room.consent` 也随之失效。适合单人/局域网或自己人之间的服——公网服务器请保持默认 |
 | `allowDownloadHosts` | 按地址安装时额外允许的主机（字符串数组，默认没有）。一项是主机名（任意端口），或 `主机:端口`，IPv6 写成 `[地址]` 或 `[地址]:端口`。没有通配符。点名的主机才可以不是公网地址、才可以用 443 以外的端口。目录文件自己不能往这份名单里加。这个字段不参与房间策略；写错或文件坏了就当作没有额外主机，公网 https 下载不受影响。也可以用环境变量 `SP_PLUGIN_DOWNLOAD_ALLOW`（逗号分隔），和文件里的名单一起生效 |
 
 - 环境变量 `SP_PLUGINS=off|host|fixed` 优先于文件里的 `rooms`，例如 `SP_PLUGINS=off npm start` 临时让所有房间只玩原版。

@@ -603,7 +603,8 @@ export function installContentSet({ store = appStore, data = dataStore, net = ap
     const cs = roomCs(s);
     const cur = contentSet.get();
     if (!cs) { if (cur.cs || held) drop(); return; }
-    const consent = !!s.room.content.trusted && hasScriptConsent(cs);
+    // a server that does not ask (plugins/config.json trustedConsent:false) loads and verifies the scripts outright
+    const consent = !!s.room.content.trusted && (s.room.content.trusted.required === false || hasScriptConsent(cs));
     if (cur.cs !== cs || (held?.cs === cs && held.canSim === false && consent)) { load(cs,consent); return; }
     // the page holds the room's set, its seat does not show it (the room changed its set and back, a reconnect): again
     const seat = mySeat(s);

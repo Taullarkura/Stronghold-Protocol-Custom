@@ -37,6 +37,9 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 export const DEFAULT_POLICY = Object.freeze({
   rooms: 'host', default: Object.freeze([]), allow: Object.freeze(['*']),
   classes: Object.freeze({ cosmetic: true, content: true }), maxSets: DEFAULT_MAX_SETS, allowIncompatible: false,
+  // trusted script sets ask every seated player first (the banner in the room); an owner who runs only own-reviewed
+  // plugins sets this false and rooms start, and pages load the scripts, without asking
+  trustedConsent: true,
 });
 
 /**
@@ -73,6 +76,7 @@ export function readPolicy(json, { env = process.env } = {}) {
     else problems.push('"limits.maxSets" must be an integer 0–64');
   }
   if (o.allowIncompatible !== undefined) { if (typeof o.allowIncompatible === 'boolean') p.allowIncompatible = o.allowIncompatible; else problems.push('"allowIncompatible" must be true or false'); }
+  if (o.trustedConsent !== undefined) { if (typeof o.trustedConsent === 'boolean') p.trustedConsent = o.trustedConsent; else problems.push('"trustedConsent" must be true or false'); }
   const e = String(env?.SP_PLUGINS ?? '').trim().toLowerCase();
   if (e) { if (ROOMS.includes(e)) p.rooms = e; else problems.push(`SP_PLUGINS=${e} is not one of ${ROOMS.join(', ')}`); }
   return { policy: Object.freeze({ ...p, default: Object.freeze(p.default), allow: Object.freeze(p.allow), classes: Object.freeze(p.classes) }), problems };
@@ -105,7 +109,7 @@ export function createPluginPolicy({ pluginsDir, log = noopLog, env = process.en
     current = r.policy;
     problems = [...problems, ...r.problems];
     for (const pr of problems) { const line = `[plugins] plugins/${POLICY_FILE}: ${pr}`; if (!told.has(line)) { told.add(line); log.warn?.(line); } }
-    if (s !== 'none' || current.rooms !== DEFAULT_POLICY.rooms) log.info?.(`[plugins] policy: rooms ${current.rooms}, default [${current.default.join(', ')}], allow [${current.allow.join(', ')}], at most ${current.maxSets} content sets${current.allowIncompatible ? ', incompatible plugins allowed' : ''}`);
+    if (s !== 'none' || current.rooms !== DEFAULT_POLICY.rooms) log.info?.(`[plugins] policy: rooms ${current.rooms}, default [${current.default.join(', ')}], allow [${current.allow.join(', ')}], at most ${current.maxSets} content sets${current.allowIncompatible ? ', incompatible plugins allowed' : ''}${current.trustedConsent ? '' : ', trusted plugins run without asking each player'}`);
     return current;
   };
   return {

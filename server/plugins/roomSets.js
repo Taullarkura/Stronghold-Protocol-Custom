@@ -106,7 +106,9 @@ export function createRoomSets({ registry, visual, contents, policy }) {
         ...(vset ? { vs: vset.vs } : {}),
         plugins,
         ...(cset?.execution ? { execution: cset.execution } : {}),
-        ...(cset?.scripts?.length && cset.execution !== 'sandbox' ? {trusted:{plugins:cset.scripts.map(({id,version,hash,permissions,authors}) => ({id,version,hash,permissions,authors}))}} : {}),
+        // `required` says whether every seated player must accept the risk before the room starts (policy
+        // trustedConsent); a server that runs only its own reviewed plugins turns the question off
+        ...(cset?.scripts?.length && cset.execution !== 'sandbox' ? {trusted:{required: policy?.get()?.trustedConsent !== false, plugins:cset.scripts.map(({id,version,hash,permissions,authors}) => ({id,version,hash,permissions,authors}))}} : {}),
         warnings: [...(vset?.warnings || []), ...warnings],
         bytes: vset ? vset.bytes : 0,
         ...(cset ? { dataBytes: cset.dataBytes, modes: cset.modes, kitted: cset.kitted } : {}),
