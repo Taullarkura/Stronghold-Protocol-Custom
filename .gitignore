@@ -97,3 +97,18 @@ public/dev/simcheck/data/
 
 # --- LING: the maintainer's workspace for 铃 (assets, notes) --
 /LING/
+
+# --- dsh-qq-onebot-bridge: its session cwd is the repository root, so the bridge's own ----
+# --- state (session table, chat memory, inbox, downloads) lands here; none of it is project code.
+/qq-sessions.json
+/qq-*.jsonl
+/qq-*.json
+/qq-memory/
+/qq-files/
+/qq-images/
+/qq-todos/
+/qq-checkin/
+/qq-exports/
+/qq-history/
+/qq-trash/
+/qq-badwords.txt
