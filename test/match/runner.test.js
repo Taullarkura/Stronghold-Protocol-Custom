@@ -905,6 +905,65 @@ test('a Worker packet that ends the battle sends its b.result, so the server nee
   r.runner.dispose();
 });
 
+test('a Worker packet that ends the battle renders its last kill, so no enemy outlives the battle on screen', async () => {
+  // The same packet that finishes the battle carries the kill and the snapshot without the dead unit, but the batch's
+  // own frame returned before it answered and `running()` keeps the finished entry out of every later batch: without a
+  // frame here the view stays on the state before the last kill and the last enemy sits on screen through the wait.
+  const alive = { t: 0, units: [{ key: 'E1', hp: 100 }] };
+  const finalSnap = { t: 3, units: [] };
+  let calls = 0;
+  const battle = {
+    finished: false, time: 0, tickCount: 0, leakedCount: 0, flags: {}, allyUnits: [],
+    snapshot: () => alive,
+    drainEvents: () => [],
+    fieldMeta: () => ({ units: [] }),
+    getPlayer: () => null,
+    on() {},
+    heal() { return 0; },
+  };
+  const host = {
+    remote: true,
+    battle,
+    meter: { lp: 0 },
+    combatMetrics: () => null,
+    async load() {},
+    async start() {},
+    async syncPool() {},
+    stop() {},
+    progress: () => ({ gt: 3, killed: 1, total: 1, done: true, leaks: 0 }),
+    compactResult: () => ({ v: 1 }),
+    // the field runs on screen for two packets, then the third kills the last enemy (a real packet answers later: the
+    // battle it finishes is already applied when the promise resolves, never during the batch that asked for it)
+    step: async () => {
+      await null;
+      calls += 1;
+      if (calls < 3) {
+        battle.time = calls;
+        battle.tickCount = calls;
+        return { ticks: 1, slices: [], state: { finished: false, time: calls, tickCount: calls } };
+      }
+      battle.time = 3;
+      battle.tickCount = 3;
+      battle.finished = true;
+      battle.snapshot = () => finalSnap;
+      return { ticks: 1, slices: [{ gt: 3, ev: [['die', 'E1']] }], state: { finished: true, time: 3, tickCount: 3 } };
+    },
+    forceEnd: async () => {},
+  };
+  const r = rig({ createHost: () => host });
+  r.net.request = () => Promise.resolve({ t: 'ok' });
+  const spec = { fieldId: 'n:worker', kind: 'normal', players: [{ playerId: 'p_0' }] };
+  r.net.emit('b.start', { battleId: 'worker-last-kill', fieldId: 'n:worker', kind: 'normal', spec, authoritative: true, speed: 2 });
+  for (let i = 0; i < 8; i++) { r.advance(16); await r.settle(); }
+  const last = r.feed.snaps.at(-1);
+  assert.ok(calls >= 3, `the field ran its packets on screen (${calls})`);
+  assert.ok(last, 'the packet that ended the battle still rendered a frame');
+  assert.deepEqual(last.units, [], 'the last frame is that packet\'s snapshot, without the enemy it killed');
+  assert.ok(r.feed.evs.some((f) => f.gt === 3 && f.ev.some((x) => x[0] === 'die')), 'the kill went out with it');
+  assert.equal(r.runner._entries.get('worker-last-kill').done, true, 'and the entry is finished');
+  r.runner.dispose();
+});
+
 test('settings expose 作战统计 off by default and the match hides the button unless it is on', () => {
   const settings = readFileSync(new URL('../../public/js/ui/settings.js', import.meta.url), 'utf8');
   const game = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');

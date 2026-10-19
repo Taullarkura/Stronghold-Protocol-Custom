@@ -542,8 +542,15 @@ export function createBattleRunner(deps) {
           stats.stepMs += now() - t;
           // This batch only ever saw the previous packet (entryWork steps from the battle's current tick) and `running()`
           // drops a finished battle from the next batch's work — so a Worker packet that ends the battle has to finish it
-          // here, or its b.result never goes out and the server has to take the field over.
-          if (e.battle.finished && !e.done) finished(e);
+          // here, or its b.result never goes out and the server has to take the field over. Its last events and snapshot
+          // go out first: this batch's own frame already returned and no later one reaches the entry, so without them
+          // the view keeps the state before the last kill (the last enemy stays on screen through the whole wait).
+          if (e.battle.finished && !e.done) {
+            // (a hidden tab shows no frames: hold them for flushHidden, as an unshown batch does)
+            if (e === cur && !hidden()) emitFrame(e, false);
+            else hold(e);
+            finished(e);
+          }
         }, (err) => failWorker(e, err)).finally(() => { e.stepping = false; schedule(); });
         return n;
       }
