@@ -805,59 +805,6 @@
 .chud__layers.is-observing { gap: .1rem; padding-right: .08rem; border-color: rgba(246, 163, 41, .55); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- in-match dev panel (ui/debugConsole.js) --------------------------------------------------------------------- */
-/* A button of the game screen's corner row (.gm__corner) whose panel opens upwards from its own button — the same
-   shape as the emote wheel, so a panel never covers the buttons beside it. */
-.dbgconsole { position: relative; }
-.dbgconsole__toggle {
-  display: inline-flex; align-items: center; justify-content: center; gap: .07rem; min-width: .6rem; height: .42rem; padding: 0 .12rem;
-  color: var(--mint-400); background: rgba(8, 15, 13, .95); border: 1px solid var(--mint-700);
-  box-shadow: 0 .04rem .16rem rgba(0, 0, 0, .4); font-size: calc(.16 * var(--t)); font-weight: 700;
-}
-.dbgconsole__toggle .icon { width: .2rem; height: .2rem; }
-.dbgconsole__toggle:hover, .dbgconsole__toggle.is-open { color: #e4fff5; background: rgba(22, 48, 40, .98); border-color: var(--mint-500); }
-.dbgconsole__panel {
-  position: absolute; left: 0; bottom: calc(100% + .12rem); display: flex; flex-direction: column;
-  width: min(4.45rem, calc(100vw - .24rem)); max-height: min(6.2rem, calc(100dvh - .82rem)); overflow: hidden; color: #d7e4df;
-  background: linear-gradient(145deg, rgba(10, 24, 20, .98), rgba(8, 15, 13, .98));
-  border: 1px solid rgba(78, 216, 175, .48); box-shadow: 0 .12rem .45rem rgba(0, 0, 0, .62);
-  animation: pop-in var(--t-slow) var(--ease-out);
-}
-.dbgconsole__head {
-  display: flex; flex: none; align-items: center; gap: .12rem; min-height: .56rem; padding: .08rem .12rem;
-  border-bottom: 1px solid rgba(78, 216, 175, .16);
-}
-
-/* 开发控制台 (ui/debugConsole.js): a wider panel — a scrollback and a prompt line */
-.dbgconsole__panel { width: min(5.4rem, calc(100vw - .24rem)); }
-.dbgconsole__eyebrow { flex: 1 1 auto; overflow: hidden; color: #91aaa0; font-family: var(--font-num); font-size: calc(.11 * var(--t)); letter-spacing: .13em; text-overflow: ellipsis; white-space: nowrap; }
-.dbgconsole__head b { flex: none; color: #e8f3ee; font-size: calc(.17 * var(--t)); }
-.dbgconsole__close { flex: none; display: grid; place-items: center; width: .34rem; height: .34rem; padding: 0; background: none; border: 0; color: #d7e4df; }
-.dbgconsole__close:hover { color: #fff; background: rgba(255, 255, 255, .08); }
-.dbgconsole__close .icon { width: .22rem; height: .22rem; }
-.dbgconsole__log {
-  flex: 1 1 auto; min-height: .9rem; max-height: min(4.1rem, 42dvh); overflow-y: auto; margin: 0; padding: .1rem .14rem;
-  list-style: none; font-family: var(--font-num); font-size: calc(.14 * var(--t)); line-height: 1.5;
-  scrollbar-color: rgba(172, 200, 188, .55) rgba(255, 255, 255, .04); scrollbar-width: thin;
-}
-.dbgconsole__line { white-space: pre-wrap; overflow-wrap: anywhere; }
-.dbgconsole__line.is-echo { color: #e8f3ee; font-weight: 700; }
-.dbgconsole__line.is-ok { color: var(--mint-400); }
-.dbgconsole__line.is-error { color: var(--red-premium); }
-.dbgconsole__line.is-info { color: #cfe3da; }
-.dbgconsole__line.is-dim { color: #91aaa0; }
-.dbgconsole__form { display: flex; flex: none; align-items: center; gap: .06rem; padding: .08rem .1rem; border-top: 1px solid rgba(78, 216, 175, .16); }
-.dbgconsole__prompt { color: var(--mint-500); font-family: var(--font-num); font-weight: 700; }
-.dbgconsole__input {
-  flex: 1 1 auto; min-width: 0; height: .46rem; padding: 0 .1rem; color: #eaf6f0; background: rgba(6, 12, 10, .9);
-  border: 1px solid var(--line-2); font-family: var(--font-num); font-size: calc(.16 * var(--t));
-}
-.dbgconsole__input:focus { border-color: var(--mint-500); outline: none; }
-.dbgconsole__input:disabled { opacity: .6; }
-.dbgconsole__send { flex: none; height: .46rem; padding: 0 .16rem; color: var(--mint-400); background: rgba(22, 48, 40, .9); border: 1px solid var(--mint-700); font-size: calc(.16 * var(--t)); font-weight: 700; }
-.dbgconsole__send:hover:not(:disabled) { color: #e4fff5; border-color: var(--mint-500); }
-.dbgconsole__send:disabled { opacity: .5; cursor: default; }
-
 /* ---- settings modal ------------------------------------------------------------------------------------------------ */
 /* the 设置 trigger of the lobby and the room (ui/settings.js SettingsButton, GitHub #238): the 玩法说明 button's twin; its gear sits
    inside the label, so the label lays glyph and text out like the button itself */

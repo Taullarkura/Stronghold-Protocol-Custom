@@ -96,7 +96,7 @@
 // voiceless 预备干员 stays silent, never the operator it replaces) and a filled 自选 slot's operator.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { PHASE, GEO, DEBUG_NAME } from '../../../shared/constants.js';
+import { PHASE, GEO } from '../../../shared/constants.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import { html, Spinner, PhaseBanner, ResultDialog, Icon, Button, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
 import { useGameData, GIcon } from '../ui/gameComponents.js';
@@ -116,7 +116,6 @@ import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
-import { DebugConsole } from '../ui/debugConsole.js';
 import { CombatMetricsPanel } from '../ui/combatMetrics.js';
 import { SettingsModal, settingsStore, useSettings } from '../ui/settings.js';
 import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
@@ -305,8 +304,6 @@ function MatchScreen() {
   const buyPending = useRef(new Set());
   const [holdSeq, setHoldSeq] = useState(0);             // bumped when a held piece is released (re-apply the prep state)
   const [hud, setHud] = useState(null);
-  // the 开发控制台 (ui/debugConsole.js) is the corner row's only dev panel ('console' | null)
-  const [devPanel, setDevPanel] = useState(null);
   const [drawn, setDrawn] = useState(null);              // the battle slice the drawn picture shows (gameLogic pickDrawn)
   const [banner, setBanner] = useState(null);            // a phase's banner (PhaseBanner) or plate (ui/matchPopups.js PhasePopup: `plate`)
   const [roundPop, setRoundPop] = useState(null);        // the round-start plate (RoundPopup)
@@ -331,8 +328,6 @@ function MatchScreen() {
   const solo = roomSolo || String(pub?.modeId || '').includes('single');
   const players = sortedPlayers(pub);
   const meP = players.find((p) => p.playerId === myId) || null;
-  // 开发控制台 (ui/debugConsole.js): drawn for the debug nickname only — the server answers g.debug to that name alone
-  const debugSeat = !!meP && meP.name === DEBUG_NAME;
   // a spectator watches like an eliminated player (it has no m.private and no row in m.public)
   const alive = spectator ? false : priv ? priv.alive !== false : meP?.alive !== false;
   // 协议已失效 (ui/downedPlate.js): once, when the player's own `alive` — as read from real data, never a reload's empty
@@ -1957,9 +1952,6 @@ function MatchScreen() {
         <button type="button" class="gm__gear" aria-label=${t('设置')} title=${t('设置')} onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
         <button type="button" class="gm__gear gm__guide" aria-label=${t('玩法说明')} title=${t('玩法说明')} onClick=${() => openGuide(0)}><${Icon} name="book" /></button>
         <${FullscreenButton} class="gm__gear gm__fs" />
-        ${debugSeat ? html`<${DebugConsole}
-          open=${devPanel === 'console'}
-          onToggle=${(o) => setDevPanel(o ? 'console' : null)} />` : null}
       </div>
 
       ${drawer ? html`<${EnemyDrawer} tab=${drawer} onTab=${setDrawer} pub=${pub} priv=${priv} onClose=${() => setDrawer(null)}

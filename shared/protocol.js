@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, DEFAULT_SEATS, EMOTES, GEO, DEBUG_OPS } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, DEFAULT_SEATS, EMOTES, GEO } from './constants.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
@@ -619,10 +619,6 @@ export const C2S = {
   // the stats the own board's units start their next battle with (user playtest #4 item 7; prep phases): answered by
   // the push m.unitStats { seq, round, units: [unitStatsEntry] }; `seq` is echoed so the client keeps the newest answer
   'g.unitStats': { seq: (v) => isInt(v, 0, 2 ** 31), $optional: ['seq'] },
-  // 开发控制台 (debug console, shared/constants.js DEBUG_NAME): a seat whose nickname is the debug name grants itself
-  // 干员 / 装备 or funds for testing — `op: 'funds'` {n, default DEBUG_FUNDS_STEP}, `op: 'chess' | 'item'` {id}. Anyone
-  // else gets BAD_MSG, exactly as for an unknown intent (a console no seat can see). Only the sender is affected.
-  'g.debug': { op: (v) => DEBUG_OPS.includes(v), id: (v) => v == null || isId(v), n: (v) => v == null || isNum(v, -1e6, 1e6), $optional: ['id', 'n'] },
   'g.leave': {},
   // host test commands (DESIGN §34.8 phase 2). The server applies them only in a test match. `args` is checked
   // again by shared/testMode.js parseTestArgs (ids, bounds). Unknown keys inside args fail there, not here.
