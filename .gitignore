@@ -1,3 +1,5 @@
+#custom tools
+custom_tools/
 #server resources pak
 *.shpak
 # --- dependencies & generated client libs -------------------------------------------------------
