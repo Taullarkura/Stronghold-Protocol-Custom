@@ -111,6 +111,8 @@ import { FinalAssaultPlate, HiddenCorePlate, EndPlate, preloadBossPlateArt, boss
 import { DownedPlate, downedDue, preloadDownedArt, downedArtReady } from '../ui/downedPlate.js';
 import { OfferOverlay, offerBlocksPrep } from '../ui/offerOverlay.js';
 import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
+// FORK: the E.G.O 饰品 / 苦难 pick overlay (design/ego.md) — the room option decides whether its phase ever opens
+import { EgoOverlay } from '../ui/egoOverlay.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
 import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
@@ -312,6 +314,9 @@ function MatchScreen() {
   const [bossPlate, setBossPlate] = useState(null);      // ui/bossPlates.js: { kind: 'final'|'core'|'end', … , key }
   const [readyBusy, setReadyBusy] = useState(false);
   const [spBusy, setSpBusy] = useState(null);
+  // FORK: the E.G.O pick's in-flight state — `egoBusy` the option idx being sent, `egoRefreshBusy` a redraw
+  const [egoBusy, setEgoBusy] = useState(null);
+  const [egoRefreshBusy, setEgoRefreshBusy] = useState(false);
   const [personalBusy, setPersonalBusy] = useState(null); // { choiceId, idx }: an older request cannot clear a newer pick
   const [layer, setLayer] = useState('ALL');             // 联防 / 最终攻势 camera: 'L' | 'ALL' | 'R'
   const [pen, setPen] = useState(false);                 // the camera shows the enemy preview pen (research 09 §2)
@@ -358,6 +363,9 @@ function MatchScreen() {
   const showShop = !!priv && alive && (phase === PHASE.PREP || phase === PHASE.SP_DRAFT || phase === PHASE.ROUND_START) && !watchingOther;
   const layersDisabled = phase === PHASE.UNITE || isBossPhase(phase);
   const sp = phase === PHASE.SP_DRAFT ? normalizeSp(pub?.sp, players) : null;
+  // FORK: the own E.G.O offer (m.private.ego) — only while the phase is open and the seat still has a say; a spectator,
+  // an eliminated player and a picked seat have nothing to render
+  const ego = phase === PHASE.EGO_PICK && !spectator && alive ? (priv?.ego || null) : null;
   const total = phaseTotalSeconds(pub, gd.config, myId);
   // solo pause: offered in the own battle; while m.public.paused every HUD clock stops at the pause moment
   const paused = isPaused(pub);
@@ -995,6 +1003,8 @@ function MatchScreen() {
       if (foldBonds) setBondOpen((b) => (b?.from === 'strip' ? null : b));
     }
     setSpBusy(null);
+    setEgoBusy(null);
+    setEgoRefreshBusy(false);
   }, [phaseKey]);
   // 协议启动！ fades once BATTLE_CHECK is over (ProtocolBoot `leaving`), then goes
   const bootDone = !!boot && phase !== PHASE.BATTLE_CHECK;
@@ -1865,7 +1875,7 @@ function MatchScreen() {
   // bonds this mode never activates (标准: 10 of 23, 奥术 among them) — shown 本局禁用 on cards, chips and the popup
   const offBonds = modeOffBonds(getMode(pub?.modeId));
 
-  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', barCollapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
+  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', barCollapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers) || ego) && 'has-sp', sp && 'has-spdraft', ego && 'has-ego', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
@@ -1989,6 +1999,10 @@ function MatchScreen() {
         await actions.choice(i, choiceId);
         setPersonalBusy((b) => b?.choiceId === choiceId ? null : b);
       }} />` : null}
+    ${ego ? html`<${EgoOverlay} pub=${pub} ego=${ego} myId=${myId} solo=${solo} total=${ego.turnSeconds || null}
+      busy=${egoBusy} refreshing=${egoRefreshBusy}
+      onPick=${async (i, pickId) => { setEgoBusy(i); await actions.trinket(i, pickId); setEgoBusy(null); }}
+      onRefresh=${async (pickId) => { setEgoRefreshBusy(true); await actions.trinketRefresh(pickId); setEgoRefreshBusy(false); }} />` : null}
     ${!hasOffers && turnPop ? html`<${TurnPopup} key=${turnPop} onDone=${() => setTurnPop(0)} />` : null}
 
     ${boot && !hasOffers ? html`<${ProtocolBoot} key=${boot.key} players=${players} myId=${myId} leaving=${phase !== PHASE.BATTLE_CHECK} />` : null}

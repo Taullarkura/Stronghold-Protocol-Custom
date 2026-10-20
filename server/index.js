@@ -122,7 +122,7 @@ export async function startServer(opts = {}) {
   // the content hashes of the art (built in the background once listening) and the manifests served with them
   const indexOptions = assetIndexOptionsFrom(opts, publicDir);
   const assetIndex = indexOptions ? createAssetIndex({ publicDir, log, ...indexOptions }) : null;
-  const views = createManifestViews({ dataDir, index: assetIndex, log });
+  const views = createManifestViews({ dataDir, publicDir, index: assetIndex, log });
   // /resource-manifest.json (the local resource cache's file list; server/http/resourceManifest.js): the Cloudflare
   // build publishes it, a Node install builds it in the background once listening. The hashes persist in .cache/ only
   // for the repository's own public/ (a test's temporary folder keeps them in memory).

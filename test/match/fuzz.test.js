@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateC2S, C2S, SP_CARDS_MAX } from '../../shared/protocol.js';
+import { EGO_OFFER_SIZE } from '../../shared/ego.js';
 import { ERR, EMOTES, MAX_SEATS } from '../../shared/constants.js';
 import { createRng } from '../../server/sim/rng.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
@@ -39,6 +40,9 @@ function randomIntent(rng, m, ps, large = false) {
     case 'g.art': return { t, itemUid: uid(), row: rng.int(19), col: rng.int(21) };
     case 'g.reward': return { t, idx: rng.int(6) };
     case 'g.choice': return { t, idx: rng.int(large ? SP_CARDS_MAX : 6) };
+    // FORK: the E.G.O pick (design/ego.md) — off in these matches, so every one is a WRONG_PHASE refusal
+    case 'g.trinket': return { t, idx: rng.int(EGO_OFFER_SIZE) };
+    case 'g.trinketRefresh': return { t };
     case 'g.ready': return { t, ready: rng() < 0.4 };
     case 'g.emote': return { t, id: rng.pick(EMOTES) };
     case 'g.watch': return { t, fieldId: rng.pick(large ? LARGE_WATCH : ['n:p_0', 'n:p_1', 'n:ai_0', 'u', 'b1', 'b2', 'zz', '']) };

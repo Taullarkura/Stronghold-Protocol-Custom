@@ -330,6 +330,10 @@ export class MatchPhases {
   }
 
   afterRoundStart() {
+    // FORK: the E.G.O 饰品 / 苦难 pick comes first on its own rounds, then the round continues as it always did
+    // (MatchEgoPick.afterEgoPick falls back to the 机变 draft / the prep). The room option decides whether it opens at all
+    // (Match.egoEnabled): with it off the round runs exactly the official sequence, so nothing else changes.
+    if (this.egoEnabled && this.gd.egoRounds.includes(this.round)) { this.enterEgoPick(); return; }
     if (this.gd.spRounds().includes(this.round)) this.enterSpDraft();
     else this.beforePrepOffers();
   }

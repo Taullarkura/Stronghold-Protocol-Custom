@@ -274,6 +274,25 @@ export class GameData {
   get choices() { return this.raw.choices && typeof this.raw.choices === 'object' ? this.raw.choices : {}; }
   get factions() { return this.raw.factions && typeof this.raw.factions === 'object' ? this.raw.factions : {}; }
 
+  // ---- FORK: E.G.O 饰品 / 苦难 (data/ego-trinkets.json, shared/ego.js) ------------------------------
+  /** The whole ego-trinkets file (`{ trinkets, hardships, tiers, rounds, bossRounds, bossDivisor, burn, kinds }`). */
+  get ego() { return this.raw['ego-trinkets'] && typeof this.raw['ego-trinkets'] === 'object' ? this.raw['ego-trinkets'] : null; }
+  /** A 饰品 record, or null. @param {unknown} id */
+  trinket(id) { return own(this.ego?.trinkets, id); }
+  /** A 苦难 record, or null. @param {unknown} id */
+  hardship(id) { return own(this.ego?.hardships, id); }
+  /** Rounds the E.G.O pick opens on (data: rounds; the todoList's 1 / 4 / 7 / 11). */
+  get egoRounds() { const r = this.ego?.rounds; return Array.isArray(r) ? r.filter(Number.isInteger) : []; }
+  /** Boss rounds that apply every player's hardship at one third. */
+  get egoBossRounds() { const r = this.ego?.bossRounds; return Array.isArray(r) ? r.filter(Number.isInteger) : []; }
+  /**
+   * The default a new room starts with (config.ego.enabled, data/config.json; off unless the build says otherwise). The
+   * pick is optional (todoList: 「该系统为可选项,可设定为启用或不启用」): the room option 「E.G.O 饰品与苦难」 (room.setEgo,
+   * Match.egoEnabled) overrides it per room. The records above stay readable either way — this only decides whether the
+   * pick opens, so turning it off costs no data and changes no other rule.
+   */
+  get egoEnabled() { const c = this.config.ego; return !!(c && typeof c === 'object' && c.enabled === true); }
+
   /**
    * The 补位 record of chess `id` (normal or elite; DATA.md §18): shared/standIn.js standInRecord over data/backups.json
    * — the chess's identity (ids, tier, bonds, 特质, price, merge) with its official stand-in's body (stats, range, skills

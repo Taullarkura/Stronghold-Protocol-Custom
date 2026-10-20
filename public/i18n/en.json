@@ -2409,5 +2409,14 @@
   "知道了": "Got it",
   "把游戏安装到桌面或主屏幕，像应用一样打开": "Install the game on your desktop or home screen and open it like an app",
   "在线 {online} 人 · 房间内 {inRoom} 人": "{online} online · {inRoom} in rooms",
-  "本服务器当前的在线人数，以及其中在房间里（含观战）的人数": "Players on this server right now, and how many of them are in a room (spectators included)"
+  "本服务器当前的在线人数，以及其中在房间里（含观战）的人数": "Players on this server right now, and how many of them are in a room (spectators included)",
+  "第 1 / 4 / 7 / 11 回合每位博士三选一获得饰品，苦难会削弱全队": "On rounds 1 / 4 / 7 / 11 every Doctor picks one of three Trinkets; Hardships weaken the whole team",
+  "E.G.O 饰品与苦难": "E.G.O Trinkets & Hardships",
+  "E.G.O 抉择": "E.G.O Pick",
+  "饰品": "Trinket",
+  "苦难": "Hardship",
+  "选择一件饰品与一项苦难": "Choose one Trinket and one Hardship",
+  "{n} 位博士尚未选择": "{n} Doctors have not chosen yet",
+  "花 1 资金重抽三选一": "Spend 1 fund to redraw all three",
+  "饰品强化我方，苦难强化敌方；第 14 / 15 回合苦难作用于全队，效果降为三分之一": "A Trinket strengthens you, a Hardship strengthens the enemies; on rounds 14 / 15 a Hardship reaches the whole team at a third of its values"
 }

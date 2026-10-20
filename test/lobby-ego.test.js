@@ -1,0 +1,162 @@
+// test/lobby-ego.test.js — the room option 「E.G.O 饰品与苦难」 (room.setEgo {on}; todoList/边狱巴士饰品系统（长期）.md
+// 「该局内系统为可选项,可设定为启用或不启用」): host-only, before the match only, **每局可选** — solo rooms have it too;
+// off by default (data/config.json config.ego.enabled), room.state.ego shows it to everybody, and the match gets it as
+// opts.ego when it starts (server/match/Match.js gates the phase on it — test/match/ego-pick.test.js).
+import { describe, test, before, after, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { startServer } from '../server/index.js';
+import { StubMatch } from '../server/match/StubMatch.js';
+import { TestClient } from './helpers/wsClient.js';
+import { ERR } from '../shared/constants.js';
+import { validateC2S } from '../shared/protocol.js';
+
+function clientPool(getUrl) {
+  const open = new Set();
+  return {
+    async connect() { const c = await TestClient.connect(getUrl()); open.add(c); return c; },
+    async player(name, token) {
+      const c = await this.connect();
+      const w = await c.hello(name, token);
+      c.id = w.playerId;
+      c.token = w.token;
+      return c;
+    },
+    async closeAll() {
+      await Promise.all([...open].map((c) => c.terminate().catch(() => {})));
+      open.clear();
+    },
+  };
+}
+const quietLog = () => {
+  const errors = [];
+  return { errors, log: { info() {}, warn() {}, debug() {}, error: (...a) => errors.push(a.map(String).join(' ')) } };
+};
+const ok = async (c, msg) => { const r = await c.request(msg); assert.equal(r.t, 'ok', `${msg.t}: ${JSON.stringify(r)}`); return r; };
+const err = async (c, msg, code) => { const r = await c.request(msg); assert.equal(r.t, 'error', JSON.stringify(r)); assert.equal(r.code, code, JSON.stringify(r)); return r; };
+const seatOf = (state, id) => state.seats.find((s) => s && s.playerId === id) || null;
+async function createRoom(c, mode = 'coop') {
+  await ok(c, { t: 'room.create', mode, difficulty: 'NORMAL' });
+  return c.waitFor('room.state', (s) => s.hostId === c.id && s.mode === mode);
+}
+async function joinRoom(c, code) {
+  await ok(c, { t: 'room.join', code });
+  return c.waitFor('room.state', (s) => s.code === code && !!seatOf(s, c.id));
+}
+
+/** StubMatch that records the options each match was started with. */
+const started = [];
+class RecordingMatch extends StubMatch {
+  constructor(opts) {
+    super(opts);
+    started.push(opts);
+  }
+}
+
+test('protocol: room.setEgo takes exactly a boolean `on`', () => {
+  assert.equal(validateC2S({ t: 'room.setEgo', on: true }), null);
+  assert.equal(validateC2S({ t: 'room.setEgo', on: false }), null);
+  for (const on of [undefined, null, 1, 0, 'true', 'yes', {}, []]) {
+    assert.notEqual(validateC2S({ t: 'room.setEgo', on }), null, JSON.stringify(on));
+  }
+});
+
+describe('room.setEgo (lobby)', () => {
+  let srv;
+  let pool;
+  const cap = quietLog();
+  before(async () => {
+    srv = await startServer({ port: 0, host: '127.0.0.1', log: cap.log, MatchClass: RecordingMatch, lobbyGraceMs: 60_000 });
+    pool = clientPool(() => `ws://127.0.0.1:${srv.port}/ws`);
+  });
+  afterEach(async () => { await pool.closeAll(); });
+  after(async () => {
+    await srv?.close();
+    assert.deepEqual(cap.errors, [], 'no server errors logged');
+  });
+
+  test('off by default (data config.ego.enabled); host-only; every seat sees it in room.state; a change un-readies the guests', async () => {
+    const host = await pool.player('Host');
+    const st = await createRoom(host);
+    assert.equal(st.ego, false, 'opt-in: the build default is off');
+    const guest = await pool.player('Guest');
+    const js = await joinRoom(guest, st.code);
+    assert.equal(js.ego, false);
+    await err(guest, { t: 'room.setEgo', on: true }, ERR.NOT_HOST);
+    await ok(guest, { t: 'room.ready', ready: true });
+    await host.waitFor('room.state', (s) => seatOf(s, guest.id)?.ready);
+    await ok(host, { t: 'room.setEgo', on: true });
+    const on = await guest.waitFor('room.state', (s) => s.ego === true);
+    assert.equal(seatOf(on, guest.id).ready, false, 'the rules changed: the guest confirms again');
+    await host.waitFor('room.state', (s) => s.ego === true);
+    // the same value again changes nothing (no broadcast needed, still ok)
+    await ok(host, { t: 'room.setEgo', on: true });
+    await ok(host, { t: 'room.setEgo', on: false });
+    await guest.waitFor('room.state', (s) => s.ego === false);
+    // a malformed value never reaches the lobby
+    await err(host, { t: 'room.setEgo', on: 'yes' }, ERR.BAD_MSG);
+  });
+
+  test('solo rooms have the option too (unlike AI 队友最后选择): one player picks just as well', async () => {
+    const host = await pool.player('Solo');
+    const st = await createRoom(host, 'solo');
+    assert.equal(st.ego, false);
+    await ok(host, { t: 'room.setEgo', on: true });
+    const on = await host.waitFor('room.state', (s) => s.ego === true);
+    assert.equal(on.ego, true);
+  });
+
+  test('the match gets opts.ego at the start; it cannot change during the match; the room keeps it for the next match and a new host', async () => {
+    const host = await pool.player('Host');
+    const st = await createRoom(host);
+    const guest = await pool.player('Guest');
+    await joinRoom(guest, st.code);
+    await ok(host, { t: 'room.addBot' });
+    await ok(host, { t: 'room.setEgo', on: true });
+    await ok(guest, { t: 'room.ready', ready: true });
+    await host.waitFor('room.state', (s) => s.ego && seatOf(s, guest.id)?.ready);
+    const n = started.length;
+    await ok(host, { t: 'room.start' });
+    await guest.waitFor('room.state', (s) => s.inMatch && s.ego === true);
+    assert.equal(started.length, n + 1);
+    assert.equal(started[n].ego, true, 'opts.ego');
+    await err(host, { t: 'room.setEgo', on: false }, ERR.ROOM_STARTED);
+    await err(guest, { t: 'room.setEgo', on: false }, ERR.NOT_HOST);
+    // the stub match ends once every human confirmed the briefing → back in the lobby with the option kept
+    guest.clearInbox();
+    await ok(host, { t: 'g.infoReady' });
+    await ok(guest, { t: 'g.infoReady' });
+    const back = await guest.waitFor('room.state', (s) => !s.inMatch);
+    assert.equal(back.ego, true);
+    // host migration keeps the room's settings
+    await ok(host, { t: 'room.leave' });
+    const migrated = await guest.waitFor('room.state', (s) => s.hostId === guest.id);
+    assert.equal(migrated.ego, true);
+    await ok(guest, { t: 'room.setEgo', on: false });
+    await guest.waitFor('room.state', (s) => s.ego === false);
+  });
+
+  test('without the option the match gets no ego key at all (a normal room\'s opts stay byte-identical)', async () => {
+    const host = await pool.player('Host');
+    await createRoom(host);
+    await ok(host, { t: 'room.addBot' });
+    const n = started.length;
+    await ok(host, { t: 'room.start' });
+    await host.waitFor('room.state', (s) => s.inMatch);
+    assert.equal(Object.hasOwn(started[n], 'ego'), false, 'omitted when off');
+  });
+
+  test('lobby option egoDefault flips the default a new room starts with', async () => {
+    const srv2 = await startServer({ port: 0, host: '127.0.0.1', log: quietLog().log, MatchClass: RecordingMatch, egoDefault: true });
+    const pool2 = clientPool(() => `ws://127.0.0.1:${srv2.port}/ws`);
+    try {
+      const host = await pool2.player('Host');
+      await ok(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+      const st = await host.waitFor('room.state', (s) => s.hostId === host.id);
+      assert.equal(st.ego, true);
+    } finally {
+      await pool2.closeAll();
+      await srv2.close();
+    }
+  });
+});

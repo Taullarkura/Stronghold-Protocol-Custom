@@ -25,7 +25,7 @@ const CACHE = join(ROOT, '.cache', 'gamedata');
 const HAS_CACHE = ['excel/activity_table.json', 'excel/character_table.json', 'excel/skill_table.json', 'excel/battle_equip_table.json',
   'levels/enemydata/enemy_database.json', 'levels/activities/act1autochess/level_autochess_enemy_data.json']
   .every((rel) => existsSync(join(CACHE, rel)));
-const FILES = ['config', 'chess', 'bonds', 'garrisons', 'items', 'bands', 'effects', 'choices', 'enemies', 'factions', 'waves', 'stages', 'bosses', 'tokens', 'backups'];
+const FILES = ['config', 'chess', 'bonds', 'garrisons', 'items', 'bands', 'effects', 'choices', 'enemies', 'factions', 'waves', 'stages', 'bosses', 'tokens', 'backups', 'ego-trinkets'];
 
 /** Load one data file (fails with a helpful message when the build has not run). */
 function load(name) {
@@ -922,6 +922,70 @@ test('independent re-derivation of every chess and enemy stat from the raw offic
     assert.equal(e.stats.atk, 400, `${k}: spawned with the season ATK`);
     assert.notEqual(e.attrPower, e.stats.maxHp + 5 * e.stats.atk + 3 * e.stats.def + 3 * e.stats.res, `${k}: power from the database ATK`);
   }
+});
+
+test('ego-trinkets.json (FORK): the E.G.O 饰品 / 苦难 records and the roll tables', () => {
+  const ego = D['ego-trinkets'];
+  // ids are the record keys, the effects are { kind, params } of a kind the sim reads
+  for (const map of ['trinkets', 'hardships']) {
+    const recs = ego[map];
+    assert.ok(recs && Object.keys(recs).length > 0, `${map} is empty`);
+    for (const [id, r] of Object.entries(recs)) {
+      assert.equal(r.id, id, `${map}.${id}: id`);
+      assert.ok([1, 2, 3].includes(r.tier), `${map}.${id}: tier ${r.tier}`);
+      assert.equal(typeof r.icon, 'string', `${map}.${id}: icon (the display name)`);
+      assert.ok(Array.isArray(r.effects) && r.effects.length, `${map}.${id}: effects`);
+      for (const e of r.effects) {
+        assert.ok(Object.hasOwn(ego.kinds, e.kind), `${map}.${id}: unknown kind ${e.kind}`);
+        const want = map === 'trinkets' ? 'own' : 'enemy';
+        assert.equal(ego.kinds[e.kind].target, want, `${map}.${id}: ${e.kind} is a ${ego.kinds[e.kind].target} kind`);
+        for (const k of Object.keys(e.params)) assert.ok(ego.kinds[e.kind].params.includes(k), `${map}.${id}: ${e.kind} has no param ${k}`);
+        for (const v of Object.values(e.params)) assert.ok(isFiniteNum(v), `${map}.${id}: ${e.kind} param not finite`);
+      }
+    }
+  }
+  // the tier ladder is the todoList's 60 / 30 / 10 and the pick rounds are 1 / 4 / 7 / 11
+  assert.deepEqual(ego.tiers.map((t) => t.weight), [60, 30, 10]);
+  assert.deepEqual(ego.tiers.map((t) => t.tier), [1, 2, 3]);
+  assert.deepEqual(ego.rounds, [1, 4, 7, 11]);
+  assert.deepEqual(ego.bossRounds, [14, 15]);
+  assert.equal(ego.bossDivisor, 3);
+  // 烧伤: the layer rule of the todoList (300 法术伤害 + 100 灼燃损伤 per second, 3 s per layer)
+  assert.equal(ego.burn.key, 'ego:burn');
+  assert.equal(ego.burn.perStack, 3);
+  assert.equal(ego.burn.dmg, 300);
+  assert.equal(ego.burn.chip, 100);
+});
+
+test('ego-trinkets.json (FORK): every record of the 2026-10-20 design is there, and every kind has a reader', async () => {
+  const ego = D['ego-trinkets'];
+  const { TRINKETS, HARDSHIPS, EFFECT_KINDS } = await import('../shared/ego.js');
+  const { unhandledKinds, EXTERNAL_KINDS } = await import('../server/sim/content/ego.js');
+  // the build writes exactly the hand-written catalogue (shared/ego.js), id for id
+  assert.deepEqual(Object.keys(ego.trinkets).sort(), TRINKETS.map((r) => r.id).sort());
+  assert.deepEqual(Object.keys(ego.hardships).sort(), HARDSHIPS.map((r) => r.id).sort());
+  assert.deepEqual(Object.keys(ego.kinds).sort(), Object.keys(EFFECT_KINDS).sort(), 'the closed vocabulary');
+  // no kind is dead data: each one is read by the sim (the spawn two by combat.js) or the build warns about nothing
+  assert.deepEqual(unhandledKinds(), [], 'every kind has a reader');
+  assert.ok(EXTERNAL_KINDS.every((k) => Object.hasOwn(EFFECT_KINDS, k)), 'the external kinds are catalogue kinds');
+  // the 烧伤 school: 6 trinkets, tier I / I / II / II / III / III
+  assert.deepEqual(Object.values(ego.trinkets).map((r) => `${r.tier}:${r.id}`).sort(), [
+    '1:dust-to-dust', '1:smothered-flame', '2:ashes-to-ashes', '2:searing-feather', '3:flame-scales', '3:soul-repose',
+  ]);
+  // the 苦难 ladder: 18 records, 锐利 / 强韧 / 顽强 in I / II / III, the rest one tier each
+  assert.equal(Object.keys(ego.hardships).length, 18);
+  for (const family of ['sharpness', 'toughness', 'tenacity']) {
+    assert.deepEqual([1, 2, 3].map((t) => ego.hardships[`${family}-${t}`].tier), [1, 2, 3], `${family}: I / II / III`);
+  }
+  // 「苦难对于敌方属性的加成共用一个乘区」: one enemyMods record per stat family, never a *_Mul kind
+  for (const r of Object.values(ego.hardships)) {
+    for (const e of r.effects) assert.notEqual(e.kind, 'enemyMul', `${r.id}: additive kinds only`);
+  }
+  // 锐利 I + II = +45 % 攻击力 (the owner's example), through the sim reader
+  const { enemyModsOf } = await import('../server/sim/content/ego.js');
+  const sum = { atk: 0, def: 0, hp: 0, aspd: 0, res: 0, moveSpeed: 0, dmgDealt: 0, physTaken: 0, artsTaken: 0 };
+  for (const id of ['sharpness-1', 'sharpness-2']) for (const e of ego.hardships[id].effects) for (const [k, v] of Object.entries(e.params)) sum[k] = (sum[k] || 0) + v;
+  assert.equal(enemyModsOf(sum).atkPct, 0.45, '+45 %, not 1.15 × 1.30');
 });
 
 test('offline rebuild reproduces data/ byte-for-byte (data/ is not stale)', { skip: (!HAS_CACHE && 'no .cache/gamedata') || (process.env.DATA_DIR && 'DATA_DIR set') }, (t) => {

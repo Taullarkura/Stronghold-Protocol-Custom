@@ -9,6 +9,7 @@ import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
 import { isTestCommand } from './testMode.js';
 import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
+import { EGO_OFFER_SIZE } from './ego.js';
 
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -529,6 +530,10 @@ export const C2S = {
   // the co-op room option 「AI 队友最后选择」 (GitHub #338; host, before the match): the strategy and 机变 drafts order every
   // human seat before every AI seat (server/match/match/phases.js humansFirst); room.state.aiPicksLast
   'room.setAiPicksLast': { on: isBool },
+  // FORK: the room option 「E.G.O 饰品与苦难」 (todoList/边狱巴士饰品系统（长期）.md; host, before the match, solo or co-op):
+  // the 饰品 / 苦难 pick on rounds 1 / 4 / 7 / 11 (server/match/match/egoPick.js) and the boss-round hardship scaling;
+  // room.state.ego carries it, Match opts.ego fixes it for the match
+  'room.setEgo': { on: isBool },
   'room.addBot': {},
   'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the
@@ -602,6 +607,10 @@ export const C2S = {
   'g.unequip': { itemUid: isUid },
   'g.reward': { idx: (v) => isInt(v, 0, 5) },
   'g.choice': { idx: (v) => isInt(v, 0, SP_CARDS_MAX - 1), choiceId: isId, $optional: ['choiceId'] },
+  // FORK: the E.G.O 饰品 / 苦难 pick (PHASE.EGO_PICK). `pickId` is the seat id the client was shown, so a stale overlay
+  // cannot pick against a refreshed offer (MatchEgoPick.pickEgo / refreshEgo).
+  'g.trinket': { idx: (v) => isInt(v, 0, EGO_OFFER_SIZE - 1), pickId: optional(isId) },
+  'g.trinketRefresh': { pickId: optional(isId) },
   // a plugin interaction window (PLUGIN API v2, docs/PLUGINS.md §10b): offerId is the window's declared id, idx the
   // slot picked; g.offerRefresh redraws one slot (the window's own `refresh.perSlot` bounds how often). The host
   // applies the window's declared effect primitive — a plugin never receives these messages itself.

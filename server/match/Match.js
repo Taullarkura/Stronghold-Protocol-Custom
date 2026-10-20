@@ -15,6 +15,10 @@
 //   opts.aiPicksLast boolean (optional)         the co-op room option 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338):
 //                                              the strategy and 机变 drafts put every human seat before every AI seat
 //                                              (MatchPhases.humansFirst); only `true` turns it on; ignored in solo
+//   opts.ego         boolean (optional)         FORK: the room option 「E.G.O 饰品与苦难」 (room.setEgo) — the 饰品 / 苦难
+//                                              pick on rounds 1 / 4 / 7 / 11 and the boss-round hardship scaling. Absent
+//                                              ⇒ config.ego.enabled from data/config.json (off by default), so a caller
+//                                              that does not pass it plays exactly the official rules.
 //   opts.seats       Array<{ seat: 0..MAX_SEATS−1, playerId: string, name: string, isBot: boolean, connected: boolean,
 //                            loadout?: { [baseChessId]: { skill: index, module: uniEquipId|'none'|null } } | null,
 //                            ops?: { [charId]: { potential: 1–6, cultivate: 0–3 } } | null,
@@ -247,6 +251,7 @@ import { MatchPause } from './match/pause.js';
 import { MatchPhases } from './match/phases.js';
 import { MatchSetupVote } from './match/setupVote.js';
 import { MatchSpDraft } from './match/spDraft.js';
+import { MatchEgoPick } from './match/egoPick.js';
 import { MatchPrep } from './match/prep.js';
 import { MatchCombat } from './match/combat.js';
 import { MatchClientCombat } from './match/clientCombat.js';
@@ -335,6 +340,12 @@ export class Match {
     this.isSolo = this.mode === 'solo' || this.gd.isSolo;
     /** 「AI 队友最后选择」 (opts.aiPicksLast, GitHub #338): humans draft before AI seats (MatchPhases.humansFirst) */
     this.aiPicksLast = !this.isSolo && opts.aiPicksLast === true;
+    /**
+     * FORK: the E.G.O 饰品 / 苦难 pick (opts.ego, the room option room.setEgo). Absent ⇒ the build's default
+     * (GameData.egoEnabled, data/config.json config.ego.enabled — off today), so every other `new Match(opts)` caller
+     * (golden, balance, testReplay, …) keeps its old behaviour without passing anything.
+     */
+    this.egoEnabled = opts.ego != null ? opts.ego === true : this.gd.egoEnabled;
     this.ownsScheduler = !opts.scheduler;
     this.sched = opts.scheduler || new RealScheduler({ now: opts.now || Date.now, onError: (e) => this.reportError('timer', e) });
     this.registry = opts.registry || getDefaultRegistry();
@@ -549,7 +560,7 @@ export class Match {
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)
-for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchTestCommands, MatchOffers]) {
+for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchSpDraft, MatchEgoPick, MatchPrep, MatchCombat, MatchClientCombat, MatchRehearsal, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchTestCommands, MatchOffers]) {
   for (const key of Reflect.ownKeys(part.prototype)) {
     if (key === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Match.prototype, key)) throw new Error(`Match.${String(key)} is defined twice`);

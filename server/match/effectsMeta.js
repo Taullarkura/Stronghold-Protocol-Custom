@@ -71,7 +71,7 @@ export const GARRISON_HOOK = Object.freeze({
   SERVER_REFRESH_SHOP: 'onRefresh',
 });
 
-const KEY_RE = /^(garrison|band|bond|item|choice|effect|global):[A-Za-z0-9_\-.:#]+$/;
+const KEY_RE = /^(garrison|band|bond|item|choice|effect|global|ego):[A-Za-z0-9_\-.:#]+$/;
 export const MAX_DEPTH = 6;
 
 export class MetaRegistry {
@@ -113,6 +113,10 @@ export class MetaRegistry {
   choice(effectId, h) { return this.register(`choice:${effectId}`, h); }
   effect(id, h) { return this.register(`effect:${id}`, h); }
   global(name, h) { return this.register(`global:${name}`, h); }
+  /** FORK: an E.G.O 饰品's prep-side effect (server/sim/content/ego.js trinketHandler). */
+  trinket(id, h) { return this.register(`ego:${id}`, h); }
+  /** FORK: an E.G.O 苦难's prep-side effect (server/sim/content/ego.js hardshipHandler — 通货膨胀). */
+  hardship(id, h) { return this.register(`ego:hs:${id}`, h); }
 
   globals() {
     const out = [];

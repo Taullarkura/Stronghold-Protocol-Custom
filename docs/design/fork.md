@@ -1,7 +1,7 @@
-# DESIGN §F1, §F2, §F3, §F4, §F5, §F6 — This fork's own sections (BBleae/Stronghold-Protocol)
+# DESIGN §F1, §F2, §F3, §F4, §F5, §F6, §F7, §F8, §F9, §F10, §F11, §F12, §F13, §F14, §F15, §F16 — This fork's own sections (BBleae/Stronghold-Protocol)
 
 Part of [DESIGN.md](../DESIGN.md) (the index). Upstream's section numbers are global and stay as upstream gives them;
-this fork's own sections have fork ids, §F1 … §F6, so they never take a number upstream gives a later release. Code,
+this fork's own sections have fork ids, §F1 … §F16, so they never take a number upstream gives a later release. Code,
 tests and the other documents cite them as "DESIGN §F1.4" and so on.
 
 **Ids before 2026-10-08.** Until the merge of upstream 0.2.1 the fork numbered these sections inside the global sequence
@@ -764,3 +764,60 @@ both bring a large client surface that would have to be maintained forever.
 `POST /studio/api/forge/*` routes, the 「从 Forge 包导入」 button and `public/studio/js/forge.js` are removed, while
 the importer stays a library the CLI (`node tools/plugin.mjs import-forge`) and the plugin tests use [ASSUMED].
 The workbench templates and the test console are removed whole in the commits after the merge.
+
+## F16. The 2026-10-19 plan — E.G.O 饰品 and 苦难, an opt-in pick of three
+
+**Plan.** The owner's long-running note `todoList/边狱巴士饰品系统（长期）.md` (2026-10-19): a new in-match system, 「可
+设定为启用或不启用」. On rounds **1 / 4 / 7 / 11** every alive player separately picks one of three options, each pairing
+one **E.G.O 饰品** (a global effect for the picker) with one **苦难** (a buff for that picker's enemies). A refresh costs
+1 资金 of the picker's own funds, at most twice per pick. Trinkets and hardships come in three tiers rolled 60 / 30 / 10 %,
+the tier first and the record uniformly inside it. At the boss rounds (14 / 15) every player's hardships apply to
+everyone at one third, floored.
+
+**Why.** The fork wanted a between-rounds decision that is each player's own — a 决断-like screen, but one per seat and
+paid from one's own pocket — so a co-op table argues about nothing. The trinket and its hardship are one deal: a buff is
+always paid for by making that player's own enemies stronger, which is also what keeps the mode from being a free
+power-up.
+
+**How.** The rules live in `shared/ego.js` (`EFFECT_KINDS`, a closed effect vocabulary of `{ kind, params }`; `EGO_TIERS`;
+`BURN`; `EGO_ROUNDS` / `EGO_BOSS_ROUNDS` / `EGO_BOSS_DIVISOR`; `rollEgoOffer`; `scaleEgoEffects`; `validateEgo`) and are
+generated into `data/ego-trinkets.json` by `tools/build-data.mjs buildEgoTrinkets()` — never hand-edited. The phase is
+`server/match/match/egoPick.js` (`PHASE.EGO_PICK`, installed on `Match.prototype`), reached from
+`phases.js afterRoundStart` before the 机变 draft; each seat draws from its own stream
+(`deriveSeed(seed, 'ego:<round>:<seat>:<salt>')`, so no turn order and no cross-seat interference) and the offer rides
+`m.private.ego`. The battle side is `server/sim/content/ego.js` (`installOwn` / `installEnemy`, `applyBurn`), the prep side is
+`trinketHandler` / `hardshipHandler` through `effectsMeta.js` (`registry.trinket(id, …)` / `registry.hardship(id, …)`,
+keys `ego:<id>` / `ego:hs:<id>`). Hardships are stored full strength with `scope: 'own'` and scaled to `'all'` at the boss rounds by
+`PlayerState._effectRef`; 联防 uses the helping player's own hardships, since the ref travels with their battle input.
+The room option is 「E.G.O 饰品与苦难」 (`room.setEgo`, `Room.ego`, `room.state.ego`, `Match.egoEnabled`, `opts.ego`) and it
+is **off by default** (`config.ego.enabled` false), so a normal match never opens the phase. The reference for the data and
+the code below it is [ego.md](ego.md).
+
+**The catalogue (2026-10-20).** The owner then wrote the effects out: six 饰品 of the **烧伤 school**
+(尘归尘 I / 郁火 I / 土归土 II / 炽热的羽毛 II / 炎鳞 III / 镇魂 III) and **eighteen 苦难** (锐利 I–III, 折射 I–II, 强韧 I–III,
+顽强 I–III, 等级强化 I, 通货膨胀 I, 怎么，打不中吗？ I, 极速 II, 超负荷 II, 过人的毅力 II, 过度生长 III). Two of his calls are
+load-bearing and are pinned by the code, not left to the data:
+
+- **烧伤 is a clock, not a stack of damage.** One status carries `stacks` layers and the sim spends one layer every
+  `BURN.perStack` seconds (3), so N layers last N × 3 s and the last one expires the status; the per-second damage is a
+  **fixed** 300 法术伤害 + 100 灼燃损伤 whatever the layer count (「每秒伤害恒为 300 + 100，每层只延长 3 秒」). 炎鳞's
+  parting burst counts only the layers the clock spent, never the ones its own detonation ate (「使用正常通过时间消耗的
+  烧伤层数（不计算炎鳞消耗的）」).
+- **苦难 stat bonuses share one additive bucket.** 锐利 I + 锐利 II is 攻击力 **+45 %**, never 1.15 × 1.30, so
+  `enemyModsOf` writes `atkPct` / `defPct` / `hpPct` (the additive keys) and never the `*Mul` ones. The records are
+  independent rows — 不选 锐利 I 也能选 锐利 II — and the list keeps growing (「这只是部分饰品」), which is why an option is
+  still a 饰品 + 苦难 **pair** drawn from two tables instead of a fixed roster.
+
+**What the tests pin.** `test/match/ego-pick.test.js` — the gate (off unless the build or the room says so, and only a
+real boolean turns it on), the rounds (1 / 4 / 7 / 11, data-driven), a three-option offer per seat, the trinket and the
+hardship both landing in `ps.effects` with their `iconKind: 'ego'`, the refresh economy (own funds, twice, then `RATE`;
+`NO_FUNDS` at 0), the error paths (`WRONG_PHASE` / `ALREADY` / a stale `pickId` / an out-of-range idx), the wire
+(`m.private.ego` reaching the picker, `m.public.ego` naming who is deciding), the deadline taking everyone's first option,
+an AI seat picking on its own, a solo match untimed, a hardship scaling 1/3 and widening at round 14, and that the option
+off changes nothing at all (the same end and the same rng draws) — and `test/lobby-ego.test.js` — the protocol accepting
+only booleans, the default off, host-only, a change clearing the other humans' Ready, solo rooms having the option too,
+and a plain room's match opts carrying no `ego` key at all. `test/content/ego.test.js` pins the battle and prep
+side of every kind the catalogue uses: the burn clock (3 s per layer, the fixed tick, a second application extending the
+life and not the damage, 土归土 / 镇魂's span and amplitude), 炎鳞's three clauses, 郁火's five independent haste layers,
+炽热的羽毛's two chances, each 苦难's stat line with the additive check, 折射 and its 免疫沉默 variant on an enemy that
+already refracts, 超负荷's drain and its three immunities, 过人的毅力, 过度生长, and 通货膨胀's deterministic per-slot roll.

@@ -39,6 +39,9 @@ export class MatchIntents {
       case 'g.choice': return msg.choiceId !== undefined
         ? this.pickPersonalChoice(ps, msg.idx, msg.choiceId)
         : this.pickCard(ps, msg.idx);
+      // FORK: the E.G.O 饰品 / 苦难 pick (MatchEgoPick, PHASE.EGO_PICK)
+      case 'g.trinket': return this.pickEgo(ps, msg.idx, msg.pickId);
+      case 'g.trinketRefresh': return this.refreshEgo(ps, msg.pickId);
       // a plugin interaction window (PLUGIN API v2, docs/PLUGINS.md §10b): the window's own id, not a draft card —
       // the host applies the declared primitive, a plugin never reaches the match state itself
       case 'g.offer': return this.requestOffer(ps, msg.offerId, msg.idx, msg);
@@ -88,6 +91,7 @@ export class MatchIntents {
     if (this.phase === PHASE.INFO_CHECK && !ps.infoReady) { ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
     else if (this.phase === PHASE.BAND_DRAFT && this.draftTurn() === ps.playerId) this.scheduleBandBot();
     else if (this.phase === PHASE.SP_DRAFT && this.spTurn() === ps.playerId) this.scheduleSpBot();
+    else if (this.phase === PHASE.EGO_PICK && ps.alive && this.egoSeat(ps)?.picked == null) this.scheduleEgoBot(ps);
     else if (this.phase === PHASE.PREP && ps.alive && !ps.ready) this.scheduleBotPrep(ps, 0);
   }
 
@@ -100,12 +104,12 @@ export class MatchIntents {
    * stepped: deployment skills contribute their initial stats but their timers do not advance. No SP / skill timer is
    * sent, and the real battle gets fresh units. Pushed to the player as `m.unitStats { seq, round, units }`
    * (units: shared/protocol.js unitStatsEntry, board operators and summons by uid); cached per input (a build costs
-   * ≈ 0.3–0.7 ms). Prep phases only (ROUND_START, 机变, PREP); a battle's live stats come from the browser's own sim.
+   * ≈ 0.3–0.7 ms). Prep phases only (ROUND_START, 机变, E.G.O 抉择, PREP); a battle's live stats come from the browser's own sim.
    * @param {PlayerState} ps @param {number|null} seq echoed (the client keeps the newest answer)
    */
   unitStats(ps, seq = null) {
     if (!ps.alive) return fail(ERR.ELIMINATED);
-    if (this.phase !== PHASE.ROUND_START && this.phase !== PHASE.SP_DRAFT && this.phase !== PHASE.PREP) return fail(ERR.WRONG_PHASE);
+    if (this.phase !== PHASE.ROUND_START && this.phase !== PHASE.SP_DRAFT && this.phase !== PHASE.EGO_PICK && this.phase !== PHASE.PREP) return fail(ERR.WRONG_PHASE);
     const units = this._unitStatsOf(ps);
     this.sendTo(ps.playerId, { t: 'm.unitStats', seq: Number.isInteger(seq) ? seq : null, round: this.round, units });
     return OK;

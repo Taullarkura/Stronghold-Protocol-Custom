@@ -116,6 +116,19 @@ export function aiLastOption(room, myId) {
   return { on: room.aiPicksLast === true, editable: room.hostId != null && room.hostId === myId };
 }
 
+/**
+ * FORK: the room option 「E.G.O 饰品与苦难」 (room.setEgo, room.state.ego; todoList/边狱巴士饰品系统（长期）.md): the 饰品 /
+ * 苦难 pick on rounds 1 / 4 / 7 / 11 plus the boss-round hardship scaling. It exists in solo rooms too (one player picks
+ * just as well), so — unlike aiLastOption — there is no solo null; a server that sends no `ego` reads as off, so an old
+ * server still draws the switch in its default state.
+ * @param {any} room room.state payload
+ * @param {any} myId
+ * @returns {{ on: boolean, editable: boolean }}
+ */
+export function egoOption(room, myId) {
+  return { on: room?.ego === true, editable: room?.hostId != null && room.hostId === myId };
+}
+
 /** Invite link for a room code (current page URL with ?room=CODE). */
 export function inviteLink(code) {
   const loc = globalThis.location;
@@ -276,6 +289,20 @@ function AiLastToggle({ option, busy, onToggle }) {
   </div>`;
 }
 
+/** FORK: the 「E.G.O 饰品与苦难」 switch (solo and co-op): the host toggles it, everybody else sees its state. */
+function EgoToggle({ option, busy, onToggle }) {
+  return html`<div class="ailast ego-opt">
+    <${Tooltip} text=${t('第 1 / 4 / 7 / 11 回合每位博士三选一获得饰品，苦难会削弱全队')}>
+      <button type="button" role="switch" aria-checked=${option.on ? 'true' : 'false'}
+          class=${`dpick__opt ailast__opt${option.on ? ' is-active' : ''}`} disabled=${!option.editable || !!busy}
+          onClick=${() => option.editable && onToggle(!option.on)}>
+        <${Icon} name="check" class=${option.on ? 'is-on' : ''} />${t('E.G.O 饰品与苦难')}
+      </button>
+    <//>
+    ${option.editable ? null : html`<span class="t-dim">${t('由创建者设置')}</span>`}
+  </div>`;
+}
+
 /** Room screen component. */
 export function RoomScreen() {
   const room = useStore((s) => s.room);
@@ -321,6 +348,7 @@ export function RoomScreen() {
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
   const setCapacity = (capacity) => run('cap', () => net.request('room.setCapacity', { capacity }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
+  const setEgo = (on) => run('ego', () => net.request('room.setEgo', { on }));
   /**
    * 匹配 (matchmaking): the room this player was put in starts on its own — the host fills the seats the queue could not
    * fill with AI teammates, waits until everybody else who was matched is connected and ready, and then starts. The
@@ -465,6 +493,7 @@ export function RoomScreen() {
         <div class="room-bar__opts">
           <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
           <${AiLastToggle} option=${aiLastOption(room, me.playerId)} busy=${busy} onToggle=${setAiLast} />
+          <${EgoToggle} option=${egoOption(room, me.playerId)} busy=${busy} onToggle=${setEgo} />
         </div>
         ${coop && facts.isHost ? html`<span class="room-bar__label">${t('同盟席位')}<${MicroLabel}>SEATS<//></span>
           <${CapacityPicker} facts=${facts} busy=${busy} onPick=${setCapacity} />` : null}

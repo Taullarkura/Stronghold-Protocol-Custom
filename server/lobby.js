@@ -14,7 +14,7 @@
 //     players do). room.state carries `capacity` (= seats.length).
 //   * ▸ Being in a LOBBY room and sending room.create / room.join implicitly leaves it. While your room is
 //     in a match, create/join of another room fails with ROOM_STARTED (send g.leave or room.leave first).
-//   * Host-only: room.setDifficulty, room.setCapacity, room.setAiPicksLast, room.addBot, room.removeBot, room.kick,
+//   * Host-only: room.setDifficulty, room.setCapacity, room.setAiPicksLast, room.setEgo, room.addBot, room.removeBot, room.kick,
 //     room.start. ▸ Changing the difficulty or the AI-picks-last option (co-op only) un-readies the other humans;
 //     room.setCapacity (co-op) never goes below the occupied seats and un-readies nobody (above).
 //     ▸ room.start requires every other human to be connected and ready; the host's start counts as the host's
@@ -313,6 +313,13 @@ export class Room {
      * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
      */
     this.aiPicksLast = false;
+    /**
+     * FORK: 「E.G.O 饰品与苦难」 (room.setEgo) — the 饰品 / 苦难 pick (Match opts.ego, PHASE.EGO_PICK on rounds 1 / 4 / 7 / 11
+     * plus the boss-round hardship scaling). Optional by design (todoList/边狱巴士饰品系统（长期）.md): a new room starts
+     * at the build's default (data/config.json config.ego.enabled, off today; Lobby.egoDefault decides) and the host flips
+     * it before the match. Kept across the room's matches.
+     */
+    this.ego = false;
     /** @type {string | null} */
     this.hostId = null;
     /**
@@ -410,6 +417,8 @@ export class Room {
       // the room's player seats (= seats.length): co-op DEFAULT_SEATS..MAX_SEATS, solo 1
       capacity: this.capacity,
       aiPicksLast: this.aiPicksLast,
+      // FORK: the room option 「E.G.O 饰品与苦难」 (true / false, always present so the client can draw the switch)
+      ego: this.ego,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left,
@@ -815,6 +824,7 @@ export class Lobby {
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.setCapacity': return this.setCapacity(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
+      case 'room.setEgo': return this.setEgo(session, msg);
       case 'room.addBot': return this.addBot(session);
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
@@ -1112,6 +1122,8 @@ export class Lobby {
     const room = new Room(code, mode, difficulty, this.now(), coopCapacity(capacity));
     room.test = test === true;
     room.content = this.vanilla;
+    // FORK: the room option 「E.G.O 饰品与苦难」 starts at the lobby's default (Room.ego, egoDefault)
+    room.ego = this.egoDefault();
     // the server's own content (DESIGN §F14): the policy's `default` plus every installed gameplay plugin; a lobby wired
     // without a policy has none — the original game
     const defaults = this.plugins?.defaults?.() || [];
@@ -1280,6 +1292,25 @@ export class Lobby {
     this.dropReplay(room, session.playerId);
     if (room.aiPicksLast !== on) {
       room.aiPicksLast = on;
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /**
+   * FORK: 「E.G.O 饰品与苦难」 (room.setEgo): host-only, before the match — in a solo room too (unlike aiPicksLast, the
+   * pick exists for one player just as well). A change un-readies the other humans like the difficulty does, and the host's
+   * result replay is dropped so a stale settlement screen cannot hide it.
+   */
+  setEgo(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    this.dropReplay(room, session.playerId);
+    if (room.ego !== on) {
+      room.ego = on;
       for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
       this.broadcastState(room);
     }
@@ -1791,6 +1822,9 @@ export class Lobby {
         modeId: room.content?.modeId || modeIdFor(room.mode, room.difficulty),
         // 「AI 队友最后选择」 (GitHub #338): fixed for the match
         aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true,
+        // FORK: the room option 「E.G.O 饰品与苦难」 (room.setEgo): fixed for the match; omitted when off so a normal
+        // opts object stays identical and every other new Match(opts) caller keeps the official rules
+        ...(room.ego === true ? { ego: true } : {}),
         seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),
@@ -2074,6 +2108,16 @@ export class Lobby {
     if (typeof o === 'number' && Number.isFinite(o) && o > 0) return o;
     const sec = this.safeData()?.config?.constants?.singleReconnectTime;
     return (typeof sec === 'number' && Number.isFinite(sec) && sec > 0 ? sec : SOLO_RECONNECT_FALLBACK_SEC) * 1000;
+  }
+
+  /**
+   * FORK: whether a new room starts with 「E.G.O 饰品与苦难」 on — the `egoDefault` option, else data config.ego.enabled,
+   * else off (the option is opt-in: todoList/边狱巴士饰品系统（长期）.md).
+   */
+  egoDefault() {
+    const o = this.opts.egoDefault;
+    if (typeof o === 'boolean') return o;
+    return this.safeData()?.config?.ego?.enabled === true;
   }
 
   // ---------------------------------------------------------------------------------------------------

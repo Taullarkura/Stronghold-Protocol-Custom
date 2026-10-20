@@ -25,7 +25,9 @@ const LOBBY_OPTION_KEYS = ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMa
   // 匹配 (matchmaking queue): the timings a test (or a tweaked deployment) may override
   'queueTickMs', 'queueMinSeats', 'queueGraceMs', 'queueTimeoutMs', 'queueSilentMs',
   // 在线人数 (presence counters, title footer / lobby top bar): the push interval
-  'presenceTickMs'];
+  'presenceTickMs',
+  // FORK: the default of the room option 「E.G.O 饰品与苦难」 (else data config.ego.enabled, else off — Lobby.egoDefault)
+  'egoDefault'];
 
 /**
  * Bind address used when neither the `host` option nor `HOST` says otherwise: one dual-stack socket, so the server

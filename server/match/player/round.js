@@ -8,6 +8,7 @@
 
 import { boardOrder, pieceDir } from '../board.js';
 import { computeBonds, bondSnapshot, activatedLayers, bondsWithGains } from '../bondsMeta.js';
+import { scaleEgoEffects, EGO_BOSS_DIVISOR } from '../../../shared/ego.js';
 
 export class PlayerRound {
   startRound(r) {
@@ -175,10 +176,23 @@ export class PlayerRound {
       units,
       bonds: bondSnapshot(reached ? this.bondsView() : this.bonds),
       bandId: this.bandId,
-      playerEffects: this.effects.filter((e) => e.battle !== false).map((e) => ({
-        id: e.id, key: e.key ?? null, source: e.iconKind ?? null, params: e.params ?? null, counter: e.counter ?? null, data: e.data ?? null,
-      })),
+      playerEffects: this.effects.filter((e) => e.battle !== false).map((e) => this._effectRef(e)),
       deviceOverrides: { ...this.deviceOverrides },
     };
+  }
+
+  /**
+   * One EffectRef for the battle input. FORK: an E.G.O 苦难 (`ego:hs:<id>`) is scaled to one third on the boss rounds and
+   * widened to every enemy of that field (todoList: 14/15 回合 boss 适用所有玩家苦难，效果削弱为 1/3); outside those rounds
+   * it stays at full strength on the owner's own half. The stored record never changes — the copy does.
+   */
+  _effectRef(e) {
+    const ref = { id: e.id, key: e.key ?? null, source: e.iconKind ?? null, params: e.params ?? null, counter: e.counter ?? null, data: e.data ?? null };
+    if (typeof e.key === 'string' && e.key.startsWith('ego:hs:') && e.params && this.m.egoEnabled) {
+      const boss = this.gd.egoBossRounds.includes(this.m.round);
+      const effects = boss ? scaleEgoEffects(e.params.effects || [], EGO_BOSS_DIVISOR) : e.params.effects;
+      ref.params = { ...e.params, effects, scope: boss ? 'all' : 'own' };
+    }
+    return ref;
   }
 }

@@ -49,6 +49,7 @@ import {
 import { DIY_ONLY_OPERATORS, diyOnlyChessIds } from '../shared/diyOnly.js';
 import { extendedGrid } from '../shared/loadoutRecord.js';
 import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
+import { TRINKETS, HARDSHIPS, EGO_TIERS, EGO_ROUNDS, EGO_BOSS_ROUNDS, EGO_BOSS_DIVISOR, BURN, EFFECT_KINDS, validateEgo } from '../shared/ego.js';
 import { createOfficialUnitBuilders } from '../server/plugins/officialUnitBuilder.js';
 
 // ===== CLI & IO ==================================================================================
@@ -3239,6 +3240,40 @@ function enemyScaleFor(table, type, difficulty, round, isHidden) {
 }
 
 /**
+ * Build data/ego-trinkets.json — FORK: the E.G.O 饰品 / 苦难 pick (todoList/边狱巴士饰品系统（长期）.md). The records are
+ * hand-written in shared/ego.js (the owner is still writing the effects); this only stamps the shape the server reads:
+ * `{ trinkets, hardships, tiers, rounds, bossRounds, bossDivisor, burn, kinds }` with each record's effects already in
+ * `{ kind, params }` form. An unknown effect kind (no reader in server/sim/content/ego.js) fails the build.
+ */
+function buildEgoTrinkets() {
+  const trinkets = {}, hardships = {};
+  for (const rec of TRINKETS) trinkets[rec.id] = egoRecord(rec);
+  for (const rec of HARDSHIPS) hardships[rec.id] = egoRecord(rec);
+  for (const m of validateEgo(TRINKETS, HARDSHIPS)) warn(`ego: ${m}`);
+  // the tiers' roll weights must sum to 100 (the todoList's 60 / 30 / 10) — a typo here silently bends every offer
+  const total = EGO_TIERS.reduce((a, t) => a + t.weight, 0);
+  if (total !== 100) warn(`ego: tier weights sum to ${total}, expected 100`);
+  return {
+    trinkets, hardships,
+    tiers: EGO_TIERS.map((t) => ({ tier: t.tier, name: t.name, weight: t.weight })),
+    rounds: [...EGO_ROUNDS],
+    bossRounds: [...EGO_BOSS_ROUNDS],
+    bossDivisor: EGO_BOSS_DIVISOR,
+    burn: { ...BURN },
+    // the closed kind vocabulary (docs/design/ego.md §2): the client labels a card from this
+    kinds: Object.fromEntries(Object.entries(EFFECT_KINDS).map(([k, v]) => [k, { target: v.target, params: [...v.params] }])),
+  };
+}
+
+/** One trinket / hardship record as data.json holds it (id-keyed, effects deep-copied, no frozen objects). */
+function egoRecord(rec) {
+  return {
+    id: rec.id, name: rec.name, tier: rec.tier, icon: rec.icon, desc: rec.desc,
+    effects: rec.effects.map((e) => ({ kind: e.kind, params: { ...e.params } })),
+  };
+}
+
+/**
  * Build data/config.json: modes (rounds, timers, shop, enemy scaling), economy, bans, timers,
  * titles, tips, broadcasts, trophies and other global tunables.
  */
@@ -3390,6 +3425,11 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
     unite: { maxHelpers: 2, helperOrder: 'unitsOnField>activeBond>undownedUnits; pair: unitsOnField>activeBond>activeLayers>undownedUnits, first = right field (PRTS 帮助)', layerGainsEnabled: false, keepsHpSpPositions: true, leakedEnemyFullHp: true,
       templates: { 1: templateIdOf(act.constData.escapedBattleTemplateMapSinglePlayer), 2: templateIdOf(act.constData.escapedBattleTemplateMapMultiPlayer) } },
     finalAssault: { pairing: 'seatOrderPairs', oddPlayerAlone: true, movableBossPerAlivePlayerSide: true, layerGainsEnabled: false },
+    // FORK: the E.G.O 饰品 / 苦难 pick is opt-in (todoList/边狱巴士饰品系统（长期）.md: 「该系统为可选项,可设定为启用或不
+    // 启用」). `enabled` is only the default a new room starts with — the room option 「E.G.O 饰品与苦难」 (room.setEgo)
+    // flips it per room, and the match reads the room's value. Everything else the pick needs (rounds, tiers, records,
+    // the burn rules) lives in data/ego-trinkets.json, so turning it off here drops no data.
+    ego: { enabled: false },
     timers: {
       infoCheck: step('INFO_CHECK')?.time ?? 25, infoCheckHint: step('INFO_CHECK')?.hintTime ?? 5,
       // bandTurn: one turn of the co-op strategy draft = its only countdown (server/match/Match.js BAND_TURN_SECONDS,
@@ -3397,6 +3437,8 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
       bandDraft: step('BAND_CHECK')?.time ?? 50, bandDraftHint: step('BAND_CHECK')?.hintTime ?? 15, bandTurn: 50,
       battleCheck: step('BATTLE_CHECK')?.time ?? 3,
       spFirst: 30, spTurn: act.modeDataDict.mode_multi_normal?.specialPhaseTime ?? 16,
+      // FORK: the E.G.O 饰品 / 苦难 pick — one window for everyone, so one length (server/match/match/egoPick.js)
+      egoPick: 25,
       soloPrepTimeData: 300, soloSpTimeData: act.modeDataDict.mode_single_normal?.specialPhaseTime ?? 150,
       chatCd: ac.constData?.chatCD ?? 1, chatBubble: ac.constData?.chatTime ?? 3, broadcastDelay: ac.constData?.broadcastBeginDelay ?? 1,
       enterSteps: (Array.isArray(ac.enterStepList) ? ac.enterStepList : Object.values(ac.enterStepList || {})).map((s) => ({ step: s.stepType, time: s.time, hint: s.hintTime, title: s.title })),
@@ -3646,7 +3688,9 @@ async function main() {
   // whose bond the mode switches off
   for (const b of Object.values(bands)) b.bondIds = bandBondIds(b, { bonds, pools: choices.pools });
   const config = buildConfig(ctx, waves, stages, bands, chess, items);
-  const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups };
+  // FORK: E.G.O 饰品 / 苦难 (shared/ego.js) — a fork-only file, no official table behind it
+  const ego = buildEgoTrinkets();
+  const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups, 'ego-trinkets': ego };
 
   // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)
   const errors = [...validateAll(files), ...passes.flatMap((p) => checkUnitFormParity(p.ctx, p.chess).map((e) => `${e} (potential rank ${p.ctx.potRank})`))];
@@ -3684,6 +3728,7 @@ async function main() {
       backupForms: Object.values(backups.units).reduce((n, u) => n + Object.keys(u.forms).length, 0),
       backupTokens: Object.keys(backups.tokens).length,
       diyOwnedPicks: backups.diy.ownedPool.length,
+      trinkets: Object.keys(ego.trinkets).length, hardships: Object.keys(ego.hardships).length,
     },
     sizes, totalBytes: total, out: OPTS.out, written: write, warnings, errors,
   };

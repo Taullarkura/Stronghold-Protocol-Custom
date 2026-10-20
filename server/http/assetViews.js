@@ -16,6 +16,8 @@
 //     index knows the model lists before any page asks.
 //   * Optional local operator chars merge into the served assets manifest before cosmetic layers (§34.28).
 //     Without hashing they use plain URLs. Without local chars or a ready index, files go out as they are.
+//   * The E.G.O 饰品 / 苦难 icons this machine has (public/assets/local/ego, localEgoArt.js) are an `ego` group of the
+//     served local manifest, hashed like any other art (DESIGN §F16).
 
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -23,6 +25,8 @@ import { hashedPath } from '../../shared/assetPaths.js';
 import { hash16 } from './assetIndex.js';
 import { noopLog } from './config.js';
 import { mergeLocalChars } from '../plugins/artReferences.js';
+import { readEgoArt, withEgoArt } from './localEgoArt.js';
+
 export { mergeLocalChars } from '../plugins/artReferences.js';
 
 /** The manifests that have a view, by their name under data/. */
@@ -124,9 +128,10 @@ export function rewriteManifest(doc, name, index) {
 
 /**
  * The views of one server.
- * @param {{ dataDir: string, index?: ReturnType<typeof import('./assetIndex.js').createAssetIndex> | null, log?: object }} opts
+ * @param {{ dataDir: string, publicDir?: string, index?: ReturnType<typeof import('./assetIndex.js').createAssetIndex> | null,
+ *   log?: object }} opts publicDir: where the E.G.O icons live (public/assets/local/ego, localEgoArt.js)
  */
-export function createManifestViews({ dataDir, index, log = noopLog }) {
+export function createManifestViews({ dataDir, publicDir = null, index, log = noopLog }) {
   const dir = path.resolve(dataDir);
   /** @type {Map<string, { key: string, view: { body: Buffer, hash: string, hashed: number, plain: number } | null, models: string[][] }>} */
   const cache = new Map();
@@ -141,34 +146,43 @@ export function createManifestViews({ dataDir, index, log = noopLog }) {
   async function build(name) {
     // Local operator art also works with SP_ASSET_INDEX=0 and during the initial hash scan.
     const localFile = path.join(dir, 'local-assets.json');
+    const isLocal = name === 'local-assets.json';
+    // The E.G.O icons this machine has (localEgoArt.js): an `ego` group of the local manifest, hashed like any art.
+    const ego = isLocal ? await readEgoArt(publicDir) : null;
     const localStat = name === 'assets.json' ? await fsp.stat(localFile).catch(() => null) : null;
     const indexed = index?.ready && index.size > 0;
-    if (!indexed && !localStat) return null;
+    if (!indexed && !localStat && !ego) return null;
     const file = path.join(dir, name);
     const st = await fsp.stat(file).catch(() => null);
-    if (!st || !st.isFile()) {
+    if ((!st || !st.isFile()) && !ego) {
       if (cache.delete(name)) pushModels();
       return null;
     }
-    const key = `${index?.generation || 0}|${st.size}|${st.mtimeMs}|${localStat?.size || 0}|${localStat?.mtimeMs || 0}`;
+    const key = `${index?.generation || 0}|${st?.size || 0}|${st?.mtimeMs || 0}|${localStat?.size || 0}|${localStat?.mtimeMs || 0}|${ego?.stamp || 0}`;
     const hit = cache.get(name);
     if (hit && hit.key === key) return hit.view;
+    /** @type {any} */
     let doc;
-    try {
-      doc = JSON.parse(await fsp.readFile(file, 'utf8'));
-    } catch (e) {
-      if (!warned.has(name)) { warned.add(name); log.warn?.(`[assets] data/${name} unreadable (${e?.message || e}); served as it is`); }
-      cache.set(name, { key, view: null, models: [] });
-      pushModels();
-      return null;
+    if (st && st.isFile()) {
+      try {
+        doc = JSON.parse(await fsp.readFile(file, 'utf8'));
+      } catch (e) {
+        if (!warned.has(name)) { warned.add(name); log.warn?.(`[assets] data/${name} unreadable (${e?.message || e}); served as it is`); }
+        cache.set(name, { key, view: null, models: [] });
+        pushModels();
+        return null;
+      }
+    } else {
+      doc = { version: 1, source: 'none', count: 0, groups: {} }; // the empty stand-in static.js serves (an install with E.G.O art only)
     }
     if (localStat) {
       let local;
       try { local = JSON.parse(await fsp.readFile(localFile, 'utf8')); } catch { /* optional local art */ }
       const merged = mergeLocalChars(doc, local);
-      if (!indexed && merged === doc) return null;
+      if (!indexed && merged === doc && !ego) return null;
       doc = merged;
     }
+    if (ego) doc = withEgoArt(doc, ego.entries);
     // one synchronous step: the view and the model lists the index checks a model's URLs against
     const { doc: out, models, hashed, plain } = rewriteManifest(doc, name, indexed ? index : plainIndex);
     const body = Buffer.from(JSON.stringify(out));

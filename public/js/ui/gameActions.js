@@ -10,6 +10,8 @@ import { audio } from '../audio.js';
 const SUCCESS_SFX = {
   'g.buy': 'buy', 'g.sell': 'sell', 'g.refresh': 'refresh', 'g.freeze': 'freeze', 'g.levelUp': 'levelup',
   'g.move': 'drop', 'g.equip': 'equip', 'g.art': 'artPlace', 'g.reward': 'pick', 'g.choice': 'pick',
+  // FORK: the E.G.O pick (a card is a pick, a redraw is a refresh — the same sounds as the shop's)
+  'g.trinket': 'pick', 'g.trinketRefresh': 'refresh',
   'g.band': 'confirm', 'g.bandSkip': 'back', 'g.infoReady': 'ready', 'g.emote': 'emote', 'g.destroy': 'back', 'g.unequip': 'back',
 };
 
@@ -92,6 +94,10 @@ export const actions = {
   reward: (idx) => act('g.reward', { idx }),
   offer: (offer, idx, refresh = false, cardId) => act(refresh ? 'g.offerRefresh' : 'g.offer', { offerId: offer.id, pluginId: offer.pluginId, seq: offer.seq, idx, cardId }),
   choice: (idx, choiceId) => act('g.choice', choiceId === undefined ? { idx } : { idx, choiceId }),
+  // FORK E.G.O 饰品 / 苦难 pick (design/ego.md): `pickId` is the seat's offer id (m.private.ego.id) — the server refuses a
+  // pick whose id moved on (a refresh replaced the options), so a stale tap is rejected instead of picking the wrong card
+  trinket: (idx, pickId) => act('g.trinket', pickId ? { idx, pickId } : { idx }),
+  trinketRefresh: (pickId) => act('g.trinketRefresh', pickId ? { pickId } : {}),
   ready: (ready) => act('g.ready', { ready }, { sfx: ready ? 'ready' : 'back' }),
   emote: (id) => act('g.emote', { id }, { quiet: true }),
   // `playerId`: the player tapped in the team panel (a shared field shows two) — what an eliminated viewer follows

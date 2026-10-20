@@ -393,6 +393,55 @@ test('/data/local-fx.json (the official effects\' file list): served with hashed
   }
 });
 
+test('the E.G.O icons on disk become the `ego` group of the local manifest, hashed, and an install without them is unchanged', async () => {
+  // 1x1 PNG: signature + IHDR with width 1 / height 2 (localEgoArt.js reads the size out of it)
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from([0, 0, 0, 13]), Buffer.from('IHDR', 'ascii'),
+    Buffer.from([0, 0, 0, 1, 0, 0, 0, 2, 8, 6, 0, 0, 0]), Buffer.from([0, 0, 0, 0]),
+  ]);
+  const local = { version: 1, source: 'local-client', count: 1, groups: { 'ui/battle': { a: { path: '/assets/local/ui/battle/a.png', kind: 'Sprite' } } } };
+  const dir = tree({
+    'public/assets/local/ui/battle/a.png': randomBytes(64),
+    // two record icons, one file whose name is no record id, one unsupported extension
+    'public/assets/local/ego/dust-to-dust.png': png,
+    'public/assets/local/ego/sharpness-1.png': png,
+    'public/assets/local/ego/not an id.png': png,
+    'public/assets/local/ego/notes.txt': 'x',
+    'data/local-assets.json': JSON.stringify(local),
+  });
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, publicDir: path.join(dir, 'public'), dataDir: path.join(dir, 'data'), assetIndex: { delayMs: 0 } });
+  try {
+    await srv.assetIndex.whenReady();
+    const v = JSON.parse((await get(srv.port, '/data/local-assets.json')).body);
+    assert.deepEqual(Object.keys(v.groups).sort(), ['ego', 'ui/battle'], 'the plain groups stay, the icons are one more');
+    assert.deepEqual(Object.keys(v.groups.ego).sort(), ['dust-to-dust', 'sharpness-1'], 'one entry per record id, nothing else');
+    // hashed like every other art URL, and the file really is served under that URL
+    const e = v.groups.ego['dust-to-dust'];
+    assert.equal(e.path, `/assets/~${sha16(png)}/local/ego/dust-to-dust.png`);
+    assert.deepEqual({ w: e.w, h: e.h, kind: e.kind }, { w: 1, h: 2, kind: 'Sprite' });
+    const img = await get(srv.port, e.path);
+    assert.equal(img.status, 200);
+    assert.deepEqual(img.body, png);
+    assert.equal(img.headers['cache-control'], IMMUTABLE);
+    // the manifest the server was given is not written, and the plain group is unchanged
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'data/local-assets.json'), 'utf8')), local);
+  } finally {
+    await srv.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  // an install with no icons: exactly the file it was given (this is what every player without the art sees)
+  const bare = tree({ 'data/local-assets.json': JSON.stringify(local) });
+  const srv2 = await startServer({ port: 0, host: '127.0.0.1', quiet: true, publicDir: path.join(bare, 'public'), dataDir: path.join(bare, 'data'), assetIndex: false });
+  try {
+    const doc = JSON.parse((await get(srv2.port, '/data/local-assets.json')).body);
+    assert.deepEqual(doc, local, 'no art, no index: the committed file as it is');
+  } finally {
+    await srv2.close();
+    fs.rmSync(bare, { recursive: true, force: true });
+  }
+});
+
 test('without the index (assetIndex: false) the manifest goes out as committed and a hashed URL is served no-cache', async () => {
   const dir = tree({ 'public/assets/a.png': 'png', 'data/assets.json': JSON.stringify({ chars: { c: { avatar: '/assets/a.png' } } }) });
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, publicDir: path.join(dir, 'public'), dataDir: path.join(dir, 'data'), assetIndex: false });

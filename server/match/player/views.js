@@ -78,6 +78,8 @@ export class PlayerViews {
         sourceItemId: this.personalChoice.sourceItemId,
         cards: this.personalChoice.cards.map((c) => bountyCard(this.gd, c)),
       } : null,
+      // FORK: the open E.G.O 饰品 / 苦难 pick (PHASE.EGO_PICK, MatchEgoPick.egoViewFor); absent outside the phase
+      ...(this.m.egoViewFor ? (() => { const ego = this.m.egoViewFor(this); return ego ? { ego } : {}; })() : {}),
       shop: {
         level: this.shop.level,
         maxLevel: this.gd.maxShopLevel,

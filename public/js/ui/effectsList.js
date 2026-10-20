@@ -9,7 +9,7 @@ import { data } from '../data.js';
 import { t, tName, N_ } from '../../../shared/i18n.js';
 import { sentText } from './lang.js';
 
-const KIND = { band: N_('策略'), choice: N_('机变'), team: N_('团队增益'), item: N_('道具'), garrison: N_('特质') };
+const KIND = { band: N_('策略'), choice: N_('机变'), team: N_('团队增益'), item: N_('道具'), garrison: N_('特质'), ego: N_('饰品') };
 
 /**
  * A 悬赏's counter line in the current language: the battles its enemies still come for (server/match/player/views.js

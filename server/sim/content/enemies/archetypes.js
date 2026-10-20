@@ -210,6 +210,7 @@ const deathBoom = ({ scale, type = 'phys', r = BOOM_RADIUS, status = null, sil =
  */
 const refraction = (res, hpPct = 0) => ({
   silAware: true,                                                    // SILENCE-flagged: silence switches it off in tick()
+  refraction: true,                                                  // marker: FORK's E.G.O 折射 hardship turns into 免疫沉默 on such an enemy
   tick(b, e, a) {
     const on = !e.s.flags.silence;
     if (hpPct && !on && !a.hpLost) {

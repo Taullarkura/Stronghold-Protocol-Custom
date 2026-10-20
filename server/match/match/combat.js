@@ -50,7 +50,8 @@ export class MatchCombat {
     if (preview) ps = previewPlayer(ps, board);
     const input = ps.battleInput({ side: 'L', colOffset: 0 });
     // the client's list: bounty units inserted among their host action's own units, which are re-timed around them
-    const spawns = withBounties(this.gd, this.round, wave, ps.bounties, ps.playerId).map((s) => ({ ...s, ownerPlayerId: ps.playerId }));
+    let spawns = withBounties(this.gd, this.round, wave, ps.bounties, ps.playerId).map((s) => ({ ...s, ownerPlayerId: ps.playerId }));
+    spawns = this._egoSpawns(ps, spawns);
     const ev = { input, kind: 'normal', round: this.round, spawns, ...(preview ? { preview: true } : {}) };
     // Preview construction failures go to the rehearsal's discard path, never Match.dispatch's live error sink.
     if (preview) this.dispatcher.dispatch(ps, 'onBattleStart', ev);
@@ -72,6 +73,52 @@ export class MatchCombat {
       enemyOverrides: wave.overrides,
       waveId: wave.templateId,
     };
+  }
+
+  /**
+   * FORK: a player's 苦难 spawn-level effects on the normal field (todoList: 敌人每波额外出现 N 只 / 出场间隔缩短 pct %).
+   * `extraEnemies` appends copies of the wave's own commonest non-boss enemy (so a hardship never names an enemy outside the
+   * round's composition) after its last spawn; `fasterSpawns` compresses the spawn times and intervals by (1 - pct).
+   * The boss rounds scale these to one third (shared/ego.js scaleEgoEffects), which floors a count of 1 to nothing — the
+   * boss fields therefore get no extra enemies, only the in-battle buffs (server/sim/content/ego.js).
+   */
+  _egoSpawns(ps, spawns) {
+    const mods = typeof this.egoSpawnMods === 'function' ? this.egoSpawnMods(ps) : { extra: 0, fasterPct: 0 };
+    if (!mods.extra && !mods.fasterPct) return spawns;
+    const out = spawns.map((s) => ({ ...s, mods: s.mods ? { ...s.mods } : undefined }));
+    if (mods.fasterPct > 0) {
+      const k = 1 - mods.fasterPct / 100;
+      for (const s of out) {
+        if (Number.isFinite(s.time)) s.time = Math.max(0, s.time * k);
+        if (Number.isFinite(s.interval) && s.interval > 0) s.interval = Math.max(0.1, s.interval * k);
+      }
+    }
+    if (mods.extra > 0 && out.length) {
+      // the wave's own commonest enemy that is not a leader and not a bounty add: the extra units stay inside the round
+      const counts = new Map();
+      for (const s of out) {
+        if (!s || s.tag === 'boss' || s.tag === 'bounty' || typeof s.enemyKey !== 'string') continue;
+        counts.set(s.enemyKey, (counts.get(s.enemyKey) || 0) + 1);
+      }
+      let key = null;
+      let best = 0;
+      for (const [k, n] of counts) if (n > best) { best = n; key = k; }
+      if (key) {
+        const last = out[out.length - 1];
+        const at = Math.max(0, Number(last && last.time) || 0);
+        out.push({
+          time: at,
+          enemyKey: key,
+          routeIndex: Number.isInteger(last.routeIndex) ? last.routeIndex : 0,
+          count: Math.min(20, Math.trunc(mods.extra)),
+          interval: 0,
+          mods: { ...(last.mods || {}), egoExtra: true },
+          tag: 'ego',
+          ownerPlayerId: ps.playerId,
+        });
+      }
+    }
+    return out;
   }
 
   startCombat() {

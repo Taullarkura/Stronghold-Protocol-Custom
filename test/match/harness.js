@@ -8,7 +8,8 @@
 // fake (true → test/match/fakeBattle.js as BattleClass), script (FakeBattle.script), registry, instant (virtual
 // scheduler runs battles synchronously; default true), timerScale, battleContent, botRehearsal (default 0),
 // botSliceMs (bot rehearsal slice budget; default: unbounded in virtual time), aiPicksLast (the room option
-// AI 队友最后选择: the drafts order every human seat before every AI seat), test (DESIGN §34.8; hostId then
+// AI 队友最后选择: the drafts order every human seat before every AI seat), ego (the room option E.G.O 饰品与苦难; omitted
+// keeps the build default config.ego.enabled), test (DESIGN §34.8; hostId then
 // defaults to the first human), hostId / botRehearsalDelegate /
 // botRehearsalDelegateMs (the delegated bot rehearsal, DESIGN §14: test/match/rehearsal-delegate.test.js),
 // cs / vs / requireCs (a gameplay-plugin room: host rehearsal stays off), rules (DESIGN §34.15; omitted unless set).
@@ -86,6 +87,8 @@ export function makeMatch(o = {}) {
     verify: o.verify ?? 'off',
     headlessSliceMs: o.headlessSliceMs,
     aiPicksLast: o.aiPicksLast,
+    // FORK: the room option 「E.G.O 饰品与苦难」 (Match opts.ego); undefined keeps the build default (config.ego.enabled)
+    ego: o.ego,
     // a bot prep's layout rehearsal delegated to the room's host (DESIGN §14; test/match/rehearsal-delegate.test.js):
     // `hostId` is the executor a task is sent to, `botRehearsalDelegateMs` its answer window
     hostId: o.hostId !== undefined ? o.hostId : (o.test === true ? (seats.find((s) => s && !s.isBot)?.playerId ?? null) : undefined),

@@ -11,8 +11,15 @@ LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed 
 → loop r = 1..lastRound:
      ROUND_START   (income, upgrade price −1 (floor 0), temp NOT wiped — what overflowed after the last prep's deadline is shown in this
                     prep (§6.2 temp overflow), unfrozen shop slots rerolled, frozen kept, <进入休整期时> effects)
+     [EGO_PICK]    (FORK, only in a room that turned the option on — 「E.G.O 饰品与苦难」, host, off by default: `room.setEgo`,
+                    Match.egoEnabled; config.ego.enabled is just the default a new room starts with. If r ∈ egoRounds (data:
+                    1 / 4 / 7 / 11) every alive player gets its own three-way offer at once — one E.G.O 饰品 (a global effect for
+                    the picker) + one 苦难 (a buff for that picker's enemies) —, 25 s (`timers.egoPick`) = m.public.deadline,
+                    `g.trinket { idx, pickId }` / `g.trinketRefresh { pickId }` (1 资金, at most 2 per pick), timeout ⇒ the first
+                    option; solo / single human untimed. Read right after ROUND_START, before [SP_DRAFT]: a 机变 round runs the
+                    pick first. See §F16 and [ego.md](ego.md))
      [SP_DRAFT]    (if r ∈ spRounds: 机变 draft; co-op: random order (「AI 队友最后选择」, off by default: humans first, the same partition as the strategy draft), 30 s first picker / 16 s others; solo 3 cards; solo / single human untimed;
-                    a card is picked with two taps, §18.2)
+                    a card is picked with two taps, §18.2; in an E.G.O room the pick above runs first)
      PREP          (co-op: timer from config, ends when all alive humans+bots ready; solo / single human: untimed, ends on ready)
      PREP_END      (<休整期结束时> effects; unfrozen shop cleared; Ready is blocked while a personal choice or temp overflow is pending;
                     at the deadline personal choices are auto-picked first, then

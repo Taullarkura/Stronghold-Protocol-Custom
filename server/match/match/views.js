@@ -54,6 +54,11 @@ export class MatchViews {
       case PHASE.SP_DRAFT:
         if (this.sp && this.sp.picks[ps.playerId] != null) return 'ready';
         return this.sp && this.spTurn() === ps.playerId ? 'deciding' : 'acting';
+      case PHASE.EGO_PICK: {
+        const seat = this.egoSeat(ps);
+        if (!seat) return 'acting';
+        return seat.picked != null ? 'ready' : 'deciding';
+      }
       case PHASE.PREP: return ps.ready ? 'ready' : 'acting';
       case PHASE.COMBAT: case PHASE.FINAL_ASSAULT: case PHASE.HIDDEN_CORE: {
         const f = this.fields.find((x) => x.players.includes(ps.playerId));
@@ -148,6 +153,18 @@ export class MatchViews {
       if (this.gd.isLargeRoom(this.bossAlive)) v.overtimeDrainPerSec = this.gd.bossOvertimeDrainFor(this.bossAlive);
     }
     if (this.bossPool) v.bossHp = { hp: Math.max(0, Math.round(this.bossPool.hp)), max: Math.round(this.bossPool.maxHp) };
+    // FORK: the E.G.O 饰品 / 苦难 pick — only who has decided (the offers themselves are m.private)
+    if (this.phase === PHASE.EGO_PICK && this.ego) {
+      const e = this.ego;
+      v.ego = {
+        round: e.round,
+        untimed: !!e.untimed,
+        turnSeconds: e.untimed ? 0 : this.egoTurnSeconds(),
+        waiting: this.egoWaiting().map((p) => p.playerId),
+        picks: [...e.seats.keys()].filter((pid) => e.seats.get(pid).picked != null),
+        taken: Object.fromEntries([...e.seats.entries()].filter(([, s]) => s.picked != null).map(([pid, s]) => [pid, s.picked.trinketId])),
+      };
+    }
     if (this.phase === PHASE.BAND_DRAFT && this.draft) {
       const d = this.draft;
       // turnSeconds: the length of a turn (the countdown gauge's total; 0 when untimed) — deadline = turnDeadline

@@ -21,6 +21,8 @@ import { forgetOfficialBounds, rememberOfficialBounds } from '../shared/plugins/
 export const DATA_FILES = Object.freeze([
   'config', 'chess', 'bonds', 'garrisons', 'items', 'bands', 'effects', 'choices',
   'enemies', 'factions', 'waves', 'stages', 'bosses', 'tokens', 'assets', 'backups',
+  // FORK: E.G.O 饰品 / 苦难 (shared/ego.js → tools/build-data.mjs buildEgoTrinkets)
+  'ego-trinkets',
 ]);
 
 /**
@@ -115,7 +117,6 @@ export const INDEXED_FILES = Object.freeze({
   chess: 'getChess', bonds: 'getBond', garrisons: 'getGarrison', items: 'getItem', bands: 'getBand',
   effects: 'getEffect', enemies: 'getEnemy', waves: 'getWave', stages: 'getStage', bosses: 'getBoss', tokens: 'getToken',
 });
-
 /** Own-property record lookup in a plain-object map; null for anything else. */
 function ownRecord(map, id) {
   if (typeof id !== 'string' || id.length === 0) return null;
@@ -158,6 +159,17 @@ export const getStage = (id, data) => lookup('stages', id, data);
 export const getBoss = (id, data) => lookup('bosses', id, data);
 /** @param {unknown} id token id @param {object} [data] */
 export const getToken = (id, data) => lookup('tokens', id, data);
+/** @param {unknown} id trinket id (ego-trinkets.json `trinkets`) @param {object} [data] */
+export const getTrinket = (id, data) => trinketFrom('trinkets', id, data);
+/** @param {unknown} id hardship id (ego-trinkets.json `hardships`) @param {object} [data] */
+export const getHardship = (id, data) => trinketFrom('hardships', id, data);
+
+/** A record of data/ego-trinkets.json's `trinkets` / `hardships` map (not `{ [id]: record }` at the file's top level). */
+function trinketFrom(map, id, data) {
+  const file = data && typeof data === 'object' ? data['ego-trinkets'] : null;
+  const rec = file && typeof file === 'object' ? file[map] : null;
+  return ownRecord(rec, id);
+}
 
 /**
  * data/config.json, or null when missing.
