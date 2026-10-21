@@ -12,7 +12,7 @@
 //
 // Split by target (shared/ego.js EFFECT_KINDS):
 //   own   — battle side: opMods / healOnKill / the 烧伤 school (burnOnSpawn, burnSpan, burnAmp, burnHaste, burnChance,
-//                        burnVuln, burnEndBurst, burnDetonate)
+//                        burnVuln, burnEndBurst, burnDetonate, burnPulse)
 //           prep side:  income / shopDiscount / sellBonus / freeRefresh / bondLayers
 //   enemy — battle side: enemyMods / enemyShield / enemyRegen / enemyDodge / enemyRefraction / enemyTrueDrain /
 //                        enemyUndying / enemyLastStandHeal
@@ -132,7 +132,8 @@ function activeBondLayers(battle, pid) {
  * - `amp[pid]`       — damage multiplier of the burn (burnAmp: 「烧伤造成的伤害与灼燃损伤 +50%」);
  * - `vuln[pid]`      — extra damage a burning enemy takes per layer (burnVuln: 层数 × perStack %);
  * - `detonate[pid]`  — burnDetonate: when an application would leave more than `threshold` layers, eat `consume` and hit;
- * - `endBurst[pid]`  — burnEndBurst: the parting 法术伤害 of the layers the CLOCK consumed.
+ * - `endBurst[pid]`  — burnEndBurst: the parting hit of the layers the CLOCK consumed (元素伤害 while the target is in
+ *                      its 灼燃 损伤爆发, 法术伤害 otherwise — see burstDamage).
  * A trinket belongs to the player who picked it, and its trinket-side effects reach that player's own half of the field
  * (the same `scope` rule as a hardship: 'own' = `e.ownerId`, 'all' = every enemy — boss rounds).
  */
@@ -191,6 +192,15 @@ function hitsEnemy(battle, e, pid, scope) {
 const burnOf = (unit) => (unit && unit.buffs ? unit.buffs.find((b) => b.key === BURN.key) || null : null);
 
 /**
+ * 炎鳞's burst damage type: a target in its 灼燃 损伤爆发 (`burnBurst`, the engine's burst lock) takes 元素伤害 instead of
+ * 法术伤害 (owner's design, 2026-10-21). 元素伤害 is the DamageInfo type 'elemental' — 元素抗性 instead of DEF/RES.
+ */
+function burstDamage(unit) {
+  const bursting = unit && typeof unit.findBuff === 'function' && !!unit.findBuff('burnBurst');
+  return bursting ? { type: 'elemental', element: 'burn' } : { type: 'arts' };
+}
+
+/**
  * The burn burned out: pay 炎鳞's parting 法术伤害 — (盟约总层数 × 层数 × perLayer), at least `floor`, over the layers the
  * CLOCK spent — and drop the status. Called from onTick (the last layer just went) and from onExpire (a battle teardown),
  * and guarded by `data.paid` so the two can never both pay.
@@ -204,7 +214,7 @@ function endBurn(battle, unit, buff) {
       const layers = activeBondLayers(battle, buff.data.pid);
       let amount = 0;
       for (const r of rule) amount += Math.max(r.floor, layers * buff.data.consumed * r.perLayer);
-      if (amount > 0) battle.dealDamage(buff.data.source || null, unit, { amount, type: 'arts', canDodge: false, sourceless: !buff.data.source, tags: ['ego:burn'] });
+      if (amount > 0) battle.dealDamage(buff.data.source || null, unit, { amount, ...burstDamage(unit), canDodge: false, sourceless: !buff.data.source, tags: ['ego:burn'] });
     }
   } finally {
     if (unit && unit.buffs && unit.buffs.includes(buff)) battle.removeBuff(unit, buff);
@@ -279,12 +289,12 @@ export function applyBurn(battle, target, stacks, opts = {}) {
     if (!buff.data.endBurst) buff.data.endBurst = opts.endBurst || [];
     if (buff.data.pid == null) buff.data.pid = opts.pid ?? null;
     if (!buff.data.source) buff.data.source = opts.source || null;
-    // 炎鳞: 「被施加烧伤时若层数高于 10 层，消耗 10 层并立刻受到（盟约总层数 × 100）点法术伤害」
+    // 炎鳞: 「被施加烧伤时若层数高于 40 层，消耗 10 层并立刻受到（盟约总层数 × 100）点法术伤害」
     for (const r of buff.data.detonate || []) {
       if (buff.stacks <= r.threshold) continue;
       buff.stacks -= r.consume;
       const amount = activeBondLayers(battle, buff.data.pid) * r.perLayer;
-      if (amount > 0) battle.dealDamage(buff.data.source || null, target, { amount, type: 'arts', canDodge: false, sourceless: !buff.data.source, tags: ['ego:burn'] });
+      if (amount > 0) battle.dealDamage(buff.data.source || null, target, { amount, ...burstDamage(target), canDodge: false, sourceless: !buff.data.source, tags: ['ego:burn'] });
     }
     if (buff.stacks <= 0) battle.removeBuff(target, buff);
   }
@@ -347,6 +357,7 @@ function installOwn(battle, own) {
  *   尘归尘 / 土归土 / 镇魂  — burnOnSpawn: every enemy of the picker's half walks in burning;
  *   郁火                   — burnHaste: an own operator that damages a burning enemy gains 攻速 (独立计时, at most N);
  *   炽热的羽毛             — burnChance: a chance to add a layer on damage, higher against an already burning target;
+ *   地狱蝶之梦             — burnPulse: a timed pulse that burns `targets` random enemies, more of them per 盟约 层;
  *   炎鳞                   — burnVuln (a burning enemy takes more damage) + burnDetonate + burnEndBurst;
  *   镇魂                   — burnAmp (both the 法术伤害 and the 灼燃损伤);
  *   土归土                 — burnSpan (extra seconds per layer, per active 盟约).
@@ -355,13 +366,21 @@ function installOwn(battle, own) {
 function installBurn(battle, own) {
   const rules = burnRules(battle, own);
   const spawners = [];   // { pid, stacks, scope, key }
+  const pulses = [];     // { pid, scope, seconds, stacks, targets, per }
   for (const p of own) {
     for (const s of paramsOf(p, 'burnOnSpawn')) {
       const stacks = Number.isFinite(+s.stacks) ? Math.max(0, Math.trunc(+s.stacks)) : 0;
       if (stacks > 0) spawners.push({ pid: p.pid, stacks, scope: p.scope, key: p.key });
     }
+    for (const q of paramsOf(p, 'burnPulse')) {
+      const seconds = Number.isFinite(+q.seconds) && +q.seconds > 0 ? +q.seconds : 3;
+      const stacks = Number.isFinite(+q.stacks) && +q.stacks > 0 ? Math.trunc(+q.stacks) : 1;
+      const targets = Number.isFinite(+q.targets) && +q.targets > 0 ? Math.trunc(+q.targets) : 1;
+      const per = Number.isFinite(+q.perBondLayers) && +q.perBondLayers > 0 ? Math.trunc(+q.perBondLayers) : 0;
+      pulses.push({ pid: p.pid, scope: p.scope, seconds, stacks, targets, per });
+    }
   }
-  const active = rules.span.size || rules.amp.size || rules.vuln.size || spawners.length
+  const active = rules.span.size || rules.amp.size || rules.vuln.size || spawners.length || pulses.length
     || rules.detonate.size || rules.endBurst.size || rules.chance.size || rules.haste.size;
   if (!active) return;
 
@@ -380,6 +399,23 @@ function installBurn(battle, own) {
       const e = ctx && ctx.enemy;
       if (!e || !e.alive) return;
       for (const s of spawners) if (hitsEnemy(battle, e, s.pid, s.scope)) burnOn(e, s.pid, s.stacks, null);
+    });
+  }
+
+  // 地狱蝶之梦: a pulse every `seconds` seconds — `targets` random enemies of the picker's half walk away burning, plus one
+  // more target for every `per` layers among that player's active 盟约 (no cap in the design). The draw reads the battle
+  // rng, so it is deterministic for a given seed, and it removes each pick from the pool, so one pulse never repeats one.
+  for (const q of pulses) {
+    battle.every(q.seconds, () => {
+      const extra = q.per > 0 ? Math.floor(activeBondLayers(battle, q.pid) / q.per) : 0;
+      const pool = battle.units.filter((u) => u && u.side === 'enemy' && u.alive && !u.removed && u.deployed
+        && hitsEnemy(battle, u, q.pid, q.scope));
+      const want = q.targets + extra;
+      for (let i = 0; i < want && pool.length; i++) {
+        const k = Math.min(pool.length - 1, Math.floor(battle.rng() * pool.length));
+        const [target] = pool.splice(k, 1);
+        burnOn(target, q.pid, q.stacks, null);
+      }
     });
   }
 
@@ -697,7 +733,7 @@ function hash32(s) {
 /** Every kind catalogue entry this module reads (a build-time cross-check: test/content/ego-kinds.test.js). */
 export const HANDLED_KINDS = Object.freeze([
   'opMods', 'income', 'shopDiscount', 'sellBonus', 'freeRefresh', 'bondLayers', 'healOnKill',
-  'burnOnSpawn', 'burnSpan', 'burnAmp', 'burnHaste', 'burnChance', 'burnVuln', 'burnEndBurst', 'burnDetonate',
+  'burnOnSpawn', 'burnSpan', 'burnAmp', 'burnHaste', 'burnChance', 'burnVuln', 'burnEndBurst', 'burnDetonate', 'burnPulse',
   'enemyMods', 'enemyShield', 'extraEnemies', 'enemyRegen', 'fasterSpawns', 'enemyDodge', 'enemyRefraction',
   'enemyTrueDrain', 'enemyUndying', 'enemyLastStandHeal', 'shopInflation',
 ]);

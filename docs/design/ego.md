@@ -42,7 +42,8 @@ list a client labels a card from, and it is why an effect that exists in the dat
 | `burnChance` | `pct, burningPct` | chance to add a layer on damage, the higher one when the target already burns (10 / 20) |
 | `burnVuln` | `perStack` | a burning enemy takes that much more damage per layer (炎鳞 10) |
 | `burnEndBurst` | `perLayer, floor` | when the 烧伤 runs out: (active 盟约 layers × layers spent × `perLayer`) 法术伤害, at least `floor` |
-| `burnDetonate` | `threshold, consume, perLayer` | applying more than `threshold` layers eats `consume` of them and hits at once for (active 盟约 layers × `perLayer`) |
+| `burnDetonate` | `threshold, consume, perLayer` | applying more than `threshold` layers eats `consume` of them and hits at once for (active 盟约 layers × `perLayer`) (炎鳞 40 / 10 / 100) |
+| `burnPulse` | `seconds, stacks, targets, perBondLayers` | every `seconds` s, `targets` random enemies each gain `stacks` layers — one more target per `perBondLayers` layers of active 盟约 (地狱蝶之梦 3 s / 2 / 2 / 60) |
 
 **Hardship kinds (`target: 'enemy'`).**
 
@@ -67,7 +68,9 @@ layer is time, not damage** — the clock spends one layer every `BURN.perStack`
 N × 3 s and the last one expires the status. Every second the burning unit takes `BURN.dmg` 法术伤害 and `BURN.chip`
 灼燃损伤 — a **fixed** amount, never multiplied by the layer count (the owner's rule of 2026-10-20: 「每秒伤害恒为 300 +
 100，每层只延长 3 秒」). 炎鳞's `burnEndBurst` counts only the layers the **clock** spent, not the ones `burnDetonate`
-ate. The tick is the sim's own (`server/sim/constants.js TICK`), never a real clock, so the behaviour is the same at any
+ate. A burst a 饰品 fires (炎鳞's `burnDetonate` / `burnEndBurst`) is 法术伤害, **but 元素伤害 while the target is in its
+灼燃 损伤爆发** (the `burnBurst` buff, `flags.burstLock`) — the owner's clause of 2026-10-21 「若处于灼燃损伤爆发期间,改为元素伤害」.
+The tick is the sim's own (`server/sim/constants.js TICK`), never a real clock, so the behaviour is the same at any
 frame rate and the golden results stay deterministic.
 
 ## Tiers and the draw
@@ -110,10 +113,12 @@ the right-hand effect list shows the full `desc` either way. `validateEgo()` cap
 record's display name (art is found by `id`, see "The icons"); the
 client's icon family is `iconKind: 'ego'`.
 
-The catalogue is the owner's design of 2026-10-20: six 饰品 of the 烧伤 school and eighteen 苦难. His numbers are used
-as written; a value his note left open is marked **[ASSUMED]** in `shared/ego.js` where it is set (折射's 70 RES / 20 s,
-and the 炎鳞 burst floor of 2500). Records are independent rows — 锐利 I and 锐利 II are separate picks and both can be
-held at once, and the list keeps growing (the owner adds to it: 这只是部分饰品).
+The catalogue is the owner's design of 2026-10-20, extended on 2026-10-21: seven 饰品 of the **烧伤 school** (地狱蝶之梦 II
+was added that day) and eighteen 苦难. His numbers are used as written; a value his note left open is marked **[ASSUMED]**
+in `shared/ego.js` where it is set (折射's 70 RES / 20 s, and the 炎鳞 burst floor of 2500). The 2026-10-21 revision also
+raised 炎鳞's `burnDetonate` threshold from 10 to **40** layers and added the 元素伤害 clause above. Records are independent
+rows — 锐利 I and 锐利 II are separate picks and both can be held at once, and the list keeps growing (the owner adds to it:
+这只是部分饰品).
 
 ## The wire
 

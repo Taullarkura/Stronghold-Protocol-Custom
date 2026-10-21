@@ -56,9 +56,15 @@ export const EFFECT_KINDS = Object.freeze({
   burnEndBurst: { target: 'own', params: ['perLayer', 'floor'] },
   /**
    * 炎鳞: applying 烧伤 that would leave more than params.threshold layers eats params.consume of them (and their time)
-   * and immediately deals (已激活盟约总层数 × params.perLayer) 法术伤害.
+   * and immediately deals (已激活盟约总层数 × params.perLayer) 法术伤害 — 元素伤害 instead when the target is in its 灼燃
+   * 损伤爆发 (see burnBurst below).
    */
   burnDetonate: { target: 'own', params: ['threshold', 'consume', 'perLayer'] },
+  /**
+   * 地狱蝶之梦: every params.seconds seconds, params.targets random enemies of the picker's half gain params.stacks
+   * layers of 烧伤; every params.perBondLayers layers among the picker's active 盟约 add one more target.
+   */
+  burnPulse: { target: 'own', params: ['seconds', 'stacks', 'targets', 'perBondLayers'] },
 
   // ---- hardship kinds (target: enemy) ---------------------------------------------------------------------------
   /**
@@ -188,13 +194,18 @@ export const TRINKETS = Object.freeze([
     effects: [{ kind: 'burnChance', params: { pct: 10, burningPct: 20 } }],
   }),
   Object.freeze({
+    id: 'hell-butterfly', name: '地狱蝶之梦', tier: 2, icon: '地狱蝶之梦',
+    desc: '每 3 秒使场上的随机 2 名敌方单位获得 2 层「烧伤」；所有盟约每叠加 60 层，本效果的作用目标数 +1。',
+    effects: [{ kind: 'burnPulse', params: { seconds: 3, stacks: 2, targets: 2, perBondLayers: 60 } }],
+  }),
+  Object.freeze({
     id: 'flame-scales', name: '炎鳞', tier: 3, icon: '炎鳞',
     short: '带有烧伤的敌人根据层数受到的伤害增加，烧伤效果结束时或烧伤层数过高时受到一次高额引爆伤害',
-    desc: '带有「烧伤」的敌方单位受到的伤害 +（烧伤层数 × 10%）。「烧伤」结束时，额外受到一次（已激活盟约总层数 × 烧伤层数 × 10）点法术伤害，至少 2500 点。被施加「烧伤」时若层数高于 10 层，消耗 10 层并立刻受到（已激活盟约总层数 × 100）点法术伤害。',
+    desc: '带有「烧伤」的敌方单位受到的伤害 +（烧伤层数 × 10%）。「烧伤」结束时，额外受到一次（已激活盟约总层数 × 烧伤层数 × 10）点法术伤害，至少 2500 点；若目标处于灼燃损伤爆发期间，该伤害改为元素伤害。被施加「烧伤」时若层数高于 40 层，消耗 10 层并立刻受到（已激活盟约总层数 × 100）点法术伤害；若目标处于灼燃损伤爆发期间，该伤害改为元素伤害。',
     effects: [
       { kind: 'burnVuln', params: { perStack: 10 } },
       { kind: 'burnEndBurst', params: { perLayer: 10, floor: 2500 } },
-      { kind: 'burnDetonate', params: { threshold: 10, consume: 10, perLayer: 100 } },
+      { kind: 'burnDetonate', params: { threshold: 40, consume: 10, perLayer: 100 } },
     ],
   }),
   Object.freeze({

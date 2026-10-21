@@ -40,9 +40,10 @@ const dummy = (o = {}) => enemyRec({ key: 't_dummy', hp: 2_000_000, atk: 200, de
 /**
  * One operator on the low lane and one enemy standing next to it (a spawn placed on the board, so the operator is in
  * range from t = 0 — the 烧伤 / 攻速 trinkets only fire on damage dealt). `trinkets` / `hardships` are the player's picks.
- * `foes` lets a test field a kit-carrying enemy (a 折射 native, a boss) instead of the punching bag.
+ * `foes` lets a test field a kit-carrying enemy (a 折射 native, a boss) instead of the punching bag, and `spawns` places
+ * several copies of it (the multi-target trinkets: 地狱蝶之梦).
  */
-function fight({ trinkets = [], hardships = [], foes = null, bonds = {}, op = null, seed = 3, timeLimit = 120, flags = {}, spawn = [10, 5] } = {}) {
+function fight({ trinkets = [], hardships = [], foes = null, bonds = {}, op = null, seed = 3, timeLimit = 120, flags = {}, spawn = [10, 5], spawns = null } = {}) {
   const chess = op || guard();
   const enemy = foes || dummy();
   const h = makeBattle({
@@ -53,7 +54,7 @@ function fight({ trinkets = [], hardships = [], foes = null, bonds = {}, op = nu
       units: [{ uid: 1, kind: 'chess', chessId: 't_guard', row: 10, col: 4 }],
       playerEffects: [...trinkets.map((id) => trinketRef(id)), ...hardships.map((id) => hardshipRef(id))],
     }],
-    enemies: [{ key: enemy.key, pos: spawn }],
+    enemies: (spawns || [spawn]).map((pos) => ({ key: enemy.key, pos })),
     autoFinish: false, timeLimit, seed, flags,
   });
   h.run(0.05);   // the t = 0 spawn lands on the first step
@@ -167,18 +168,60 @@ test('炎鳞: the parting burst reads the layers the CLOCK spent, not the ones �
   assert.ok(total > tick1);
 });
 
-test('炎鳞: applying more than 10 layers eats 10 and hits at once (burnDetonate)', () => {
+test('炎鳞: applying more than 40 layers eats 10 and hits at once (burnDetonate)', () => {
   const b = fight({ trinkets: ['flame-scales'], bonds: { yanShip: { count: 3, active: true, tier: 1, layers: 5 } } });
   const h = b;
   at(h, 0.2);
   const e = h.enemies()[0];
   const hp = e.hp;
-  const buff = applyBurn(h.b, e, 12, {
-    perStack: 3, pid: 'p1', detonate: [{ threshold: 10, consume: 10, perLayer: 100 }],
-  });
-  assert.equal(buff.stacks, 2, '12 → eat 10 → 2');
-  // 盟约总层数 5 × 100 = 500, and the enemy is still burning (2 layers) when the hit lands, so 炎鳞's burnVuln adds 20 %
-  assert.equal(Math.round(hp - e.hp), 600, '500 × 1.20');
+  const detonate = [{ threshold: 40, consume: 10, perLayer: 100 }];
+  // the owner's 2026-10-21 revision raised the threshold to 40: 「若烧伤层数高于 40 层」, so exactly 40 does nothing
+  const calm = applyBurn(h.b, e, 40, { perStack: 3, pid: 'p1', detonate });
+  assert.equal(calm.stacks, 40, 'exactly 40 is not 高于 40');
+  assert.equal(Math.round(hp - e.hp), 0, 'and no hit lands');
+  // above it: 40 + 42 → eat 10 → 72 layers, and the hit is 盟约总层数 5 × 100 = 500, × burnVuln (72 layers) 1 + 7.2
+  const fired = applyBurn(h.b, e, 42, { perStack: 3, pid: 'p1', detonate });
+  assert.equal(fired.stacks, 72, '40 + 42 → eat 10 → 72');
+  assert.equal(Math.round(hp - e.hp), Math.round(500 * (1 + 72 * 0.1)), '500 × 8.2');
+});
+
+test('炎鳞: the bursts are 元素伤害 while the target is in its 灼燃 损伤爆发, 法术伤害 otherwise', () => {
+  const h = fight({ trinkets: ['flame-scales'], bonds: { yanShip: { count: 3, active: true, tier: 1, layers: 5 } } });
+  at(h, 0.2);
+  const e = h.enemies()[0];
+  const seen = [];
+  h.b.on('damaged', (c) => { if (c && c.target === e) seen.push(c.type); });
+  const detonate = [{ threshold: 40, consume: 10, perLayer: 100 }];
+  applyBurn(h.b, e, 42, { perStack: 3, pid: 'p1', detonate });
+  assert.ok(seen.includes('arts'), `法术伤害 outside the burst (${seen.join(',')})`);
+  seen.length = 0;
+  h.b.addBuff(e, { key: 'burnBurst', duration: 30 });   // the engine's 灼燃 损伤爆发 lock
+  applyBurn(h.b, e, 42, { perStack: 3, pid: 'p1', detonate });
+  assert.ok(seen.includes('elemental'), `元素伤害 inside the burst (${seen.join(',')})`);
+  assert.ok(!seen.includes('arts'), 'and never 法术伤害 while it burns');
+});
+
+test('地狱蝶之梦: every 3 s two random enemies gain 2 layers, one more target per 60 盟约 层', () => {
+  const spots = [[10, 5], [10, 6], [10, 7], [10, 8]];
+  const h = fight({ trinkets: ['hell-butterfly'], spawns: spots });
+  at(h, 0.2);
+  const foes = h.enemies();
+  assert.equal(foes.length, 4, 'four punching bags');
+  assert.equal(foes.filter(burnOn).length, 0, 'nothing burns before the first pulse');
+  at(h, 3.5);
+  const burning = foes.filter(burnOn);
+  assert.equal(burning.length, 2, 'the 3 s pulse burns two of them');
+  for (const e of burning) assert.equal(burnOn(e).stacks, 2, '2 层 each');
+  const total = () => foes.reduce((n, e) => n + ((burnOn(e) && burnOn(e).stacks) || 0), 0);
+  at(h, 5.9);
+  const before = total();
+  at(h, 6.2);
+  assert.ok(total() > before, `the next pulse lands at 6 s (${before} → ${total()})`);
+  // 「所有盟约每叠加 60 层使本效果作用目标数 +1」
+  const bonded = fight({ trinkets: ['hell-butterfly'], spawns: spots, bonds: { yanShip: { count: 3, active: true, tier: 1, layers: 60 } } });
+  at(bonded, 3.5);
+  assert.equal(bonded.enemies().filter(burnOn).length, 3, '60 层 → one more target');
+  h.b.forceEnd?.();
 });
 
 test('炽热的羽毛: a chance to add a layer on damage, higher against a burning target', () => {
@@ -335,7 +378,7 @@ test('苦难: the prep side — 通货膨胀 marks a share of the shop slots +1 
 });
 
 test('the prep side: income / shopDiscount / sellBonus / freeRefresh / bondLayers of these records', () => {
-  // none of today's six trinkets touches the prep economy any more: the whole school is battle-side
+  // none of today's seven trinkets touches the prep economy any more: the whole school is battle-side
   for (const r of TRINKETS) assert.equal(trinketHandler(effects(r)), null, `${r.id}: no prep handler`);
   // …but the kinds remain supported (later records): build one by hand
   const h = trinketHandler([

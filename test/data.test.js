@@ -976,9 +976,10 @@ test('ego-trinkets.json (FORK): every record of the 2026-10-20 design is there, 
   // no kind is dead data: each one is read by the sim (the spawn two by combat.js) or the build warns about nothing
   assert.deepEqual(unhandledKinds(), [], 'every kind has a reader');
   assert.ok(EXTERNAL_KINDS.every((k) => Object.hasOwn(EFFECT_KINDS, k)), 'the external kinds are catalogue kinds');
-  // the 烧伤 school: 6 trinkets, tier I / I / II / II / III / III
+  // the 烧伤 school: 7 trinkets, tier I / I / II / II / II / III / III
   assert.deepEqual(Object.values(ego.trinkets).map((r) => `${r.tier}:${r.id}`).sort(), [
-    '1:dust-to-dust', '1:smothered-flame', '2:ashes-to-ashes', '2:searing-feather', '3:flame-scales', '3:soul-repose',
+    '1:dust-to-dust', '1:smothered-flame', '2:ashes-to-ashes', '2:hell-butterfly', '2:searing-feather',
+    '3:flame-scales', '3:soul-repose',
   ]);
   // the 苦难 ladder: 18 records, 锐利 / 强韧 / 顽强 in I / II / III, the rest one tier each
   assert.equal(Object.keys(ego.hardships).length, 18);

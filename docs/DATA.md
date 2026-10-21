@@ -763,14 +763,14 @@ definition. Never hand-edit it — change `shared/ego.js` and rebuild.
 
 | Key | Example | Meaning |
 |---|---|---|
-| `trinkets[id]` | `{"id":"dust-to-dust","name":"尘归尘","tier":1,"icon":"尘归尘","desc":"敌方单位出场时，获得 3 层「烧伤」。","effects":[{"kind":"burnOnSpawn","params":{"stacks":3}}]}` | one of the six 饰品 of the 烧伤 school: a global effect for the player who picked it. `icon` is the record's display name; its art is machine-local (`public/assets/local/ego/<id>.png`, served as the `ego` group of `local-assets.json`) |
+| `trinkets[id]` | `{"id":"dust-to-dust","name":"尘归尘","tier":1,"icon":"尘归尘","desc":"敌方单位出场时，获得 3 层「烧伤」。","effects":[{"kind":"burnOnSpawn","params":{"stacks":3}}]}` | one of the seven 饰品 of the 烧伤 school: a global effect for the player who picked it. `icon` is the record's display name; its art is machine-local (`public/assets/local/ego/<id>.png`, served as the `ego` group of `local-assets.json`) |
 | `hardships[id]` | `{"id":"sharpness-1","name":"锐利 I","tier":1,"icon":"锐利","desc":"敌人攻击力 +15%。","effects":[{"kind":"enemyMods","params":{"atk":15}}]}` | one of the eighteen 苦难: a buff for that player's enemies. Every stat bonus is additive (锐利 I + II is +45 %) |
 | `tiers[]` | `[{"tier":1,"name":"I","weight":60},{"tier":2,…30},{"tier":3,…10}]` | the tier draw: roll a tier first (weights must sum to 100), then a record uniformly inside it |
 | `rounds[]` | `[1,4,7,11]` | the rounds PHASE.EGO_PICK opens on |
 | `bossRounds[]` | `[14,15]` | on these rounds every player's 苦难 applies at `bossDivisor` (1/3, each parameter floored, a parameter that floors to 0 dropped) and to the whole team, not only its owner |
 | `bossDivisor` | `3` | |
 | `burn` | `{"key":"ego:burn","perStack":3,"dmg":300,"chip":100,"maxStacks":999}` | 烧伤: one status whose `stacks` are layers, each worth `perStack` seconds — the clock spends one layer every 3 s, so N layers last N × 3 s — and a fixed 300 法术伤害 + 100 灼燃损伤 per second, never multiplied by the layer count |
-| `kinds` | `{"opMods":{"target":"own","params":["atk",…]},…}` | the closed set of effect kinds (`shared/ego.js EFFECT_KINDS`): fifteen `own` kinds (the 饰品 side, 烧伤 included) and eleven `enemy` kinds (the 苦难 side). An unknown kind is a build warning |
+| `kinds` | `{"opMods":{"target":"own","params":["atk",…]},…}` | the closed set of effect kinds (`shared/ego.js EFFECT_KINDS`): sixteen `own` kinds (the 饰品 side, 烧伤 included) and eleven `enemy` kinds (the 苦难 side). An unknown kind is a build warning |
 
 `short` is **optional**: the pick card's one-line summary, carried only by a record whose `desc` is too long for the card
 (today only `flame-scales`) and capped at 60 characters by `validateEgo()`. A record without one shows its `desc` on the

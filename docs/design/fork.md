@@ -793,8 +793,8 @@ The room option is 「E.G.O 饰品与苦难」 (`room.setEgo`, `Room.ego`, `room
 is **off by default** (`config.ego.enabled` false), so a normal match never opens the phase. The reference for the data and
 the code below it is [ego.md](ego.md).
 
-**The catalogue (2026-10-20).** The owner then wrote the effects out: six 饰品 of the **烧伤 school**
-(尘归尘 I / 郁火 I / 土归土 II / 炽热的羽毛 II / 炎鳞 III / 镇魂 III) and **eighteen 苦难** (锐利 I–III, 折射 I–II, 强韧 I–III,
+**The catalogue (2026-10-20, extended 2026-10-21).** The owner then wrote the effects out: seven 饰品 of the **烧伤 school**
+(尘归尘 I / 郁火 I / 土归土 II / 炽热的羽毛 II / 地狱蝶之梦 II / 炎鳞 III / 镇魂 III) and **eighteen 苦难** (锐利 I–III, 折射 I–II, 强韧 I–III,
 顽强 I–III, 等级强化 I, 通货膨胀 I, 怎么，打不中吗？ I, 极速 II, 超负荷 II, 过人的毅力 II, 过度生长 III). Two of his calls are
 load-bearing and are pinned by the code, not left to the data:
 
@@ -807,6 +807,15 @@ load-bearing and are pinned by the code, not left to the data:
   `enemyModsOf` writes `atkPct` / `defPct` / `hpPct` (the additive keys) and never the `*Mul` ones. The records are
   independent rows — 不选 锐利 I 也能选 锐利 II — and the list keeps growing (「这只是部分饰品」), which is why an option is
   still a 饰品 + 苦难 **pair** drawn from two tables instead of a fixed roster.
+
+**The 2026-10-21 revision.** The owner re-opened the note and changed two of its own records. 炎鳞's `burnDetonate`
+threshold went from 10 layers to **40** (「若烧伤层数高于 40 层,消耗 10 层」) and its bursts became 元素伤害 while the target
+sits inside its 灼燃 损伤爆发 (「若处于灼燃损伤爆发期间,改为元素伤害」); the code reads the burst lock off the target's own
+buffs (`burnBurst`, `flags.burstLock`), so a burst fired at any other moment stays 法术伤害. He also added the school's
+first multi-target record: **地狱蝶之梦 II** (`burnPulse`, 「每 3 秒使场上的随机 2 名敌方单位获得 2 层烧伤, 所有盟约每叠加
+60 层使本效果作用目标数 +1」). Its pulses run on the sim's own clock (`battle.every(3, …)` inside `installBurn`) and draw
+their targets from the seat's existing rng stream, so nothing new is seeded and the golden results stay put. The single
+`short` the pick card shows is his line for 炎鳞 — see [ego.md](ego.md).
 
 **What the tests pin.** `test/match/ego-pick.test.js` — the gate (off unless the build or the room says so, and only a
 real boolean turns it on), the rounds (1 / 4 / 7 / 11, data-driven), a three-option offer per seat, the trinket and the
@@ -821,3 +830,7 @@ side of every kind the catalogue uses: the burn clock (3 s per layer, the fixed 
 life and not the damage, 土归土 / 镇魂's span and amplitude), 炎鳞's three clauses, 郁火's five independent haste layers,
 炽热的羽毛's two chances, each 苦难's stat line with the additive check, 折射 and its 免疫沉默 variant on an enemy that
 already refracts, 超负荷's drain and its three immunities, 过人的毅力, 过度生长, and 通货膨胀's deterministic per-slot roll.
+The 2026-10-21 records extend it: 炎鳞's threshold of 40 (an application of exactly 40 eats nothing and lands no hit, one
+above it eats 10 and hits) and its two damage types (法术伤害 normally, 元素伤害 while the target carries the 灼燃 损伤爆发
+lock), and 地狱蝶之梦's pulse (two of four enemies burning 3 s in, exactly 2 layers each, a second pulse 3 s later raising
+the total, and 60 盟约 layers widening it to three targets).
