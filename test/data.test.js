@@ -934,6 +934,14 @@ test('ego-trinkets.json (FORK): the E.G.O 饰品 / 苦难 records and the roll t
       assert.equal(r.id, id, `${map}.${id}: id`);
       assert.ok([1, 2, 3].includes(r.tier), `${map}.${id}: tier ${r.tier}`);
       assert.equal(typeof r.icon, 'string', `${map}.${id}: icon (the display name)`);
+      // `short` is optional and belongs only to a record whose `desc` is too long for the card (design/ego.md, "The
+      // screen"): the card falls back to `desc`, so a hardship or a short description needs no summary of its own
+      if (r.short !== undefined) {
+        assert.equal(typeof r.short, 'string', `${map}.${id}: short (the card's summary)`);
+        assert.ok(r.short.length > 0 && r.short.length <= 60, `${map}.${id}: short is ${r.short.length} chars`);
+        assert.notEqual(r.short, r.desc, `${map}.${id}: short is a summary, not the description`);
+      }
+      assert.equal(typeof r.desc, 'string', `${map}.${id}: desc (the full text)`);
       assert.ok(Array.isArray(r.effects) && r.effects.length, `${map}.${id}: effects`);
       for (const e of r.effects) {
         assert.ok(Object.hasOwn(ego.kinds, e.kind), `${map}.${id}: unknown kind ${e.kind}`);

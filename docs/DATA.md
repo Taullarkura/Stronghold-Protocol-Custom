@@ -772,6 +772,11 @@ definition. Never hand-edit it — change `shared/ego.js` and rebuild.
 | `burn` | `{"key":"ego:burn","perStack":3,"dmg":300,"chip":100,"maxStacks":999}` | 烧伤: one status whose `stacks` are layers, each worth `perStack` seconds — the clock spends one layer every 3 s, so N layers last N × 3 s — and a fixed 300 法术伤害 + 100 灼燃损伤 per second, never multiplied by the layer count |
 | `kinds` | `{"opMods":{"target":"own","params":["atk",…]},…}` | the closed set of effect kinds (`shared/ego.js EFFECT_KINDS`): fifteen `own` kinds (the 饰品 side, 烧伤 included) and eleven `enemy` kinds (the 苦难 side). An unknown kind is a build warning |
 
+`short` is **optional**: the pick card's one-line summary, carried only by a record whose `desc` is too long for the card
+(today only `flame-scales`) and capped at 60 characters by `validateEgo()`. A record without one shows its `desc` on the
+card, and the in-battle effect list shows the full `desc` either way. The pick screen used to render `desc` alone, whose
+length could overflow the card (the fix of 2026-10-21).
+
 A picked record becomes a `PlayerState.effects` entry with key `ego:<id>` (饰品) or `ego:hs:<id>` (苦难),
 `iconKind: 'ego'` and the full-strength effects in `params` — see [design/ego.md](design/ego.md) and §1.3 `ego`.
 

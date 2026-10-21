@@ -150,7 +150,7 @@ export function EgoView({
           ${timed ? html`<${Countdown} deadline=${ego.deadline} total=${total ?? ego.turnSeconds ?? undefined} size="md" />` : null}
         </div>
       </header>
-      <p class="egoov__note">${t('饰品强化我方，苦难强化敌方；第 14 / 15 回合苦难作用于全队，效果降为三分之一')}</p>
+      <p class="egoov__note">${t('饰品强化我方，苦难强化敌方；第 14 / 15 回合苦难作用于全队，效果降为三分之一。完整效果说明见战斗界面右侧效果栏')}</p>
       <div class="spov__grid spov__grid--3 egoov__grid">
         ${options.map((opt) => {
           const tr = opt.trinket || {};
@@ -173,7 +173,7 @@ export function EgoView({
                   <span class="spcard__tags"><span class="spcard__tag spcard__tag--team">${t('饰品')}</span></span>
                 </span>
               </span>
-              <${RichText} text=${tr.desc || ''} class="spcard__desc" />
+              <${RichText} text=${tr.short || tr.desc || ''} class="spcard__desc" />
             </span>
             ${hs ? html`<span class="egocard__part egocard__part--hardship">
               <span class="spcard__head">
@@ -183,7 +183,7 @@ export function EgoView({
                   <span class="spcard__tags"><span class="spcard__tag spcard__tag--coin">${t('苦难')}</span></span>
                 </span>
               </span>
-              <${RichText} text=${hs.desc || ''} class="spcard__desc" />
+              <${RichText} text=${hs.short || hs.desc || ''} class="spcard__desc" />
             </span>` : null}
             ${Number.isFinite(opt.tier) ? html`<${TierChip} tier=${opt.tier} size="md" class="spcard__tier" />` : null}
             ${isArmed ? html`<span class="spcard__confirm" role="status"><span class="spcard__cbox"><${Icon} name="check" /></span><b>${t('确认选择')}</b><small>${t('再次点击')}</small></span>` : null}

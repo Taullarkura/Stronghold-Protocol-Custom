@@ -50,7 +50,7 @@ export class MatchEgoPick {
     return {
       id: `ego.${this.round}.${ps.seat}`,
       refreshes: 0,
-      options: options.map((o) => ({ trinketId: o.trinket.id, hardshipId: o.hardship.id, tier: o.trinket.tier })),
+      options: options.map((o) => ({ trinketId: o.trinket.id, hardshipId: o.hardship.id, tier: o.tier })),
       picked: null,
     };
   }
@@ -89,10 +89,14 @@ export class MatchEgoPick {
     };
   }
 
-  /** The fields of a 饰品 / 苦难 record the interface shows. */
+  /**
+   * The fields of a 饰品 / 苦难 record the interface shows. `short` is the card's one-line summary (the pick overlay
+   * shows that, not `desc` — a long description overflowed the card), and the full `desc` is what the in-match effect
+   * list (public/js/ui/effectsList.js) reads from the player's `effects` entry.
+   */
   egoRecordView(rec) {
     if (!rec) return null;
-    return { id: rec.id, name: rec.name, desc: rec.desc, tier: rec.tier, icon: rec.icon || rec.id };
+    return { id: rec.id, name: rec.name, short: rec.short, desc: rec.desc, tier: rec.tier, icon: rec.icon || rec.id };
   }
 
   /** Players still undecided (the deadline resolves them). */

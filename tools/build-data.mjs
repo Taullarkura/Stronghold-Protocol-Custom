@@ -3268,7 +3268,7 @@ function buildEgoTrinkets() {
 /** One trinket / hardship record as data.json holds it (id-keyed, effects deep-copied, no frozen objects). */
 function egoRecord(rec) {
   return {
-    id: rec.id, name: rec.name, tier: rec.tier, icon: rec.icon, desc: rec.desc,
+    id: rec.id, name: rec.name, tier: rec.tier, icon: rec.icon, short: rec.short, desc: rec.desc,
     effects: rec.effects.map((e) => ({ kind: e.kind, params: { ...e.params } })),
   };
 }

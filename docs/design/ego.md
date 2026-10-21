@@ -73,9 +73,12 @@ frame rate and the golden results stay deterministic.
 ## Tiers and the draw
 
 Three tiers, I / II / III, rolled **before** the item at 60 / 30 / 10 %; inside a tier every record is equally likely
-(the owner's rule 「先抽阶、再在同阶里等概率抽饰品」). A draw does not repeat a trinket or a hardship among its three
-options; a tier that has run dry widens to the whole list minus what the draw already used, so an offer never comes back
-short. `rollEgoOffer` does this on a caller-owned rng stream.
+(the owner's rule 「先抽阶、再在同阶里等概率抽饰品」). **Both sides of a deal always come from the same tier**: the draw
+rolls a tier, takes one 饰品 and one 苦难 from the ones that tier still has, and pairs them. A draw does not repeat a
+trinket or a hardship among its three options, and a tier that has run dry on either side is **skipped, not widened**, so
+a tier III 饰品 never arrives with a tier I 苦难 and a tier with no 饰品 never appears at all. Only when the whole ladder
+is spent — a catalogue smaller than the offer — does an option repeat a record, and it repeats inside one tier. A draw
+never comes back short. `rollEgoOffer` does this on a caller-owned rng stream.
 
 **Determinism.** Each seat draws from `createRng(deriveSeed(seed, 'ego:<round>:<seat>:<salt>'))` — `salt` is `initial`
 for the first offer and `refresh:<n>` for the n-th refresh. The result therefore never depends on the order players act
@@ -100,8 +103,12 @@ rides that player's battle input (`egoSpawnMods`, `round.js` battleInput → pla
 `tools/build-data.mjs buildEgoTrinkets()` writes the file (`trinkets`, `hardships`, `tiers`, `rounds`, `bossRounds`,
 `bossDivisor`, `burn`, `kinds`). Never hand-edit it — see [DATA.md](../DATA.md) §19.
 
-Each record: `{ id, name, tier, icon, desc, effects: [{ kind, params }] }`. `icon` is the record's display name (art is
-found by `id`, see "The icons"); the client's icon family is `iconKind: 'ego'`.
+Each record: `{ id, name, tier, icon, short?, desc, effects: [{ kind, params }] }`. `short` is **optional** — it is the
+pick card's one-line summary and is carried only by a record whose `desc` is too long for the card (today only 炎鳞, whose
+three clauses of numbers and triggers used to overflow it). A record without one shows its `desc` on the card instead, and
+the right-hand effect list shows the full `desc` either way. `validateEgo()` caps `short` at 60 characters. `icon` is the
+record's display name (art is found by `id`, see "The icons"); the
+client's icon family is `iconKind: 'ego'`.
 
 The catalogue is the owner's design of 2026-10-20: six 饰品 of the 烧伤 school and eighteen 苦难. His numbers are used
 as written; a value his note left open is marked **[ASSUMED]** in `shared/ego.js` where it is set (折射's 70 RES / 20 s,
@@ -128,6 +135,10 @@ game-panels.css`, the `.spov` / `.spcard` baseline) because both are a two-tap p
 
 - **One card is one deal.** The card is cut in two halves — the 饰品 (`GIcon bolt`, tag 饰品) above the 苦难 (`GIcon
   skull`, tag 苦难) — with the pair's `TierChip` on the card. A card is never a lone trinket.
+- **A long description gets a summary** (the fix of 2026-10-21). Each half renders the record's `short` when it has one
+  and its `desc` otherwise: 炎鳞's three-clause text used to overflow the card, so it and only it carries a summary, while a
+  苦难 (one number per line) carries none. The full `desc` is read in battle in the right-hand effect list
+  (`effectsList.js`, the 饰品 family), and the half's `title` attribute still carries it on hover.
 - **Two taps, as everywhere else in the game.** The first tap arms a card (`.is-armed`, the others dim and the card
   shows `☑ 确认选择 · 再次点击`), the second sends `g.trinket`. A confirm button and `Escape` do the same thing, and a
   press outside the cards drops the selection (`egoTap` / `egoArmed` keep the state machine pure, as `choiceOverlay.js`

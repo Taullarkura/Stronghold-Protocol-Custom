@@ -40,12 +40,14 @@ const textOf = (v) => {
 };
 const hasClass = (v, c) => typeof v?.props?.class === 'string' && v.props.class.split(/\s+/).includes(c);
 
-const rec = (id, name, desc, tier = 1) => ({ id, name, desc, tier, icon: id });
+// `short` is an optional one-line summary for a record whose description is too long for the card; a record without
+// one shows its `desc` on the card too, and the in-match effect list always shows the full `desc`.
+const rec = (id, name, desc, tier = 1, short = undefined) => ({ id, name, desc, ...(short ? { short } : {}), tier, icon: id });
 const ego = (o = {}) => ({
   id: 'ego.1.0', round: 1, refreshes: 0, refreshMax: 2, refreshCost: 1, funds: 4, untimed: false,
   deadline: 1_700_000_008_000, turnSeconds: 25, picked: null,
   options: [
-    { idx: 0, tier: 1, trinket: rec('dust-to-dust', '尘归尘', '敌方单位出场时，获得 3 层「烧伤」。'), hardship: rec('sharpness-1', '锐利 I', '敌人攻击力 +15%。') },
+    { idx: 0, tier: 1, trinket: rec('dust-to-dust', '尘归尘', '敌方单位出场时，获得 3 层「烧伤」。', 1, '敌方出场即获得「烧伤」。'), hardship: rec('sharpness-1', '锐利 I', '敌人攻击力 +15%。') },
     { idx: 1, tier: 1, trinket: rec('smothered-flame', '郁火', '我方干员对带有「烧伤」的敌方单位造成伤害后，攻速 +10。'), hardship: rec('toughness-1', '强韧 I', '敌人生命上限 +15%，防御力 +15%。') },
     { idx: 2, tier: 2, trinket: rec('ashes-to-ashes', '土归土', '敌方单位出场时，获得 2 层「烧伤」，每层持续时间 +1 秒。', 2), hardship: rec('refraction-1', '折射 I', '敌人出场时获得「折射」，持续 20 秒。', 2) },
   ],
@@ -93,6 +95,12 @@ test('EgoView: three cards, each with its 饰品 over its 苦难, and the tier c
   }
   assert.match(textOf(cards[0]), /尘归尘/);
   assert.match(textOf(cards[0]), /锐利 I/);
+  // the card shows `short` when a record has one and its full `desc` when it does not (the effect list always shows
+  // the full text); descriptions are `RichText` props, not text children, so the walk reads `props.text`
+  const cardText = [...walk(cards[0])].map((n) => n.props?.text).filter((x) => typeof x === 'string');
+  assert.ok(cardText.includes('敌方出场即获得「烧伤」。'), 'the 饰品 half shows its short summary');
+  assert.ok(!cardText.some((x) => x.includes('3 层')), 'the full desc never reaches the card');
+  assert.ok(cardText.includes('敌人攻击力 +15%。'), 'a record without a summary falls back to its desc');
   assert.match(textOf(v), /E\.G\.O 抉择/);
   assert.ok(!cards.some((c) => c.props.disabled !== false), 'every card is pickable while nothing is picked');
 });

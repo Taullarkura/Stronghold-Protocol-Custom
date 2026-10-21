@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
-import { EGO_BOSS_DIVISOR } from '../../shared/ego.js';
+import { EGO_BOSS_DIVISOR, rollEgoOffer } from '../../shared/ego.js';
 import { makeMatch, DATA } from './harness.js';
 
 /** The option list of a seat as `[tier, trinketId, hardshipId]`, for stable comparisons. */
@@ -116,8 +116,15 @@ test('the offer: three options, one 饰品 + one 苦难 each, and it does not de
   for (const o of v.options) {
     assert.ok([1, 2, 3].includes(o.trinket.tier), `tier ${o.trinket.tier}`);
     assert.equal(o.tier, o.trinket.tier);
+    // the deal pairs same-tier records: a tier III 饰品 never comes with a tier I 苦难
+    assert.equal(o.hardship.tier, o.trinket.tier, `pair ${o.trinket.id} + ${o.hardship.id} is one tier`);
+    assert.equal(o.tier, o.hardship.tier);
     assert.equal(typeof o.trinket.name, 'string');
     assert.equal(typeof o.trinket.desc, 'string');
+    // `short` is optional: only a record whose description is too long for the card carries one, and the card falls
+    // back to `desc` when it is absent (design/ego.md, "The screen")
+    assert.ok(o.trinket.short === undefined || typeof o.trinket.short === 'string', 'a summary is a string when present');
+    assert.equal(typeof o.hardship.short, 'undefined', 'a hardship never carries a summary');
     assert.equal(typeof o.trinket.icon, 'string', 'the record icon (its display name)');
     assert.equal(typeof o.hardship.name, 'string');
     assert.ok(DATA['ego-trinkets'].trinkets[o.trinket.id], 'a record of the data file');
@@ -341,4 +348,30 @@ test('the prototype: g.trinket / g.trinketRefresh validate as wire messages', ()
   assert.equal(validateC2S({ t: 'g.trinket', idx: 3 }), 'bad field idx', 'EGO_OFFER_SIZE = 3');
   assert.equal(validateC2S({ t: 'g.trinket', idx: -1 }), 'bad field idx');
   assert.equal(validateC2S({ t: 'g.trinketRefresh', pickId: 7 }), 'bad field pickId');
+});
+
+test('rollEgoOffer: one deal is always one tier, even when a tier runs dry on a side', () => {
+  // a catalogue where tier 1 holds two 饰品 / three 苦难, and tier 3 a 苦难 but no 饰品 at all
+  const map = (rows) => Object.fromEntries(rows.map(([id, tier]) => [id, { id, tier }]));
+  const trinkets = map([['t1a', 1], ['t1b', 1], ['t2a', 2]]);
+  const hardships = map([['h1a', 1], ['h1b', 1], ['h1c', 1], ['h2a', 2], ['h3a', 3]]);
+  const tiers = [{ tier: 1, weight: 60 }, { tier: 2, weight: 30 }, { tier: 3, weight: 10 }];
+  // one deterministic stream per seed: the tier roll is where the two sides used to drift apart
+  const stream = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let seed = 1; seed <= 200; seed++) {
+    const offer = rollEgoOffer(stream(seed), { trinkets, hardships, tiers, count: 3 });
+    // three 饰品 exist, so a three-option draw is full and repeats neither side
+    assert.equal(offer.length, 3, `seed ${seed}: a full draw`);
+    assert.equal(new Set(offer.map((o) => o.trinket.id)).size, 3, `seed ${seed}: no repeated 饰品`);
+    assert.equal(new Set(offer.map((o) => o.hardship.id)).size, 3, `seed ${seed}: no repeated 苦难`);
+    for (const o of offer) {
+      assert.equal(o.hardship.tier, o.trinket.tier, `seed ${seed}: ${o.trinket.id} + ${o.hardship.id} share a tier`);
+      assert.equal(o.tier, o.trinket.tier);
+      assert.notEqual(o.trinket.tier, 3, `seed ${seed}: tier 3 has no 饰品, so it is never drawable`);
+    }
+    // the ladder is exhausted after three: a fourth option repeats inside a tier instead of pairing across them
+    const more = rollEgoOffer(stream(seed), { trinkets, hardships, tiers, count: 4 });
+    assert.equal(more.length, 4, `seed ${seed}: a draw never comes back short`);
+    for (const o of more) assert.equal(o.hardship.tier, o.trinket.tier, `seed ${seed}: the repeat stays in its tier`);
+  }
 });

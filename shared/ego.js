@@ -189,6 +189,7 @@ export const TRINKETS = Object.freeze([
   }),
   Object.freeze({
     id: 'flame-scales', name: '炎鳞', tier: 3, icon: '炎鳞',
+    short: '带有烧伤的敌人根据层数受到的伤害增加，烧伤效果结束时或烧伤层数过高时受到一次高额引爆伤害',
     desc: '带有「烧伤」的敌方单位受到的伤害 +（烧伤层数 × 10%）。「烧伤」结束时，额外受到一次（已激活盟约总层数 × 烧伤层数 × 10）点法术伤害，至少 2500 点。被施加「烧伤」时若层数高于 10 层，消耗 10 层并立刻受到（已激活盟约总层数 × 100）点法术伤害。',
     effects: [
       { kind: 'burnVuln', params: { perStack: 10 } },
@@ -314,8 +315,11 @@ export const HARDSHIPS = Object.freeze([
 /**
  * One draw of the pick window: `count` options, each `{ trinket, hardship, tier }`.
  * The todoList's rule is 「先抽阶、再在同阶里等概率抽饰品」, so the tier is rolled on `tiers` (60/30/10) and the item is
- * picked uniformly among the records of that tier; no trinket repeats inside one draw, and neither does a hardship
- * (a repeat is only allowed when the tier or the pool has run out, so a draw never comes back short).
+ * picked uniformly among the records of that tier; no trinket repeats inside one draw, and neither does a hardship.
+ * A deal pairs a 饰品 with a 苦难 **of the same tier** (the pair is the deal): only a tier that still holds a fresh
+ * record on BOTH sides is drawable, so a tier that has run dry on either side is skipped, never widened across tiers —
+ * a tier III 饰品 can never come with a tier I 苦难. When the ladder holds no fresh pair at all (a tiny catalogue), a
+ * repeat inside one tier is allowed rather than breaking the pair, so a draw never comes back short.
  * @param {() => number} rng seeded rng (server/sim/rng.js) — the caller owns the stream
  * @param {{trinkets?: object, hardships?: object, tiers?: ReadonlyArray<{tier:number,weight:number}>, count?: number}} opts
  * @returns {Array<{trinket: object, hardship: object, tier: number}>}
@@ -329,16 +333,24 @@ export function rollEgoOffer(rng, { trinkets, hardships, tiers = EGO_TIERS, coun
   const usedT = new Set();
   const usedH = new Set();
   const out = [];
+  /** The tiers that can still pair one 饰品 with one 苦难 (`allowUsed`: ignore what this draw already spent). */
+  const drawable = (allowUsed) => table.filter((t) => {
+    const ts = byTier(trinkets, t.tier).filter((r) => allowUsed || !usedT.has(r.id));
+    const hs = byTier(hardships, t.tier).filter((r) => allowUsed || !usedH.has(r.id));
+    return ts.length && hs.length;
+  });
   for (let i = 0; i < count; i++) {
-    const tier = rollTier(rng, table);
-    const tPool = byTier(trinkets, tier).filter((r) => !usedT.has(r.id));
-    const hPool = byTier(hardships, tier).filter((r) => !usedH.has(r.id));
-    const trinket = pickFresh(rng, tPool, allTrinkets, usedT);
-    const hardship = pickFresh(rng, hPool, allHardships, usedH);
+    const fresh = drawable(false);
+    const repeat = !fresh.length;
+    const bucket = repeat ? drawable(true) : fresh;
+    if (!bucket.length) break;
+    const tier = rollTier(rng, bucket);
+    const trinket = pickOne(rng, byTier(trinkets, tier).filter((r) => repeat || !usedT.has(r.id)));
+    const hardship = pickOne(rng, byTier(hardships, tier).filter((r) => repeat || !usedH.has(r.id)));
     if (!trinket || !hardship) break;
     usedT.add(trinket.id);
     usedH.add(hardship.id);
-    out.push({ trinket, hardship, tier: trinket.tier });
+    out.push({ trinket, hardship, tier });
   }
   return out;
 }
@@ -356,11 +368,10 @@ function rollTier(rng, table) {
   return table[table.length - 1].tier;
 }
 
-/** Uniform pick from `pool`, else from `fallback` minus `used` (a tier that ran dry widens to the whole list). */
-function pickFresh(rng, pool, fallback, used) {
-  const list = pool.length ? pool : fallback.filter((r) => !used.has(r.id));
-  if (!list.length) return null;
-  return list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
+/** Uniform pick from `pool`; null when it is empty (the caller already decided what is drawable). */
+function pickOne(rng, pool) {
+  if (!pool.length) return null;
+  return pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))];
 }
 
 /**
@@ -380,6 +391,13 @@ export function validateEgo(trinkets = TRINKETS, hardships = HARDSHIPS) {
       else seen.add(rec.id);
       if (!tiers.has(rec.tier)) errors.push(`${label} ${rec.id}: unknown tier ${rec.tier}`);
       if (typeof rec.name !== 'string' || !rec.name) errors.push(`${label} ${rec.id}: missing name`);
+      // `short` is optional and belongs only to a record whose `desc` is too long for the card (design/ego.md, "The
+      // screen"): the card falls back to `desc` when it is absent, and the full text always lives in the effect list
+      if (rec.short !== undefined && (typeof rec.short !== 'string' || !rec.short)) {
+        errors.push(`${label} ${rec.id}: short must be a non-empty string`);
+      } else if (typeof rec.short === 'string' && rec.short.length > 60) {
+        errors.push(`${label} ${rec.id}: short is ${rec.short.length} chars (the card fits 60)`);
+      }
       if (typeof rec.icon !== 'string' || !rec.icon) errors.push(`${label} ${rec.id}: missing icon (the display name)`);
       if (!Array.isArray(rec.effects) || !rec.effects.length) { errors.push(`${label} ${rec.id}: no effects`); continue; }
       for (const eff of rec.effects) {

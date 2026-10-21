@@ -2418,5 +2418,5 @@
   "选择一件饰品与一项苦难": "Choose one Trinket and one Hardship",
   "{n} 位博士尚未选择": "{n} Doctors have not chosen yet",
   "花 1 资金重抽三选一": "Spend 1 fund to redraw all three",
-  "饰品强化我方，苦难强化敌方；第 14 / 15 回合苦难作用于全队，效果降为三分之一": "A Trinket strengthens you, a Hardship strengthens the enemies; on rounds 14 / 15 a Hardship reaches the whole team at a third of its values"
+  "饰品强化我方，苦难强化敌方；第 14 / 15 回合苦难作用于全队，效果降为三分之一。完整效果说明见战斗界面右侧效果栏": "A Trinket strengthens you, a Hardship strengthens the enemies; on rounds 14 / 15 a Hardship reaches the whole team at a third of its values. The full effect text is in the battle screen's right-hand effect list"
 }
